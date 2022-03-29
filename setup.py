@@ -15,5 +15,5 @@ setuptools.setup(name = "tfdet",
                  long_description_content_type = "text/markdown",
                  license = "Apache License 2.0",
                  install_requires = ["tensorflow>=2.4", "keras"],
-                 py_modules = setuptools.find_packages(),
+                 packages = setuptools.find_packages(),
                  zip_safe = False)
