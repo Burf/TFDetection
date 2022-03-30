@@ -67,7 +67,7 @@ def rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_d
 
     _proposals = Rpn2Proposal(proposal_count, iou_threshold, soft_nms, valid, performance_count, batch_size, mean, std, clip_ratio, name = "rpn_to_proposal")([rpn_score, rpn_regress], anchors)
     sampling_tag = None
-    if isinstance(sampling_count, int):
+    if isinstance(sampling_count, int) and 0 < sampling_count:
         y_true = tf.keras.layers.Input(shape = (None, None), name = "y_true", dtype = rpn_score.dtype) #(batch_size, padded_num_true, 1 or n_class)
         bbox_true = tf.keras.layers.Input(shape = (None, 4), name = "bbox_true", dtype = rpn_regress.dtype) #(batch_size, padded_num_true, 4)
         mask_true = tf.keras.layers.Input(shape = (None, None, None), name = "mask_true", dtype = rpn_score.dtype) if mask or semantic_feature else None #(batch_size, padded_num_true, h, w)
