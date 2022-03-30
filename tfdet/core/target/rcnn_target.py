@@ -29,7 +29,7 @@ def rpn_target(bbox_true, rpn_score, rpn_regress, anchors, sampling_count = 256,
     positive_indices = tf.where(rpn_match == 1)[:, 0]
     negative_indices = tf.where(rpn_match == -1)[:, 0]
     
-    if sampling_count is not None:
+    if isinstance(sampling_count, int) and 0 < sampling_count:
         positive_count = tf.cast(sampling_count * positive_ratio, tf.int32)
         positive_indices = tf.random.shuffle(positive_indices)[:positive_count]
         positive_count = tf.cast(tf.shape(positive_indices)[0], tf.float32)

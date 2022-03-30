@@ -27,7 +27,7 @@ def yolo_target(y_true, bbox_true, score_pred, logit_pred, bbox_pred, anchors, s
     positive_indices = tf.where(score_true == 1)[:, 0]
     negative_indices = tf.where(score_true == -1)[:, 0]
     
-    if sampling_count is not None:
+    if isinstance(sampling_count, int) and 0 < sampling_count:
         positive_count = tf.cast(sampling_count * positive_ratio, tf.int32)
         positive_indices = tf.random.shuffle(positive_indices)[:positive_count]
         positive_count = tf.cast(tf.shape(positive_indices)[0], tf.float32)
