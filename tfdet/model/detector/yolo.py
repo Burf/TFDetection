@@ -2,7 +2,7 @@ import os
 import tensorflow as tf
 import numpy as np
 
-from tfdet.core.util.anchor import generate_anchors
+from tfdet.core.util.anchor import generate_yolo_anchors
 from ..backbone.darknet import darknet_conv_block, darknet53, darknet19
 from ..head.yolo import yolo_conv_block, yolo_classifier
 
@@ -16,7 +16,10 @@ def normalize(axis = -1, **kwargs):
     return tf.keras.layers.BatchNormalization(axis = axis, **kwargs)
 
 def yolo(x, n_class = 80,
-         scale = [0.035, 0.105, 0.315], ratio = [0.5, 1, 2], auto_scale = True,
+         size = [[0.01645, 0.02138], [0.02632, 0.04934], [0.05428, 0.03783],
+                 [0.04934, 0.10033], [0.10197, 0.07401], [0.09704, 0.19572],
+                 [0.19079, 0.14803], [0.25658, 0.32566], [0.61349, 0.53618]], 
+         auto_size = True,
          tiny = False, csp = True, shared = True, method = "nearest",
          normalize = normalize, activation = mish, post_activation = leaky_relu,
          weights = "darknet"):
@@ -24,12 +27,12 @@ def yolo(x, n_class = 80,
     result = []
     if tiny:
         feature = darknet19(x, csp = csp, normalize = normalize, activation = activation, weights = weights)
-        n_anchor = len(scale) * len(ratio)
-        if isinstance(scale, list) and isinstance(scale[0], list):
-            n_anchor = len(scale[0]) * len(ratio)
-        elif auto_scale and (len(scale) % len(feature)) == 0:
-            n_anchor = (len(scale) // len(feature)) * len(ratio)
-        anchors = generate_anchors(feature, image_shape, scale, ratio, normalize = True, auto_scale = auto_scale)
+        n_anchor = len(size)
+        if isinstance(size, list) and isinstance(size[0], list) and isinstance(size[0][0], list):
+            n_anchor = len(size[0][0])
+        elif auto_size and (len(size) % len(feature)) == 0:
+            n_anchor = len(size) // len(feature)
+        anchors = generate_yolo_anchors(feature, image_shape, size, normalize = True, auto_size = auto_size)
         
         out = feature[-1]
         out = darknet_conv_block(out, 256, 1, normalize = normalize, activation = post_activation)
@@ -46,12 +49,12 @@ def yolo(x, n_class = 80,
         result = result[::-1]
     else:
         feature = darknet53(x, csp = csp, normalize = normalize, activation = activation, weights = weights)
-        n_anchor = len(scale) * len(ratio)
-        if isinstance(scale, list) and isinstance(scale[0], list):
-            n_anchor = len(scale[0]) * len(ratio)
-        elif auto_scale and (len(scale) % len(feature)) == 0:
-            n_anchor = (len(scale) // len(feature)) * len(ratio)
-        anchors = generate_anchors(feature, image_shape, scale, ratio, normalize = True, auto_scale = auto_scale)
+        n_anchor = len(size)
+        if isinstance(size, list) and isinstance(size[0], list) and isinstance(size[0][0], list):
+            n_anchor = len(size[0][0])
+        elif auto_size and (len(size) % len(feature)) == 0:
+            n_anchor = len(size) // len(feature)
+        anchors = generate_yolo_anchors(feature, image_shape, size, normalize = True, auto_size = auto_size)
         
         out = feature[-1]
         if csp:
@@ -189,9 +192,12 @@ def load_weight(model, path, n_class = 80, only_darknet = True):
         l.set_weights(head_convs.pop(0))
     return model
 
-def yolo_v3(x, n_class = 80, scale = [0.035, 0.105, 0.315], ratio = [0.5, 1, 2], auto_scale = True, shared = True, method = "nearest",
+def yolo_v3(x, n_class = 80, size = [[0.01645, 0.02138], [0.02632, 0.04934], [0.05428, 0.03783],
+                                     [0.04934, 0.10033], [0.10197, 0.07401], [0.09704, 0.19572],
+                                     [0.19079, 0.14803], [0.25658, 0.32566], [0.61349, 0.53618]], 
+            auto_size = True, shared = True, method = "nearest",
             normalize = normalize, activation = mish, post_activation = leaky_relu, weights = "darknet"):
-    out = yolo(x, n_class, scale = scale, ratio = ratio, auto_scale = auto_scale, tiny = False, csp = False, shared = shared, method = method, normalize = normalize, activation = activation, post_activation = post_activation, weights = "darknet" if weights == "darknet" else None)
+    out = yolo(x, n_class, size = size, auto_size = auto_size, tiny = False, csp = False, shared = shared, method = method, normalize = normalize, activation = activation, post_activation = post_activation, weights = "darknet" if weights == "darknet" else None)
     
     if weights is not None and weights != "darknet":
         model = tf.keras.Model(x, out[:-1])
@@ -201,9 +207,12 @@ def yolo_v3(x, n_class = 80, scale = [0.035, 0.105, 0.315], ratio = [0.5, 1, 2],
             model.load_weights(weights)
     return out
 
-def yolo_tiny_v3(x, n_class = 80, scale = [0.075, 0.4], ratio = [0.5, 1, 2], auto_scale = True, shared = True, method = "nearest",
+def yolo_tiny_v3(x, n_class = 80, size = [[0.01645, 0.02138], [0.02632, 0.04934], [0.05428, 0.03783],
+                                          [0.04934, 0.10033], [0.10197, 0.07401], [0.09704, 0.19572],
+                                          [0.19079, 0.14803], [0.25658, 0.32566], [0.61349, 0.53618]], 
+                 auto_size = True, shared = True, method = "nearest",
                  normalize = normalize, activation = mish, post_activation = leaky_relu, weights = "darknet"):
-    out = yolo(x, n_class, scale = scale, ratio = ratio, auto_scale = auto_scale, tiny = True, csp = False, shared = shared, method = method, normalize = normalize, activation = activation, post_activation = post_activation, weights = "darknet" if weights == "darknet" else None)
+    out = yolo(x, n_class, size = size, auto_size = auto_size, tiny = True, csp = False, shared = shared, method = method, normalize = normalize, activation = activation, post_activation = post_activation, weights = "darknet" if weights == "darknet" else None)
     
     if weights is not None and weights != "darknet":
         model = tf.keras.Model(x, out[:-1])
@@ -213,9 +222,12 @@ def yolo_tiny_v3(x, n_class = 80, scale = [0.075, 0.4], ratio = [0.5, 1, 2], aut
             model.load_weights(weights)
     return out
 
-def yolo_v4(x, n_class = 80, scale = [0.035, 0.105, 0.315], ratio = [0.5, 1, 2], auto_scale = True, shared = True, method = "nearest",
+def yolo_v4(x, n_class = 80, size = [[0.01645, 0.02138], [0.02632, 0.04934], [0.05428, 0.03783],
+                                     [0.04934, 0.10033], [0.10197, 0.07401], [0.09704, 0.19572],
+                                     [0.19079, 0.14803], [0.25658, 0.32566], [0.61349, 0.53618]], 
+            auto_size = True, shared = True, method = "nearest",
             normalize = normalize, activation = mish, post_activation = leaky_relu, weights = "darknet"):
-    out = yolo(x, n_class, scale = scale, ratio = ratio, auto_scale = auto_scale, tiny = False, csp = True, shared = shared, method = method, normalize = normalize, activation = activation, post_activation = post_activation, weights = "darknet" if weights == "darknet" else None)
+    out = yolo(x, n_class, size = size, auto_size = auto_size, tiny = False, csp = True, shared = shared, method = method, normalize = normalize, activation = activation, post_activation = post_activation, weights = "darknet" if weights == "darknet" else None)
     
     if weights is not None and weights != "darknet":
         model = tf.keras.Model(x, out[:-1])
@@ -225,9 +237,12 @@ def yolo_v4(x, n_class = 80, scale = [0.035, 0.105, 0.315], ratio = [0.5, 1, 2],
             model.load_weights(weights)
     return out
 
-def yolo_tiny_v4(x, n_class = 80, scale = [0.075, 0.4], ratio = [0.5, 1, 2], auto_scale = True, shared = True, method = "nearest",
+def yolo_tiny_v4(x, n_class = 80, size = [[0.01645, 0.02138], [0.02632, 0.04934], [0.05428, 0.03783],
+                                          [0.04934, 0.10033], [0.10197, 0.07401], [0.09704, 0.19572],
+                                          [0.19079, 0.14803], [0.25658, 0.32566], [0.61349, 0.53618]], 
+                 auto_size = True, shared = True, method = "nearest",
                  normalize = normalize, activation = mish, post_activation = leaky_relu, weights = "darknet"):
-    out = yolo(x, n_class, scale = scale, ratio = ratio, auto_scale = auto_scale, tiny = True, csp = True, shared = shared, method = method, normalize = normalize, activation = activation, post_activation = post_activation, weights = "darknet" if weights == "darknet" else None)
+    out = yolo(x, n_class, size = size, auto_size = auto_size, tiny = True, csp = True, shared = shared, method = method, normalize = normalize, activation = activation, post_activation = post_activation, weights = "darknet" if weights == "darknet" else None)
     
     if weights is not None and weights != "darknet":
         model = tf.keras.Model(x, out[:-1])
