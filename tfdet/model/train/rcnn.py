@@ -3,13 +3,13 @@ import tensorflow as tf
 from tfdet.core.target import rpn_target, sampling_postprocess, cls_target, mask_target
 from tfdet.core.util.loss import regularize_loss
 from tfdet.core.util.tf import map_fn
-from ..loss.rcnn import score_loss, logits_accuracy, logits_loss, regress_loss, mask_loss, semantic_loss
+from ..loss.rcnn import score_accuracy, score_loss, logits_accuracy, logits_loss, regress_loss, mask_loss, semantic_loss
 
 def train_model(input, rpn_score = None, rpn_regress = None, cls_logits = None, cls_regress = None, proposals = None, anchors = None, mask_regress = None, semantic_regress = None,
                 sampling_tag = None, sampling_count = 256,
                 rpn_positive_ratio = 0.5, rpn_positive_threshold = 0.7, rpn_negative_threshold = 0.3, 
                 cls_positive_ratio = 0.25, cls_positive_threshold = 0.5, cls_negative_threshold = 0.5,
-                batch_size = 1, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], method = "bilinear", regularize = True, weight_decay = 1e-4, focal = True, alpha = 1., gamma = 2., sigma = 1, class_weight = None, stage_weight = [1.0, 0.5, 0.25], semantic_weight = 0.2, missing_value = 0.):
+                batch_size = 1, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], method = "bilinear", regularize = True, weight_decay = 1e-4, focal = True, alpha = 1., gamma = 2., sigma = 1, class_weight = None, stage_weight = [1.0, 0.5, 0.25], semantic_weight = 0.2, threshold = 0.5, missing_value = 0.):
     """
     y_true > #(batch_size, padded_num_true, 1 or n_class)
     bbox_true > #(batch_size, padded_num_true, 4)
@@ -35,8 +35,11 @@ def train_model(input, rpn_score = None, rpn_regress = None, cls_logits = None, 
         anchors = tf.tile(tf.expand_dims(anchors, axis = 0), [tf.shape(input)[0], 1, 1])
         rpn_match, rpn_bbox_true, rpn_score, rpn_bbox_pred = tf.keras.layers.Lambda(lambda args: map_fn(rpn_target, *args, dtype = (tf.int32, bbox_true.dtype, rpn_score.dtype, rpn_regress.dtype), batch_size = batch_size, 
                                                                                                         sampling_count = sampling_count, positive_ratio = rpn_positive_ratio, positive_threshold = rpn_positive_threshold, negative_threshold = rpn_negative_threshold, mean = mean, std = std), name = "rpn_target")([bbox_true, rpn_score, rpn_regress, anchors])
+        
+        rpn_score_accuracy = tf.keras.layers.Lambda(lambda args: score_accuracy(*args, threshold = threshold, missing_value = missing_value), name = "rpn_score_accuracy")([rpn_match, rpn_score])
         rpn_score_loss = tf.keras.layers.Lambda(lambda args: score_loss(*args, missing_value = missing_value), name = "rpn_score_loss")([rpn_match, rpn_score])
         rpn_regress_loss = tf.keras.layers.Lambda(lambda args: regress_loss(*args, sigma = sigma, missing_value = missing_value), name = "rpn_regress_loss")([rpn_match, rpn_bbox_true, rpn_bbox_pred])
+        metric["rpn_score_accuracy"] = rpn_score_accuracy
         loss["rpn_score_loss"] = rpn_score_loss
         loss["rpn_regress_loss"] = rpn_regress_loss
     

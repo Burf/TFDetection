@@ -2,6 +2,24 @@ import tensorflow as tf
 
 from tfdet.core.util.overlap import overlap_bbox
 
+def score_accuracy(score_true, score_pred, threshold = 0.5, missing_value = 0.):
+    """
+    score_true = -1 : negative / 0 : neutral / 1 : positive #(batch_size, sampling_count, 1)
+    score_pred = confidence score for FG/BG #(batch_size, sampling_count, 1)
+    """
+    match_score = tf.cast(tf.equal(score_true, 1), tf.int32)
+    indices = tf.where(tf.not_equal(score_true, 0))
+    score = tf.gather_nd(score_pred, indices)
+    match_score = tf.gather_nd(match_score, indices)
+
+    match_score = tf.expand_dims(tf.cast(match_score, score_pred.dtype), axis = -1)
+    score = tf.expand_dims(tf.clip_by_value(score, tf.keras.backend.epsilon(), 1 - tf.keras.backend.epsilon()), axis = -1)
+    score = tf.cast(tf.greater_equal(score, threshold), score.dtype)
+  
+    accuracy = tf.reduce_mean(tf.cast(tf.equal(match_score, score), tf.float32))
+    accuracy = tf.where(tf.math.is_nan(accuracy), missing_value, accuracy)
+    return accuracy
+
 def score_loss(score_true, score_pred, focal = True, missing_value = 0.):
     """
     score_true = -1 : negative / 0 : neutral / 1 : positive #(batch_size, sampling_count, 1)
@@ -39,7 +57,6 @@ def logits_accuracy(score_true, logit_true, logit_pred, missing_value = 0.):
     logit_true = tf.gather_nd(logit_true, true_indices)
     logit_pred = tf.gather_nd(logit_pred, true_indices)
 
-    
     logit_true = tf.cond(tf.equal(n_true_class, 1), true_fn = lambda: logit_true[..., 0], false_fn = lambda: tf.cast(tf.argmax(logit_true, axis = -1), logit_true.dtype))
     logit_pred = tf.argmax(logit_pred, axis = -1)
     logit_true = tf.cast(logit_true, logit_pred.dtype)
