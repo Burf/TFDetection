@@ -27,8 +27,8 @@ TFDetection is an object detection toolbox based on Tensorflow2. TFDetection sup
           <li>FCOS(2019)</li>
           <li>Hybrid Task Cascade R-CNN(2019)</li>
           <li>EfficientDet(2019)</li>
-          <li>Yolov4(2020)</li>
-          <li>Yolov4 Tiny(2020)</li>
+          <li>YoloV4(2020)</li>
+          <li>YoloV4 Tiny(2020)</li>
           <li>EfficientDet Lite(2020)</li>
         </ul>
       </td>
