@@ -207,9 +207,8 @@ def yolo_v3(x, n_class = 80, size = [[0.01645, 0.02138], [0.02632, 0.04934], [0.
             model.load_weights(weights)
     return out
 
-def yolo_tiny_v3(x, n_class = 80, size = [[0.01645, 0.02138], [0.02632, 0.04934], [0.05428, 0.03783],
-                                          [0.04934, 0.10033], [0.10197, 0.07401], [0.09704, 0.19572],
-                                          [0.19079, 0.14803], [0.25658, 0.32566], [0.61349, 0.53618]], 
+def yolo_tiny_v3(x, n_class = 80, size = [[0.05529, 0.06490], [0.08894, 0.13942], [0.19471, 0.19712],
+                                          [0.19471, 0.19712], [0.32452, 0.40625], [0.82692, 0.76683]],
                  auto_size = True, shared = True, method = "nearest",
                  normalize = normalize, activation = mish, post_activation = leaky_relu, weights = "darknet"):
     out = yolo(x, n_class, size = size, auto_size = auto_size, tiny = True, csp = False, shared = shared, method = method, normalize = normalize, activation = activation, post_activation = post_activation, weights = "darknet" if weights == "darknet" else None)
@@ -237,9 +236,8 @@ def yolo_v4(x, n_class = 80, size = [[0.01645, 0.02138], [0.02632, 0.04934], [0.
             model.load_weights(weights)
     return out
 
-def yolo_tiny_v4(x, n_class = 80, size = [[0.01645, 0.02138], [0.02632, 0.04934], [0.05428, 0.03783],
-                                          [0.04934, 0.10033], [0.10197, 0.07401], [0.09704, 0.19572],
-                                          [0.19079, 0.14803], [0.25658, 0.32566], [0.61349, 0.53618]], 
+def yolo_tiny_v4(x, n_class = 80, size = [[0.05529, 0.06490], [0.08894, 0.13942], [0.19471, 0.19712],
+                                          [0.19471, 0.19712], [0.32452, 0.40625], [0.82692, 0.76683]],
                  auto_size = True, shared = True, method = "nearest",
                  normalize = normalize, activation = mish, post_activation = leaky_relu, weights = "darknet"):
     out = yolo(x, n_class, size = size, auto_size = auto_size, tiny = True, csp = True, shared = shared, method = method, normalize = normalize, activation = activation, post_activation = post_activation, weights = "darknet" if weights == "darknet" else None)
