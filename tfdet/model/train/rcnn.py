@@ -14,6 +14,14 @@ def train_model(input, rpn_score = None, rpn_regress = None, cls_logits = None, 
     y_true > #(batch_size, padded_num_true, 1 or n_class)
     bbox_true > #(batch_size, padded_num_true, 4)
     mask_true > #(batch_size, padded_num_true, h, w)
+    
+    train rpn > train_model(x, rpn_score, rpn_regress, anchors = anchors)
+    train cls > train_model(x, cls_logits = cls_logits, cls_regress = cls_regress, proposals = proposals)
+    train mask > train_model(x, cls_logits = cls_logits, cls_regress = cls_regress, proposals = proposals, mask_regress = mask_regress)
+    train semantic context > train_model(x, cls_logits = cls_logits, cls_regress = cls_regress, proposals = proposals, semantic_regress = semantic_regress)
+    train total > train_model(x, rpn_score, rpn_regress, cls_logits, cls_regress, proposals, anchors, mask_regress, semantic_regress)
+    train sampling_cls + mask = train_model(x, sampling_tag = sampling_tag)
+    train rpn + sampling_cls + mask = train_model(x, rpn_score, rpn_regress, anchors = anchors, sampling_tag = sampling_tag)
     """
     if isinstance(mask_regress, dict):
         sampling_tag = mask_regress
