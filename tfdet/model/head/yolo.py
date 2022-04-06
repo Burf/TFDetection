@@ -29,4 +29,9 @@ def yolo_classifier(x, n_class, n_feature, n_anchor = 3, shared = True, normaliz
         score = tf.keras.layers.Reshape((-1, 1))(score)
         logits = tf.keras.layers.Reshape((-1, n_class))(logits)
         regress = tf.keras.layers.Reshape((-1, 4))(regress)
+    xy, wh = tf.split(regress, num_or_size_splits = [2, 2], axis = -1)
+    xy = tf.keras.layers.Activation(tf.keras.activations.sigmoid)(xy)
+    score = tf.keras.layers.Activation(tf.keras.activations.sigmoid)(score)
+    logits = tf.keras.layers.Activation(tf.keras.activations.sigmoid)(logits)
+    regress = tf.keras.layers.Concatenate(axis = -1)([xy, wh])
     return [score, logits, regress]

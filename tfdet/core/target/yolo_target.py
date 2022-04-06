@@ -1,9 +1,9 @@
 import tensorflow as tf
 
-from ..util.bbox import delta2bbox
+from ..util.bbox import yolo2bbox
 from ..util.overlap import overlap_bbox
 
-def yolo_target(y_true, bbox_true, score_pred, logit_pred, bbox_pred, anchors, sampling_count = 256, positive_ratio = 0.5, positive_threshold = 0.5, negative_threshold = 0.5, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000):
+def yolo_target(y_true, bbox_true, score_pred, logit_pred, bbox_pred, anchors, sampling_count = 256, positive_ratio = 0.5, positive_threshold = 0.5, negative_threshold = 0.5, clip_ratio = 16 / 1000):
     """
     y_true = label #(padded_num_true, 1 or num_class)
     bbox_true = [[x1, y1, x2, y2], ...] #(padded_num_true, bbox)
@@ -47,7 +47,7 @@ def yolo_target(y_true, bbox_true, score_pred, logit_pred, bbox_pred, anchors, s
     bbox_pred = tf.gather(bbox_pred, positive_indices)
     anchors = tf.gather(anchors, positive_indices)
     if tf.keras.backend.int_shape(true_indices)[0] != 0:
-        bbox_pred = delta2bbox(anchors, bbox_pred, mean, std, clip_ratio)
+        bbox_pred = yolo2bbox(anchors, bbox_pred, clip_ratio)
     
     n_class = tf.shape(logit_true)[-1]
     negative_count = tf.shape(negative_indices)[0]

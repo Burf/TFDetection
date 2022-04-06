@@ -49,6 +49,24 @@ def delta2bbox(bbox, delta, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2],
     bbox = tf.stack([x1, y1, x2, y2], axis = -1)
     return bbox
 
+def yolo2bbox(bbox, delta, clip_ratio = 16 / 1000):
+    h = bbox[..., 3] - bbox[..., 1]
+    w = bbox[..., 2] - bbox[..., 0]
+    x1 = bbox[..., 0] + delta[..., 0] * w
+    y1 = bbox[..., 1] + delta[..., 1] * h
+    delta_h = delta[..., 3]
+    delta_w = delta[..., 2]
+    if isinstance(clip_ratio, float):
+        clip_value = tf.math.abs(tf.math.log(clip_ratio))
+        delta_h = tf.clip_by_value(delta_h, -clip_value, clip_value)
+        delta_w = tf.clip_by_value(delta_w, -clip_value, clip_value)
+    h *= tf.exp(delta_h)
+    w *= tf.exp(delta_w)
+    x2 = x1 + w
+    y2 = y1 + h
+    bbox = tf.stack([x1, y1, x2, y2], axis = -1)
+    return bbox
+
 def bbox2offset(bbox_true, points):
     x1, y1, x2, y2 = tf.split(bbox_true, 4, axis = -1)
     px, py = tf.split(points, 2, axis = -1)
