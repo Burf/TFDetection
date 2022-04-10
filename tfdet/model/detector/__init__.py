@@ -7,3 +7,7 @@ from .fcos import fcos
 from .rcnn import rcnn, faster_rcnn, mask_rcnn, cascade_rcnn, hybrid_task_cascade_rcnn
 from .retina import retinanet
 from .yolo import yolo_v3, yolo_tiny_v3, yolo_v4, yolo_tiny_v4
+
+from .spade import spade
+from .padim import padim
+from .patch_core import patch_core

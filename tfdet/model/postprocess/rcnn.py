@@ -3,7 +3,7 @@ import tensorflow as tf
 from tfdet.core.util.bbox import delta2bbox
 from tfdet.core.util.tf import map_fn
 
-def filter_detection(cls_logit, cls_regress, proposal, mask_regress = None, proposal_count = 100, iou_threshold = 0.3, score_threshold = 0.7, soft_nms = True, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000):
+def filter_detection(cls_logit, cls_regress, proposal, mask_regress = None, proposal_count = 100, iou_threshold = 0.3, score_threshold = 0.7, soft_nms = False, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000):
     """
     cls_logit = classifier logit #(num_proposals, num_class)
     cls_regress = classifier regress #(num_proposals, num_class, delta)
@@ -98,10 +98,19 @@ def filter_detection(cls_logit, cls_regress, proposal, mask_regress = None, prop
     return result
 
 class FilterDetection(tf.keras.layers.Layer):
-    def __init__(self, **kwargs):
+    def __init__(self, proposal_count = 100, iou_threshold = 0.3, score_threshold = 0.7, soft_nms = False, ensemble = True, batch_size = 1, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, **kwargs):
         super(FilterDetection, self).__init__(**kwargs)
+        self.proposal_count = proposal_count
+        self.iou_threshold = iou_threshold
+        self.score_threshold = score_threshold
+        self.soft_nms = soft_nms
+        self.ensemble = ensemble
+        self.batch_size = batch_size
+        self.mean = mean
+        self.std = std
+        self.clip_ratio = clip_ratio
 
-    def call(self, inputs, proposal_count = 100, iou_threshold = 0.3, score_threshold = 0.7, soft_nms = True, ensemble = True, batch_size = 1, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000):
+    def call(self, inputs):
         if 5 < len(inputs):
             inputs = inputs[2:5] + inputs[6:7]       
         cls_logits, cls_regress, proposals = inputs[:3]
@@ -109,13 +118,27 @@ class FilterDetection(tf.keras.layers.Layer):
         if isinstance(proposals, list):
             proposals = proposals[-1]
         if isinstance(cls_logits, list):
-            cls_logits, cls_regress = tf.reduce_mean(cls_logits, axis = 0) if ensemble else cls_logits[-1], cls_regress[-1]
+            cls_logits, cls_regress = tf.reduce_mean(cls_logits, axis = 0) if self.ensemble else cls_logits[-1], cls_regress[-1]
             if mask_regress is not None:
-                mask_regress = tf.reduce_mean(mask_regress, axis = 0) if ensemble else mask_regress[-1]
+                mask_regress = tf.reduce_mean(mask_regress, axis = 0) if self.ensemble else mask_regress[-1]
         dtype = (cls_logits.dtype, cls_regress.dtype)
         if mask_regress is not None:
             dtype += (mask_regress.dtype,)
         args = [l for l in [cls_logits, cls_regress, proposals, mask_regress] if l is not None]
-        out = map_fn(filter_detection, *args, dtype = dtype, batch_size = batch_size, 
-                     proposal_count = proposal_count, iou_threshold = iou_threshold, score_threshold = score_threshold, soft_nms = soft_nms, mean = mean, std = std, clip_ratio = clip_ratio)
+        out = map_fn(filter_detection, *args, dtype = dtype, batch_size = self.batch_size, 
+                     proposal_count = self.proposal_count, iou_threshold = self.iou_threshold, score_threshold = self.score_threshold, soft_nms = self.soft_nms, mean = self.mean, std = self.std, clip_ratio = self.clip_ratio)
         return out
+
+        
+    def get_config(self):
+        config = super(FilterDetection, self).get_config()
+        config["proposal_count"] = self.proposal_count
+        config["iou_threshold"] = self.iou_threshold
+        config["score_threshold"] = self.score_threshold
+        config["soft_nms"] = self.soft_nms
+        config["ensemble"] = self.ensemble
+        config["batch_size"] = self.batch_size
+        config["mean"] = self.mean
+        config["std"] = self.std
+        config["clip_ratio"] = self.clip_ratio
+        return config

@@ -3,7 +3,7 @@ import tensorflow as tf
 from tfdet.core.util.bbox import delta2bbox, offset2bbox
 from tfdet.core.util.tf import map_fn
 
-def filter_detection(logit, regress, anchors, centerness = None, proposal_count = 100, iou_threshold = 0.3, score_threshold = 0.7, nms = True, soft_nms = True, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000):
+def filter_detection(logit, regress, anchors, centerness = None, proposal_count = 100, iou_threshold = 0.3, score_threshold = 0.7, nms = True, soft_nms = False, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000):
     """
     logit = classifier logit #(num_anchors, num_class)
     regress = classifier regress #(num_anchors, delta)
@@ -71,10 +71,19 @@ def filter_detection(logit, regress, anchors, centerness = None, proposal_count 
     return logit, proposal
 
 class FilterDetection(tf.keras.layers.Layer):
-    def __init__(self, **kwargs):
+    def __init__(self, proposal_count = 100, iou_threshold = 0.3, score_threshold = 0.7, nms = True, soft_nms = False, batch_size = 1, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, **kwargs):
         super(FilterDetection, self).__init__(**kwargs)
+        self.proposal_count = proposal_count
+        self.iou_threshold = iou_threshold
+        self.score_threshold = score_threshold
+        self.nms = nms
+        self.soft_nms = soft_nms
+        self.batch_size = batch_size
+        self.mean = mean
+        self.std = std
+        self.clip_ratio = clip_ratio
 
-    def call(self, inputs, proposal_count = 100, iou_threshold = 0.3, score_threshold = 0.7, nms = True, soft_nms = True, batch_size = 1, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000):
+    def call(self, inputs):
         logits, regress, anchors = inputs[:3]
         centerness = inputs[3] if 3 < len(inputs) else None
         if isinstance(logits, list):
@@ -85,6 +94,19 @@ class FilterDetection(tf.keras.layers.Layer):
                 centerness = tf.concat(centerness, axis = -2)
         anchors = tf.tile(tf.expand_dims(anchors, axis = 0), [tf.shape(logits)[0], 1, 1])
         args = [l for l in [logits, regress, anchors, centerness] if l is not None]
-        out = map_fn(filter_detection, *args, dtype = (logits.dtype, regress.dtype), batch_size = batch_size,
-                     proposal_count = proposal_count, nms = nms, soft_nms = soft_nms, iou_threshold = iou_threshold, score_threshold = score_threshold, mean = mean, std = std, clip_ratio = clip_ratio)
+        out = map_fn(filter_detection, *args, dtype = (logits.dtype, regress.dtype), batch_size = self.batch_size,
+                     proposal_count = self.proposal_count, nms = self.nms, soft_nms = self.soft_nms, iou_threshold = self.iou_threshold, score_threshold = self.score_threshold, mean = self.mean, std = self.std, clip_ratio = self.clip_ratio)
         return out
+        
+    def get_config(self):
+        config = super(FilterDetection, self).get_config()
+        config["proposal_count"] = self.proposal_count
+        config["iou_threshold"] = self.iou_threshold
+        config["score_threshold"] = self.score_threshold
+        config["nms"] = self.nms
+        config["soft_nms"] = self.soft_nms
+        config["batch_size"] = self.batch_size
+        config["mean"] = self.mean
+        config["std"] = self.std
+        config["clip_ratio"] = self.clip_ratio
+        return config

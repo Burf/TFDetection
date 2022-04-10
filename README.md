@@ -1,12 +1,15 @@
 # TFDetection
-TFDetection is an object detection toolbox based on Tensorflow2. TFDetection supports to you easily apply object detection to your analysis services.
+TFDetection is an detection toolbox based on Tensorflow2. TFDetection supports to you easily apply detection to your analysis services.
 
 ## Overview of Components
 <table align = "center">
   <tbody>
     <tr align = "center" valign = "bottom">
       <td>
-        <b>Detector</b>
+        <b>Object Detection</b>
+      </td>
+      <td>
+        <b>Anomaly Detection</b>
       </td>
       <td>
         <b>Backbone</b>
@@ -30,6 +33,13 @@ TFDetection is an object detection toolbox based on Tensorflow2. TFDetection sup
           <li>YoloV4(2020)</li>
           <li>YoloV4 Tiny(2020)</li>
           <li>EfficientDet Lite(2020)</li>
+        </ul>
+      </td>
+      <td>
+        <ul>
+          <li>SPADE(2020)</li>
+          <li>PaDiM(2020)</li>
+          <li>PatchCore(2021)</li>
         </ul>
       </td>
       <td>
