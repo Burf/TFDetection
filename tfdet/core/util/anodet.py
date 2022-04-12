@@ -51,45 +51,47 @@ def feature_extract(feature, sampling_index = None, pool_size = 1, sub_sampling 
     return feature
 
 
-try:
-    from sklearn.random_projection import SparseRandomProjection, johnson_lindenstrauss_min_dim
-    def core_sampling(*args, n_sample = 3, n_feature = "auto", eps = 0.9, index = False):
-        if isinstance(n_sample, float):
-            n_sample = int(len(args[0]) * n_sample)
-        n_sample = max(min(n_sample, len(args[0])), 1 if len(args[0]) != 0 else 0)
-        if n_feature == "auto":
-            b, c = np.shape(args[0])
-            n_feature = max(min(johnson_lindenstrauss_min_dim(b, eps = eps), c), 1)
-        m = SparseRandomProjection(n_components = n_feature, eps = eps)
-        trans_data = m.fit_transform(args[0])
-        
-        indices = []
-        min_dist = None
-        target = np.expand_dims(trans_data[0], axis = 0)
-        for j in range(n_sample): #k center greedy
-            dist = np.linalg.norm(trans_data - target, axis = -1, keepdims = True)
-            min_dist = np.minimum(dist, min_dist) if min_dist is not None else dist
-            min_index = np.argmax(min_dist)
-            target = np.expand_dims(trans_data[min_index], axis = 0)
-            min_dist[min_index] = 0
-            indices.append(min_index)
-        
-        if not index:
-            args = [np.array(arg)[indices] for arg in args]
-            if len(args) == 1:
-                args = args[0]
-            return args
-        else:
-            return indices
-except:
-    pass
+def core_sampling(*args, n_sample = 3, n_feature = "auto", eps = 0.9, index = False):
+    try:
+        from sklearn.random_projection import SparseRandomProjection, johnson_lindenstrauss_min_dim
+    except:
+        print("If you want to use 'core_sampling', please install 'scikit-learn 0.13▲'")
+        return
+    if isinstance(n_sample, float):
+        n_sample = int(len(args[0]) * n_sample)
+    n_sample = max(min(n_sample, len(args[0])), 1 if len(args[0]) != 0 else 0)
+    if n_feature == "auto":
+        b, c = np.shape(args[0])
+        n_feature = max(min(johnson_lindenstrauss_min_dim(b, eps = eps), c), 1)
+    m = SparseRandomProjection(n_components = n_feature, eps = eps)
+    trans_data = m.fit_transform(args[0])
+    
+    indices = []
+    min_dist = None
+    target = np.expand_dims(trans_data[0], axis = 0)
+    for j in range(n_sample): #k center greedy
+        dist = np.linalg.norm(trans_data - target, axis = -1, keepdims = True)
+        min_dist = np.minimum(dist, min_dist) if min_dist is not None else dist
+        min_index = np.argmax(min_dist)
+        target = np.expand_dims(trans_data[min_index], axis = 0)
+        min_dist[min_index] = 0
+        indices.append(min_index)
+    
+    if not index:
+        args = [np.array(arg)[indices] for arg in args]
+        if len(args) == 1:
+            args = args[0]
+        return args
+    else:
+        return indices
 
 def get_threshold(y_true, y_pred):
     try:
         from sklearn.metrics import roc_auc_score, roc_curve, precision_recall_curve
-        precision, recall, thresholds = precision_recall_curve(y_true, y_pred)
-        f1 = np.divide(2 * precision * recall, precision + recall, out = np.zeros_like(precision), where = (precision + recall) != 0)
-        threshold = thresholds[np.argmax(f1)]
-        return threshold
     except:
-        print("If you want to use 'get_threshold', please install 'scikit-learn 0.14▲' or please check 'y_true' in {0, 1}")
+        print("If you want to use 'get_threshold', please install 'scikit-learn 0.14▲'")
+        return
+    precision, recall, thresholds = precision_recall_curve(y_true, y_pred)
+    f1 = np.divide(2 * precision * recall, precision + recall, out = np.zeros_like(precision), where = (precision + recall) != 0)
+    threshold = thresholds[np.argmax(f1)]
+    return threshold

@@ -39,7 +39,7 @@ def effnet_b7(x, weights = "imagenet"):
     model = tf.keras.applications.EfficientNetB7(input_tensor = x, include_top = False, weights = weights)
     layers = ["block2g_add", "block3g_add", "block5j_add", "block7d_add"]
     return [model.get_layer(l).output for l in layers]
-    
+
 try:
     #https://github.com/Burf/EfficientNet-Lite-Tensorflow2
     import keras
@@ -176,125 +176,182 @@ try:
         if weights is not None:
             model.load_weights(weights)
         return model
+except:
+    pass
 
-    effnet_lite_urls = {
-        "effnet_lite_b0":"https://tfhub.dev/tensorflow/efficientnet/lite0/classification/2",
-        "effnet_lite_b1":"https://tfhub.dev/tensorflow/efficientnet/lite1/classification/2",
-        "effnet_lite_b2":"https://tfhub.dev/tensorflow/efficientnet/lite2/classification/2",
-        "effnet_lite_b3":"https://tfhub.dev/tensorflow/efficientnet/lite3/classification/2",
-        "effnet_lite_b4":"https://tfhub.dev/tensorflow/efficientnet/lite4/classification/2"
-    }
+effnet_lite_urls = {
+    "effnet_lite_b0":"https://tfhub.dev/tensorflow/efficientnet/lite0/classification/2",
+    "effnet_lite_b1":"https://tfhub.dev/tensorflow/efficientnet/lite1/classification/2",
+    "effnet_lite_b2":"https://tfhub.dev/tensorflow/efficientnet/lite2/classification/2",
+    "effnet_lite_b3":"https://tfhub.dev/tensorflow/efficientnet/lite3/classification/2",
+    "effnet_lite_b4":"https://tfhub.dev/tensorflow/efficientnet/lite4/classification/2"
+}
 
-    def load_weight(model, url):
-        """
-        https://tfhub.dev/tensorflow/efficientnet/lite0/classification/2
-        https://tfhub.dev/tensorflow/efficientnet/lite1/classification/2
-        https://tfhub.dev/tensorflow/efficientnet/lite2/classification/2
-        https://tfhub.dev/tensorflow/efficientnet/lite3/classification/2
-        https://tfhub.dev/tensorflow/efficientnet/lite4/classification/2
-        """
-        try:
-            import tensorflow_hub as hub
-            with tf.device("/cpu:0"):
-                mod = hub.load(url)
-        except:
-            print("If you want to use 'EfficientNet-Lite Weight', please install 'tensorflow_hub'")
-            return model
-        for w, new_w in zip(model.weights, mod.variables):
-            tf.keras.backend.set_value(w, new_w.numpy())
+def load_weight(model, url):
+    """
+    https://tfhub.dev/tensorflow/efficientnet/lite0/classification/2
+    https://tfhub.dev/tensorflow/efficientnet/lite1/classification/2
+    https://tfhub.dev/tensorflow/efficientnet/lite2/classification/2
+    https://tfhub.dev/tensorflow/efficientnet/lite3/classification/2
+    https://tfhub.dev/tensorflow/efficientnet/lite4/classification/2
+    """
+    try:
+        import tensorflow_hub as hub
+        with tf.device("/cpu:0"):
+            mod = hub.load(url)
+    except:
+        print("If you want to use 'EfficientNet-Lite Weight', please install 'tensorflow_hub'")
         return model
+    for w, new_w in zip(model.weights, mod.variables):
+        tf.keras.backend.set_value(w, new_w.numpy())
+    return model
 
-    def effnet_lite_b0(x, weights = "imagenet"):
-        hub_weight = False
-        if weights == "imagenet":
-            hub_weight = True
-            weights = None
-        model = efficientnet_lite(1.0, 1.0, 224, 0.2, input_tensor = x, include_top = False, weights = weights)
-        if hub_weight:
-            model = load_weight(model, effnet_lite_urls["effnet_lite_b0"])
-        layers = ["block2b_add", "block3b_add", "block5c_add", "block7a_project_bn"]
-        return [model.get_layer(l).output for l in layers]
+def effnet_lite_b0(x, weights = "imagenet"):
+    try:
+        efficientnet_lite
+    except:
+        print("If you want to use 'EfficientNet-Lite', please install 'keras'")
+        return
+    hub_weight = False
+    if weights == "imagenet":
+        hub_weight = True
+        weights = None
+    model = efficientnet_lite(1.0, 1.0, 224, 0.2, input_tensor = x, include_top = False, weights = weights)
+    if hub_weight:
+        model = load_weight(model, effnet_lite_urls["effnet_lite_b0"])
+    layers = ["block2b_add", "block3b_add", "block5c_add", "block7a_project_bn"]
+    return [model.get_layer(l).output for l in layers]
 
-    def effnet_lite_b1(x, weights = "imagenet"):
-        hub_weight = False
-        if weights == "imagenet":
-            hub_weight = True
-            weights = None
-        model = efficientnet_lite(1.0, 1.1, 240, 0.2, input_tensor = x, include_top = False, weights = weights)
-        if hub_weight:
-            model = load_weight(model, effnet_lite_urls["effnet_lite_b1"])
-        layers = ["block2c_add", "block3c_add", "block5d_add", "block7a_project_bn"]
-        return [model.get_layer(l).output for l in layers]
+def effnet_lite_b1(x, weights = "imagenet"):
+    try:
+        efficientnet_lite
+    except:
+        print("If you want to use 'EfficientNet-Lite', please install 'keras'")
+        return
+    hub_weight = False
+    if weights == "imagenet":
+        hub_weight = True
+        weights = None
+    model = efficientnet_lite(1.0, 1.1, 240, 0.2, input_tensor = x, include_top = False, weights = weights)
+    if hub_weight:
+        model = load_weight(model, effnet_lite_urls["effnet_lite_b1"])
+    layers = ["block2c_add", "block3c_add", "block5d_add", "block7a_project_bn"]
+    return [model.get_layer(l).output for l in layers]
 
-    def effnet_lite_b2(x, weights = "imagenet"):
-        hub_weight = False
-        if weights == "imagenet":
-            hub_weight = True
-            weights = None
-        model = efficientnet_lite(1.1, 1.2, 260, 0.3, input_tensor = x, include_top = False, weights = weights)
-        if hub_weight:
-            model = load_weight(model, effnet_lite_urls["effnet_lite_b2"])
-        layers = ["block2c_add", "block3c_add", "block5d_add", "block7a_project_bn"]
-        return [model.get_layer(l).output for l in layers]
+def effnet_lite_b2(x, weights = "imagenet"):
+    try:
+        efficientnet_lite
+    except:
+        print("If you want to use 'EfficientNet-Lite', please install 'keras'")
+        return
+    hub_weight = False
+    if weights == "imagenet":
+        hub_weight = True
+        weights = None
+    model = efficientnet_lite(1.1, 1.2, 260, 0.3, input_tensor = x, include_top = False, weights = weights)
+    if hub_weight:
+        model = load_weight(model, effnet_lite_urls["effnet_lite_b2"])
+    layers = ["block2c_add", "block3c_add", "block5d_add", "block7a_project_bn"]
+    return [model.get_layer(l).output for l in layers]
 
-    def effnet_lite_b3(x, weights = "imagenet"):
-        hub_weight = False
-        if weights == "imagenet":
-            hub_weight = True
-            weights = None
-        model = efficientnet_lite(1.2, 1.4, 280, 0.3, input_tensor = x, include_top = False, weights = weights)
-        if hub_weight:
-            model = load_weight(model, effnet_lite_urls["effnet_lite_b3"])
-        layers = ["block2c_add", "block3c_add", "block5e_add", "block7a_project_bn"]
-        return [model.get_layer(l).output for l in layers]
+def effnet_lite_b3(x, weights = "imagenet"):
+    try:
+        efficientnet_lite
+    except:
+        print("If you want to use 'EfficientNet-Lite', please install 'keras'")
+        return
+    hub_weight = False
+    if weights == "imagenet":
+        hub_weight = True
+        weights = None
+    model = efficientnet_lite(1.2, 1.4, 280, 0.3, input_tensor = x, include_top = False, weights = weights)
+    if hub_weight:
+        model = load_weight(model, effnet_lite_urls["effnet_lite_b3"])
+    layers = ["block2c_add", "block3c_add", "block5e_add", "block7a_project_bn"]
+    return [model.get_layer(l).output for l in layers]
 
-    def effnet_lite_b4(x, weights = "imagenet"):
-        hub_weight = False
-        if weights == "imagenet":
-            hub_weight = True
-            weights = None
-        model = efficientnet_lite(1.4, 1.8, 300, 0.3, input_tensor = x, include_top = False, weights = weights)
-        if hub_weight:
-            model = load_weight(model, effnet_lite_urls["effnet_lite_b4"])
-        layers = ["block2d_add", "block3d_add", "block5f_add", "block7a_project_bn"]
-        return [model.get_layer(l).output for l in layers]
-except:
-    print("If you want to use 'EfficientNet-Lite', please install 'keras'")
+def effnet_lite_b4(x, weights = "imagenet"):
+    try:
+        efficientnet_lite
+    except:
+        print("If you want to use 'EfficientNet-Lite', please install 'keras'")
+        return
+    hub_weight = False
+    if weights == "imagenet":
+        hub_weight = True
+        weights = None
+    model = efficientnet_lite(1.4, 1.8, 300, 0.3, input_tensor = x, include_top = False, weights = weights)
+    if hub_weight:
+        model = load_weight(model, effnet_lite_urls["effnet_lite_b4"])
+    layers = ["block2d_add", "block3d_add", "block5f_add", "block7a_project_bn"]
+    return [model.get_layer(l).output for l in layers]
 
-try:
-    def effnet_v2_b0(x, weights = "imagenet"):
-        model = tf.keras.applications.EfficientNetV2B0(input_tensor = x, include_top = False, weights = weights)
-        layers = ["block2b_add", "block3b_add", "block5e_add", "block6h_add"]
-        return [model.get_layer(l).output for l in layers]
-        
-    def effnet_v2_b1(x, weights = "imagenet"):
-        model = tf.keras.applications.EfficientNetV2B1(input_tensor = x, include_top = False, weights = weights)
-        layers = ["block2c_add", "block3c_add", "block5f_add", "block6i_add"]
-        return [model.get_layer(l).output for l in layers]
-        
-    def effnet_v2_b2(x, weights = "imagenet"):
-        model = tf.keras.applications.EfficientNetV2B2(input_tensor = x, include_top = False, weights = weights)
-        layers = ["block2c_add", "block3c_add", "block5f_add", "block6j_add"]
-        return [model.get_layer(l).output for l in layers]
-        
-    def effnet_v2_b3(x, weights = "imagenet"):
-        model = tf.keras.applications.EfficientNetV2B3(input_tensor = x, include_top = False, weights = weights)
-        layers = ["block2c_add", "block3c_add", "block5g_add", "block6l_add"]
-        return [model.get_layer(l).output for l in layers]
-        
-    def effnet_v2_s(x, weights = "imagenet"):
-        model = tf.keras.applications.EfficientNetV2S(input_tensor = x, include_top = False, weights = weights)
-        layers = ["block2d_add", "block3d_add", "block5i_add", "block6o_add"]
-        return [model.get_layer(l).output for l in layers]
-        
-    def effnet_v2_m(x, weights = "imagenet"):
-        model = tf.keras.applications.EfficientNetV2M(input_tensor = x, include_top = False, weights = weights)
-        layers = ["block2e_add", "block3e_add", "block5n_add", "block7e_add"]
-        return [model.get_layer(l).output for l in layers]
-        
-    def effnet_v2_l(x, weights = "imagenet"):
-        model = tf.keras.applications.EfficientNetV2L(input_tensor = x, include_top = False, weights = weights)
-        layers = ["block2g_add", "block3g_add", "block5s_add", "block7g_add"]
-        return [model.get_layer(l).output for l in layers]
-except:
-    print("If you want to use 'EfficientNetV2', please install 'tensorflow 2.8▲'")
+def effnet_v2_b0(x, weights = "imagenet"):
+    try:
+        tf.keras.applications.EfficientNetV2B0
+    except:
+        print("If you want to use 'EfficientNetV2', please install 'tensorflow 2.8▲'")
+        return
+    model = tf.keras.applications.EfficientNetV2B0(input_tensor = x, include_top = False, weights = weights)
+    layers = ["block2b_add", "block3b_add", "block5e_add", "block6h_add"]
+    return [model.get_layer(l).output for l in layers]
+    
+def effnet_v2_b1(x, weights = "imagenet"):
+    try:
+        tf.keras.applications.EfficientNetV2B1
+    except:
+        print("If you want to use 'EfficientNetV2', please install 'tensorflow 2.8▲'")
+        return
+    model = tf.keras.applications.EfficientNetV2B1(input_tensor = x, include_top = False, weights = weights)
+    layers = ["block2c_add", "block3c_add", "block5f_add", "block6i_add"]
+    return [model.get_layer(l).output for l in layers]
+    
+def effnet_v2_b2(x, weights = "imagenet"):
+    try:
+        tf.keras.applications.EfficientNetV2B2
+    except:
+        print("If you want to use 'EfficientNetV2', please install 'tensorflow 2.8▲'")
+        return
+    model = tf.keras.applications.EfficientNetV2B2(input_tensor = x, include_top = False, weights = weights)
+    layers = ["block2c_add", "block3c_add", "block5f_add", "block6j_add"]
+    return [model.get_layer(l).output for l in layers]
+    
+def effnet_v2_b3(x, weights = "imagenet"):
+    try:
+        tf.keras.applications.EfficientNetV2B3
+    except:
+        print("If you want to use 'EfficientNetV2', please install 'tensorflow 2.8▲'")
+        return
+    model = tf.keras.applications.EfficientNetV2B3(input_tensor = x, include_top = False, weights = weights)
+    layers = ["block2c_add", "block3c_add", "block5g_add", "block6l_add"]
+    return [model.get_layer(l).output for l in layers]
+    
+def effnet_v2_s(x, weights = "imagenet"):
+    try:
+        tf.keras.applications.EfficientNetV2S
+    except:
+        print("If you want to use 'EfficientNetV2', please install 'tensorflow 2.8▲'")
+        return
+    model = tf.keras.applications.EfficientNetV2S(input_tensor = x, include_top = False, weights = weights)
+    layers = ["block2d_add", "block3d_add", "block5i_add", "block6o_add"]
+    return [model.get_layer(l).output for l in layers]
+    
+def effnet_v2_m(x, weights = "imagenet"):
+    try:
+        tf.keras.applications.EfficientNetV2M
+    except:
+        print("If you want to use 'EfficientNetV2', please install 'tensorflow 2.8▲'")
+        return
+    model = tf.keras.applications.EfficientNetV2M(input_tensor = x, include_top = False, weights = weights)
+    layers = ["block2e_add", "block3e_add", "block5n_add", "block7e_add"]
+    return [model.get_layer(l).output for l in layers]
+    
+def effnet_v2_l(x, weights = "imagenet"):
+    try:
+        tf.keras.applications.EfficientNetV2L
+    except:
+        print("If you want to use 'EfficientNetV2', please install 'tensorflow 2.8▲'")
+        return
+    model = tf.keras.applications.EfficientNetV2L(input_tensor = x, include_top = False, weights = weights)
+    layers = ["block2g_add", "block3g_add", "block5s_add", "block7g_add"]
+    return [model.get_layer(l).output for l in layers]
