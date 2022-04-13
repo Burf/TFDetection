@@ -50,12 +50,11 @@ def feature_extract(feature, sampling_index = None, pool_size = 1, sub_sampling 
         feature = feature[0]
     return feature
 
-
 def core_sampling(*args, n_sample = 3, n_feature = "auto", eps = 0.9, index = False):
     try:
         from sklearn.random_projection import SparseRandomProjection, johnson_lindenstrauss_min_dim
     except:
-        print("If you want to use 'core_sampling', please install 'scikit-learn 0.13▲'")
+        print("If you want to use 'core_sampling', please install 'scikit-learn 0.14▲'")
         return
     if isinstance(n_sample, float):
         n_sample = int(len(args[0]) * n_sample)
@@ -84,14 +83,3 @@ def core_sampling(*args, n_sample = 3, n_feature = "auto", eps = 0.9, index = Fa
         return args
     else:
         return indices
-
-def get_threshold(y_true, y_pred):
-    try:
-        from sklearn.metrics import roc_auc_score, roc_curve, precision_recall_curve
-    except:
-        print("If you want to use 'get_threshold', please install 'scikit-learn 0.14▲'")
-        return
-    precision, recall, thresholds = precision_recall_curve(y_true, y_pred)
-    f1 = np.divide(2 * precision * recall, precision + recall, out = np.zeros_like(precision), where = (precision + recall) != 0)
-    threshold = thresholds[np.argmax(f1)]
-    return threshold
