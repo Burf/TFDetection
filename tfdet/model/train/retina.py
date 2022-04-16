@@ -1,19 +1,20 @@
 import tensorflow as tf
 
+from tfdet.core.assign import max_iou
 from tfdet.core.target import anchor_target
 from tfdet.core.util.loss import regularize_loss
 from tfdet.core.util.tf import map_fn
 from ..loss.retina import classnet_accuracy, classnet_loss, boxnet_loss
 
 def train_model(input, logits, regress, anchors,
-                sampling_count = 256, positive_ratio = 0.5, positive_threshold = 0.5, negative_threshold = 0.4,
+                assign = max_iou, sampling_count = 256, positive_ratio = 0.5,
                 batch_size = 1, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], regularize = True, weight_decay = 1e-4, focal = True, alpha = .25, gamma = 1.5, sigma = 3, class_weight = None, missing_value = 0.):
     y_true = tf.keras.layers.Input(shape = (None, None), name = "y_true", dtype = tf.float32)
     bbox_true = tf.keras.layers.Input(shape = (None, 4), name = "bbox_true", dtype = regress.dtype)
     
     anchors = tf.tile(tf.expand_dims(anchors, axis = 0), [tf.shape(input)[0], 1, 1])
     target_y_true, target_bbox_true, target_y_pred, target_bbox_pred = tf.keras.layers.Lambda(lambda args: map_fn(anchor_target, *args, dtype = (y_true.dtype, bbox_true.dtype, logits.dtype, regress.dtype), batch_size = batch_size, 
-                                                                                                                  sampling_count = sampling_count, positive_ratio = positive_ratio, positive_threshold = positive_threshold, negative_threshold = negative_threshold, mean = mean,std = std), name = "anchor_target")([y_true, bbox_true, logits, regress, anchors])
+                                                                                                                  assign = assign, sampling_count = sampling_count, positive_ratio = positive_ratio, mean = mean,std = std), name = "anchor_target")([y_true, bbox_true, logits, regress, anchors])
     
     score_accuracy = tf.keras.layers.Lambda(lambda args: classnet_accuracy(*args, missing_value = missing_value), name = "score_accuracy")([target_y_true, target_y_pred])
     score_loss = tf.keras.layers.Lambda(lambda args: classnet_loss(*args, focal = focal, alpha = alpha, gamma = gamma, weight = class_weight, missing_value = missing_value), name = "score_loss")([target_y_true, target_y_pred])

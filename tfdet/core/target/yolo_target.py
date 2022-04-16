@@ -1,9 +1,12 @@
 import tensorflow as tf
 
-from ..util.bbox import yolo2bbox
-from ..util.overlap import overlap_bbox
+from ..assign import max_iou
+from ..bbox import yolo2bbox
 
-def yolo_target(y_true, bbox_true, score_pred, logit_pred, bbox_pred, anchors, sampling_count = 256, positive_ratio = 0.5, positive_threshold = 0.5, negative_threshold = 0.5, clip_ratio = 16 / 1000):
+def yolo_assign(bbox_true, bbox_pred, positive_threshold = 0.5, negative_threshold = 0.5, mode = "normal"):
+    return max_iou(bbox_true, bbox_pred, positive_threshold = positive_threshold, negative_threshold = negative_threshold, mode = mode)
+
+def yolo_target(y_true, bbox_true, score_pred, logit_pred, bbox_pred, anchors, assign = yolo_assign, sampling_count = 256, positive_ratio = 0.5, clip_ratio = 16 / 1000):
     """
     y_true = label #(padded_num_true, 1 or num_class)
     bbox_true = [[x1, y1, x2, y2], ...] #(padded_num_true, bbox)
@@ -17,19 +20,14 @@ def yolo_target(y_true, bbox_true, score_pred, logit_pred, bbox_pred, anchors, s
     y_true = tf.gather_nd(y_true, valid_indices)
     bbox_true = tf.gather_nd(bbox_true, valid_indices)
     
-    overlaps = overlap_bbox(bbox_true, anchors)
-    max_iou = tf.reduce_max(overlaps, axis = -1)
-
-    positive_match = tf.where(positive_threshold <= max_iou, 1, 0)
-    negative_match = tf.where(max_iou < negative_threshold, -1, 0)
-    score_true = tf.expand_dims(positive_match + negative_match, axis = -1)
-
-    positive_indices = tf.where(score_true == 1)[:, 0]
-    negative_indices = tf.where(score_true == -1)[:, 0]
+    true_indices, positive_indices, negative_indices = assign(bbox_true, anchors)
     
     if isinstance(sampling_count, int) and 0 < sampling_count:
         positive_count = tf.cast(sampling_count * positive_ratio, tf.int32)
-        positive_indices = tf.random.shuffle(positive_indices)[:positive_count]
+        indices = tf.range(tf.shape(positive_indices)[0])
+        indices = tf.random.shuffle(indices)[:positive_count]
+        positive_indices = tf.gather(positive_indices, indices)
+        true_indices = tf.gather(true_indices, indices)
         positive_count = tf.cast(tf.shape(positive_indices)[0], tf.float32)
         negative_count = tf.cast(1 / positive_ratio * positive_count - positive_count, tf.int32)
         negative_indices = tf.random.shuffle(negative_indices)[:negative_count]
@@ -37,9 +35,7 @@ def yolo_target(y_true, bbox_true, score_pred, logit_pred, bbox_pred, anchors, s
         sampling_count = pred_count
     pred_indices = tf.concat([positive_indices, negative_indices], axis = 0)
 
-    positive_overlaps = tf.gather(overlaps, positive_indices)
-    true_indices = tf.cond(tf.greater(tf.shape(positive_overlaps)[1], 0), true_fn = lambda: tf.argmax(positive_overlaps, axis = -1), false_fn = lambda: tf.cast(tf.constant([]), tf.int64))
-    score_true = tf.gather(score_true, pred_indices)
+    score_true = tf.expand_dims(tf.concat([tf.ones_like(positive_indices, dtype = tf.int32), -tf.ones_like(negative_indices, dtype = tf.int32)], axis = 0), axis = -1)
     logit_true = tf.gather(y_true, true_indices)
     bbox_true = tf.gather(bbox_true, true_indices)
     score_pred = tf.gather(score_pred, pred_indices)

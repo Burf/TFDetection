@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from tfdet.core.util.bbox import delta2bbox
+from tfdet.core.bbox import delta2bbox
 from tfdet.core.util.nms import pad_nms
 from tfdet.core.util.tf import map_fn
 
@@ -247,7 +247,8 @@ class RoiMask(tf.keras.layers.Layer):
         out = inputs
         if isinstance(inputs, list):
             out, residual = inputs
-            out = out + self.resample(residual)
+            if residual is not None:
+                out = out + self.resample(residual)
         for layer in self.layers:
             out = layer(out)
         deconv = self.deconv(out)

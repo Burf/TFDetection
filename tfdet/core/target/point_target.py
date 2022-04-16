@@ -1,9 +1,9 @@
 import tensorflow as tf
 
-from ..util.bbox import bbox2offset, offset2centerness
-from ..util.overlap import overlap_point
+from ..assign import point
+from ..bbox import bbox2offset, offset2centerness
 
-def point_target(y_true, bbox_true, y_pred, bbox_pred, points, regress_range, centerness_pred = None, sampling_count = 256, positive_ratio = 0.5):
+def point_target(y_true, bbox_true, y_pred, bbox_pred, points, regress_range, centerness_pred = None, assign = point, sampling_count = 256, positive_ratio = 0.5):
     """
     y_true = label #(padded_num_true, 1 or num_class)
     bbox_true = [[x1, y1, x2, y2], ...] #(padded_num_true, bbox)
@@ -18,15 +18,14 @@ def point_target(y_true, bbox_true, y_pred, bbox_pred, points, regress_range, ce
     y_true = tf.gather_nd(y_true, valid_indices)
     bbox_true = tf.gather_nd(bbox_true, valid_indices)
     
-    overlaps = overlap_point(bbox_true, points, regress_range)
-    max_area = tf.reduce_max(overlaps, axis = -1)
-    
-    positive_indices = tf.where(max_area != 0)[:, 0]
-    negative_indices = tf.where(max_area == 0)[:, 0]
+    true_indices, positive_indices, negative_indices = assign(bbox_true, points, regress_range)
     
     if isinstance(sampling_count, int) and 0 < sampling_count:
         positive_count = tf.cast(sampling_count * positive_ratio, tf.int32)
-        positive_indices = tf.random.shuffle(positive_indices)[:positive_count]
+        indices = tf.range(tf.shape(positive_indices)[0])
+        indices = tf.random.shuffle(indices)[:positive_count]
+        positive_indices = tf.gather(positive_indices, indices)
+        true_indices = tf.gather(true_indices, indices)
         positive_count = tf.cast(tf.shape(positive_indices)[0], tf.float32)
         negative_count = tf.cast(1 / positive_ratio * positive_count - positive_count, tf.int32)
         negative_indices = tf.random.shuffle(negative_indices)[:negative_count]
@@ -34,8 +33,6 @@ def point_target(y_true, bbox_true, y_pred, bbox_pred, points, regress_range, ce
         sampling_count = pred_count
     pred_indices = tf.concat([positive_indices, negative_indices], axis = 0)
     
-    positive_overlaps = tf.gather(overlaps, positive_indices)
-    true_indices = tf.cond(tf.greater(tf.shape(positive_overlaps)[1], 0), true_fn = lambda: tf.argmax(positive_overlaps, axis = -1), false_fn = lambda: tf.cast(tf.constant([]), tf.int64))
     y_true = tf.gather(y_true, true_indices)
     bbox_true = tf.gather(bbox_true, true_indices)
     y_pred = tf.gather(y_pred, pred_indices)

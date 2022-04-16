@@ -2,7 +2,7 @@ import os
 import tensorflow as tf
 import numpy as np
 
-from tfdet.core.util.anchor import generate_yolo_anchors
+from tfdet.core.anchor import generate_yolo_anchors
 from ..backbone.darknet import darknet_conv_block, darknet53, darknet19
 from ..head.yolo import yolo_conv_block, yolo_classifier
 

@@ -76,6 +76,7 @@ TFDetection is an detection toolbox based on Tensorflow2. TFDetection supports t
 - Python 3
 - tensorflow 2.4▲ (If you installed tensorflow 2.8▲, more backbone is available.)
 - keras
+- opencv-python
 
 
 ## Contributor

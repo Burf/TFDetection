@@ -1,9 +1,10 @@
 import tensorflow as tf
 import numpy as np
 
+from ..core.bbox import overlap_bbox
 from ..core.util.tf import map_fn
 
-def mean_average_precision(y_true, bbox_true, y_pred, bbox_pred, threshold = 0.5, r = 11, interpolate = True, batch_size = 10, reduce = True, return_precision_n_recall = False):
+def mean_average_precision(y_true, bbox_true, y_pred, bbox_pred, threshold = 0.5, r = 11, interpolate = True, mode = "normal", batch_size = 10, reduce = True, return_precision_n_recall = False):
     """
     y_true = label #(batch_size, padded_num_true, 1)
     bbox_true = [[x1, y1, x2, y2], ...] #(batch_size, padded_num_true, bbox)
@@ -27,7 +28,7 @@ def mean_average_precision(y_true, bbox_true, y_pred, bbox_pred, threshold = 0.5
         label = tf.argmax(_y_pred, axis = -1, output_type = tf.int32)
         indices = tf.stack([tf.range(tf.shape(_y_pred)[0]), label], axis = -1)
         score = tf.gather_nd(_y_pred, indices)
-        overlaps = threshold <= overlap_bbox(_bbox_true, _bbox_pred)
+        overlaps = threshold <= tf.transpose(overlap_bbox(_bbox_true, _bbox_pred, mode)) #(P, T)
         
         def cls_body(tp, fp, fn, cls_id):
             true_indices = tf.where(tf.equal(_y_true, cls_id))[..., 0]

@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 
-from tfdet.core.util.anchor import generate_anchors
+from tfdet.core.anchor import generate_anchors
 from ..head.retina import ClassNet, BoxNet
 from ..neck import fpn
 

@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 
-from tfdet.core.util.anchor import generate_points
+from tfdet.core.anchor import generate_points
 from ..head.fcos import CenternessNet, Scale, ClassNet, BoxNet
 from ..neck import fpn
 

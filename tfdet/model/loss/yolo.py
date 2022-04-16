@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from tfdet.core.util.overlap import overlap_bbox
+from tfdet.core.bbox import overlap_bbox
 
 def score_accuracy(score_true, score_pred, threshold = 0.5, missing_value = 0.):
     """
@@ -115,8 +115,8 @@ def regress_loss(score_true, bbox_true, bbox_pred, mode = "general", missing_val
     bbox_true = tf.gather_nd(bbox_true, true_indices)
     bbox_pred = tf.gather_nd(bbox_pred, true_indices)
 
-    overlaps = overlap_bbox(bbox_true, bbox_pred, mode = mode)
-    max_iou = tf.reduce_max(overlaps, axis = -1)
+    overlaps = overlap_bbox(bbox_true, bbox_pred, mode = mode) #(T, P)
+    max_iou = tf.reduce_max(overlaps, axis = 0)
     bbox_loss_scale = 1. - ((bbox_true[..., 2] - bbox_true[..., 0]) * (bbox_true[..., 3] - bbox_true[..., 1])) #2 - 1 * bbox_area / input_area
     loss = bbox_loss_scale * (1 - max_iou)
 

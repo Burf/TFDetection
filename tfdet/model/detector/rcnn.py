@@ -1,11 +1,15 @@
 import tensorflow as tf
 import numpy as np
 
+from tfdet.core.anchor import generate_anchors
+from tfdet.core.assign import max_iou
 from tfdet.core.target import sampling_target
-from tfdet.core.util.anchor import generate_anchors
 from tfdet.core.util.tf import map_fn
 from ..head.rcnn import RegionProposalNetwork, Rpn2Proposal, RoiAlign, RoiClassifier, RoiMask, Classifier2Proposal, FusedSemanticHead
 from ..neck import fpn
+
+def cls_assign(bbox_true, bbox_pred, positive_threshold = 0.5, negative_threshold = 0.5, mode = "normal"):
+    return max_iou(bbox_true, bbox_pred, positive_threshold = positive_threshold, negative_threshold = negative_threshold, mode = mode)
 
 def rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_depth = 4, sub_sampling = 1,
          scale = [0.03125, 0.0625, 0.125, 0.25, 0.5], ratio = [0.5, 1, 2], auto_scale = True,
@@ -18,16 +22,16 @@ def rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_d
          cls_n_feature = None, cls_activation = tf.keras.activations.relu,
          mask_n_feature = None, mask_n_depth = None, mask_activation = tf.keras.activations.relu,
          semantic_level = 1, semantic_n_feature = None, semantic_n_depth = None, semantic_pool_size = 14, semantic_activation = tf.keras.activations.relu,
-         sampling_count = None, sampling_positive_ratio = 0.25, sampling_positive_threshold = 0.5, sampling_negative_threshold = 0.5,
+         sampling_assign = cls_assign, sampling_count = None, sampling_positive_ratio = 0.25,
          **kwargs):
     """
     with single feature                   > feature = single feature
     with fpn                              > feature = multi feature, sub_sampling = len(scale) - len(feature)
-    for speed training(with roi sampling) > sampling_tag = 256 (recommendation value for train sampling)                    > return rcnn_layers(rpn, cls, ...) + sampling_tag(sampling_tag is a argument for rcnn_train_model)
-    faster rcnn                           > mask = False, cascade = False, mask_info_flow = False, semantic_feature = False > return rpn_score, rpn_regress, cls_logits, cls_regress, proposals, anchors
-    mask rcnn                             > mask = True, cascade = False, mask_info_flow = False, semantic_feature = False  > return rpn_score, rpn_regress, cls_logits, cls_regress, proposals, anchors, mask_regress
-    cascade rcnn                          > cascade = True, mask_info_flow = False, semantic_feature = False                > return rpn_score, rpn_regress, cls_logits, cls_regress, proposals, anchors, mask_regress(mask = True)
-    hybrid task cascade rcnn              > cascade = True, mask_info_flow = True, semantic_feature = True                  > return rpn_score, rpn_regress, cls_logits, cls_regress, proposals, anchors, mask_regress(mask = True), semantic_regress
+    for speed training(with roi sampling) > sampling_count = 256 (Recommended value for training to apply prior to roi sampling)> return rcnn_layers(rpn, cls, ...) + sampling_tag(sampling_tag is a argument for rcnn_train_model)
+    faster rcnn                           > mask = False, cascade = False, mask_info_flow = False, semantic_feature = False     > return rpn_score, rpn_regress, cls_logits, cls_regress, proposals, anchors
+    mask rcnn                             > mask = True, cascade = False, mask_info_flow = False, semantic_feature = False      > return rpn_score, rpn_regress, cls_logits, cls_regress, proposals, anchors, mask_regress
+    cascade rcnn                          > cascade = True, mask_info_flow = False, semantic_feature = False                    > return rpn_score, rpn_regress, cls_logits, cls_regress, proposals, anchors, mask_regress(mask = True)
+    hybrid task cascade rcnn              > cascade = True, mask_info_flow = True, semantic_feature = True                      > return rpn_score, rpn_regress, cls_logits, cls_regress, proposals, anchors, mask_regress(mask = True), semantic_regress
     """
     if tf.is_tensor(image_shape) and 2 < tf.keras.backend.ndim(image_shape) or (not tf.is_tensor(image_shape) and 2 < np.ndim(image_shape)):
         image_shape = tf.shape(image_shape) if tf.keras.backend.int_shape(image_shape)[-3] is None else tf.keras.backend.int_shape(image_shape)
@@ -71,14 +75,20 @@ def rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_d
         y_true = tf.keras.layers.Input(shape = (None, None), name = "y_true", dtype = rpn_score.dtype) #(batch_size, padded_num_true, 1 or n_class)
         bbox_true = tf.keras.layers.Input(shape = (None, 4), name = "bbox_true", dtype = rpn_regress.dtype) #(batch_size, padded_num_true, 4)
         mask_true = tf.keras.layers.Input(shape = (None, None, None), name = "mask_true", dtype = rpn_score.dtype) if mask or semantic_feature else None #(batch_size, padded_num_true, h, w)
-        sampling_tag = {"sampling_count":sampling_count, "positive_ratio":sampling_positive_ratio, "positive_threshold":sampling_positive_threshold, "negative_threshold":sampling_negative_threshold, "y_true":y_true, "bbox_true":bbox_true, "mask_true":mask_true}
+        
+        sampling_tag = {"sampling_assign":sampling_assign, "sampling_count":sampling_count, "positive_ratio":sampling_positive_ratio, "y_true":y_true, "bbox_true":bbox_true, "mask_true":mask_true}
+        args = [y_true, bbox_true, _proposals]
+        dtype = (y_true.dtype, bbox_true.dtype, _proposals.dtype)
         if mask:
-            sampling_y_true, sampling_bbox_true, sampling_mask_true, _proposals = tf.keras.layers.Lambda(lambda args: map_fn(sampling_target, *args, dtype = (y_true.dtype, bbox_true.dtype, mask_true.dtype, _proposals.dtype), batch_size = batch_size,
-                                                                                                                             sampling_count = sampling_count, positive_ratio = sampling_positive_ratio, positive_threshold = sampling_positive_threshold, negative_threshold = sampling_negative_threshold), name = "sampling_target")([y_true, bbox_true, _proposals, mask_true])
-        else:
-            sampling_y_true, sampling_bbox_true, _proposals = tf.keras.layers.Lambda(lambda args: map_fn(sampling_target, *args, dtype = (y_true.dtype, bbox_true.dtype, _proposals.dtype), batch_size = batch_size,
-                                                                                                         sampling_count = sampling_count, positive_ratio = sampling_positive_ratio, positive_threshold = sampling_positive_threshold, negative_threshold = sampling_negative_threshold), name = "sampling_target")([y_true, bbox_true, _proposals])
-            sampling_mask_true = None
+            args = [y_true, bbox_true, _proposals, mask_true]
+            dtype = (y_true.dtype, bbox_true.dtype, mask_true.dtype, _proposals.dtype)
+        
+        sampling_out = tf.keras.layers.Lambda(lambda args: map_fn(sampling_target, *args, dtype = dtype, batch_size = batch_size,
+                                                                  assign = sampling_assign, sampling_count = sampling_count, positive_ratio = sampling_positive_ratio), name = "sampling_target")(args)
+        sampling_out, _proposals = sampling_out[:-1], sampling_out[-1]
+        if len(sampling_out) == 2:
+            sampling_out = [*sampling_out, None]
+        sampling_y_true, sampling_bbox_true, sampling_mask_true = sampling_out
         sampling_tag.update({"sampling_y_true":sampling_y_true, "sampling_bbox_true":sampling_bbox_true, "sampling_mask_true":sampling_mask_true})
 
     semantic_regress = None
@@ -151,7 +161,7 @@ def faster_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 2
                 cls_n_feature = None, cls_activation = tf.keras.activations.relu,
                 mask_n_feature = None, mask_n_depth = 4, mask_activation = tf.keras.activations.relu,
                 semantic_level = 1, semantic_n_feature = None, semantic_n_depth = 4, semantic_pool_size = 14, semantic_activation = tf.keras.activations.relu,
-                sampling_count = None, sampling_positive_ratio = 0.25, sampling_positive_threshold = 0.5, sampling_negative_threshold = 0.5):
+                sampling_assign = cls_assign, sampling_count = None, sampling_positive_ratio = 0.25):
     out = rcnn(feature, n_class = n_class, image_shape = image_shape, n_feature = n_feature, n_depth = n_depth, sub_sampling = sub_sampling,
                scale = scale, ratio = ratio, auto_scale = auto_scale,
                mask = mask, cascade = cascade, mask_info_flow = mask_info_flow, semantic_feature = semantic_feature,
@@ -163,7 +173,7 @@ def faster_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 2
                cls_n_feature = cls_n_feature, cls_activation = cls_activation,
                mask_n_feature = mask_n_feature, mask_n_depth = mask_n_depth, mask_activation = mask_activation,
                semantic_level = semantic_level, semantic_n_feature = semantic_n_feature, semantic_n_depth = semantic_n_depth, semantic_pool_size = semantic_pool_size, semantic_activation = semantic_activation,
-               sampling_count = sampling_count, sampling_positive_ratio = sampling_positive_ratio, sampling_positive_threshold = sampling_positive_threshold, sampling_negative_threshold = sampling_negative_threshold)
+               sampling_assign = sampling_assign, sampling_count = sampling_count, sampling_positive_ratio = sampling_positive_ratio)
     return out
 
 def mask_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_depth = 4, sub_sampling = 1,
@@ -177,7 +187,7 @@ def mask_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256
               cls_n_feature = None, cls_activation = tf.keras.activations.relu,
               mask_n_feature = None, mask_n_depth = 4, mask_activation = tf.keras.activations.relu,
               semantic_level = 1, semantic_n_feature = None, semantic_n_depth = 4, semantic_pool_size = 14, semantic_activation = tf.keras.activations.relu,
-              sampling_count = None, sampling_positive_ratio = 0.25, sampling_positive_threshold = 0.5, sampling_negative_threshold = 0.5):
+              sampling_assign = cls_assign, sampling_count = None, sampling_positive_ratio = 0.25):
     out = rcnn(feature, n_class = n_class, image_shape = image_shape, n_feature = n_feature, n_depth = n_depth, sub_sampling = sub_sampling,
                scale = scale, ratio = ratio, auto_scale = auto_scale,
                mask = mask, cascade = cascade, mask_info_flow = mask_info_flow, semantic_feature = semantic_feature,
@@ -189,7 +199,7 @@ def mask_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256
                cls_n_feature = cls_n_feature, cls_activation = cls_activation,
                mask_n_feature = mask_n_feature, mask_n_depth = mask_n_depth, mask_activation = mask_activation,
                semantic_level = semantic_level, semantic_n_feature = semantic_n_feature, semantic_n_depth = semantic_n_depth, semantic_pool_size = semantic_pool_size, semantic_activation = semantic_activation,
-               sampling_count = sampling_count, sampling_positive_ratio = sampling_positive_ratio, sampling_positive_threshold = sampling_positive_threshold, sampling_negative_threshold = sampling_negative_threshold)
+               sampling_assign = sampling_assign, sampling_count = sampling_count, sampling_positive_ratio = sampling_positive_ratio)
     return out
 
 def cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_depth = 4, sub_sampling = 1,
@@ -203,7 +213,7 @@ def cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 
                  cls_n_feature = None, cls_activation = tf.keras.activations.relu,
                  mask_n_feature = None, mask_n_depth = 4, mask_activation = tf.keras.activations.relu,
                  semantic_level = 1, semantic_n_feature = None, semantic_n_depth = 4, semantic_pool_size = 14, semantic_activation = tf.keras.activations.relu,
-                 sampling_count = None, sampling_positive_ratio = 0.25, sampling_positive_threshold = 0.5, sampling_negative_threshold = 0.5):
+                 sampling_assign = cls_assign, sampling_count = None, sampling_positive_ratio = 0.25):
     out = rcnn(feature, n_class = n_class, image_shape = image_shape, n_feature = n_feature, n_depth = n_depth, sub_sampling = sub_sampling,
                scale = scale, ratio = ratio, auto_scale = auto_scale,
                mask = mask, cascade = cascade, mask_info_flow = mask_info_flow, semantic_feature = semantic_feature,
@@ -215,7 +225,7 @@ def cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 
                cls_n_feature = cls_n_feature, cls_activation = cls_activation,
                mask_n_feature = mask_n_feature, mask_n_depth = mask_n_depth, mask_activation = mask_activation,
                semantic_level = semantic_level, semantic_n_feature = semantic_n_feature, semantic_n_depth = semantic_n_depth, semantic_pool_size = semantic_pool_size, semantic_activation = semantic_activation,
-               sampling_count = sampling_count, sampling_positive_ratio = sampling_positive_ratio, sampling_positive_threshold = sampling_positive_threshold, sampling_negative_threshold = sampling_negative_threshold)
+               sampling_assign = sampling_assign, sampling_count = sampling_count, sampling_positive_ratio = sampling_positive_ratio)
     return out
 
 def hybrid_task_cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_depth = 4, sub_sampling = 1,
@@ -229,7 +239,7 @@ def hybrid_task_cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], 
                              cls_n_feature = None, cls_activation = tf.keras.activations.relu,
                              mask_n_feature = None, mask_n_depth = 4, mask_activation = tf.keras.activations.relu,
                              semantic_level = 1, semantic_n_feature = None, semantic_n_depth = 4, semantic_pool_size = 14, semantic_activation = tf.keras.activations.relu,
-                             sampling_count = None, sampling_positive_ratio = 0.25, sampling_positive_threshold = 0.5, sampling_negative_threshold = 0.5):
+                             sampling_assign = cls_assign, sampling_count = None, sampling_positive_ratio = 0.25):
     out = rcnn(feature, n_class = n_class, image_shape = image_shape, n_feature = n_feature, n_depth = n_depth, sub_sampling = sub_sampling,
                scale = scale, ratio = ratio, auto_scale = auto_scale,
                mask = mask, cascade = cascade, mask_info_flow = mask_info_flow, semantic_feature = semantic_feature,
@@ -241,5 +251,5 @@ def hybrid_task_cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], 
                cls_n_feature = cls_n_feature, cls_activation = cls_activation,
                mask_n_feature = mask_n_feature, mask_n_depth = mask_n_depth, mask_activation = mask_activation,
                semantic_level = semantic_level, semantic_n_feature = semantic_n_feature, semantic_n_depth = semantic_n_depth, semantic_pool_size = semantic_pool_size, semantic_activation = semantic_activation,
-               sampling_count = sampling_count, sampling_positive_ratio = sampling_positive_ratio, sampling_positive_threshold = sampling_positive_threshold, sampling_negative_threshold = sampling_negative_threshold)
+               sampling_assign = sampling_assign, sampling_count = sampling_count, sampling_positive_ratio = sampling_positive_ratio)
     return out

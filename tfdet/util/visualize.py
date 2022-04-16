@@ -1,11 +1,7 @@
+import cv2
 import numpy as np
 
 def draw_bbox(images, bboxes, logits = None, mask = None, label = None, threshold = 0.5, mix_ratio = 0.5, method = cv2.INTER_LINEAR, prefix = "", postfix = "", color = None):
-    try:
-        import cv2
-    except:
-        print("If you want to use 'draw_bbox', please install 'opencv-python'")
-        return images
     images = np.array(images)
     bboxes = np.array(bboxes)
     for batch_index in range(len(images)):
