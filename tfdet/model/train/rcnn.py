@@ -72,7 +72,7 @@ def train_model(input, rpn_score = None, rpn_regress = None, cls_logits = None, 
             mask_regress = [None] * len(cls_logits)
         if not isinstance(cls_assign, list):
             cls_assign = [cls_assign] * len(cls_logits)
-        if isinstance(sampling_tag, dict)
+        if isinstance(sampling_tag, dict):
             if len(cls_logits) == len(cls_assign):
                 cls_assign = [sampling_tag["sampling_assign"]] + cls_assign[1:]
             else: #(len(cls_logits) - 1) == len(cls_assign):
