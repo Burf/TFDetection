@@ -20,7 +20,7 @@ def isin(bbox_true, bbox_pred):
     tx1, ty1, tx2, ty2 = tf.split(bbox_true, 4, axis = -1)
     px1, py1, px2, py2 = tf.split(bbox_pred, 4, axis = -1)
     
-    pcx, pcy = (px2 - px1) / 2, (py2 - py1) / 2
+    pcx, pcy = (px1 + px2) / 2, (py1 + py2) / 2
     
     flag = tf.logical_and(tf.logical_and(tx1 < pcx, pcx < tx2), tf.logical_and(ty1 < pcy, pcy < ty2)) 
     flag = tf.reshape(flag, [true_count, pred_count])
