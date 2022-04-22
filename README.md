@@ -38,8 +38,6 @@ TFDetection is a detection toolbox based on Tensorflow2.
       <td>
         <ul>
           <li><b>Semantic Segmentation</b></li>
-        </ul>
-        <ul>
           <ul>
             <li>FCN(2015)</li>
             <li>UNet(2016)</li>
@@ -52,8 +50,6 @@ TFDetection is a detection toolbox based on Tensorflow2.
         </ul>
         <ul>
           <li><b>Instance Segmentation</b></li>
-        </ul>
-        <ul>
           <ul>
             <li>Mask R-CNN(2017)</li>
             <li>Cascade Mask R-CNN(2018)</li>
@@ -117,8 +113,6 @@ TFDetection is a detection toolbox based on Tensorflow2.
       <td>
         <ul>
           <li><b>Assign</b></li>
-        </ul>
-        <ul>
           <ul>
             <li>Max Iou(2015)</li>
             <li>Center Region(2019)</li>
@@ -128,8 +122,6 @@ TFDetection is a detection toolbox based on Tensorflow2.
         </ul>
         <ul>
           <li><b>Metric</b></li>
-        </ul>
-        <ul>
           <ul>
             <li>Mean Average Precision</li>
           </ul>
