@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from tfdet.core.bbox import yolo2bbox
-from tfdet.core.util.tf import map_fn
+from tfdet.core.util import map_fn
 
 def filter_detection(score, logit, regress, anchors, proposal_count = 100, iou_threshold = 0.3, score_threshold = 0.7, soft_nms = False, clip_ratio = 16 / 1000):
     n_class = tf.keras.backend.int_shape(logit)[-1]

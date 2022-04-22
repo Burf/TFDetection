@@ -1,8 +1,7 @@
 import tensorflow as tf
 
 from tfdet.core.bbox import delta2bbox
-from tfdet.core.util.nms import pad_nms
-from tfdet.core.util.tf import map_fn
+from tfdet.core.util import pad_nms, map_fn
 
 class RegionProposalNetwork(tf.keras.layers.Layer):
     def __init__(self, n_anchor, share = True, n_feature = 512, use_bias = False, activation = tf.keras.activations.relu, **kwargs):

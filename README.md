@@ -1,7 +1,11 @@
 # TFDetection
-TFDetection is an detection toolbox based on Tensorflow2. TFDetection supports to you easily apply detection to your analysis services.
+TFDetection is a detection toolbox based on Tensorflow2.
+
 
 ## Overview of Components
+<div align = "center">
+  <b>Detector</b>
+</div>
 <table align = "center">
   <tbody>
     <tr align = "center" valign = "bottom">
@@ -9,20 +13,16 @@ TFDetection is an detection toolbox based on Tensorflow2. TFDetection supports t
         <b>Object Detection</b>
       </td>
       <td>
+        <b>Segmentation</b>
+      </td>
+      <td>
         <b>Anomaly Detection</b>
-      </td>
-      <td>
-        <b>Backbone</b>
-      </td>
-      <td>
-        <b>Neck</b>
       </td>
     </tr>
     <tr valign = "top">
       <td>
         <ul>
           <li>Faster R-CNN(2015)</li>
-          <li>Mask R-CNN(2017)</li>
           <li>RetinaNet(2017)</li>
           <li>YoloV3(2018)</li>
           <li>YoloV3 Tiny(2018)</li>
@@ -37,11 +37,58 @@ TFDetection is an detection toolbox based on Tensorflow2. TFDetection supports t
       </td>
       <td>
         <ul>
+          <li><b>Semantic Segmentation</b></li>
+        </ul>
+        <ul>
+          <ul>
+            <li>FCN(2015)</li>
+            <li>UNet(2016)</li>
+            <li>PSPNet(2017)</li>
+            <li>DeepLab V3(2017)</li>
+            <li>DeepLab V3+(2018)</li>
+            <li>UNet++(2018)</li>
+            <li>UperNet(2018)</li>
+          </ul>
+        </ul>
+        <ul>
+          <li><b>Instance Segmentation</b></li>
+        </ul>
+        <ul>
+          <ul>
+            <li>Mask R-CNN(2017)</li>
+            <li>Cascade Mask R-CNN(2018)</li>
+            <li>Hybrid Task Cascade Mask R-CNN(2019)</li>
+          </ul>
+        </ul>
+      </td>
+      <td>
+        <ul>
           <li>SPADE(2020)</li>
           <li>PaDiM(2020)</li>
           <li>PatchCore(2021)</li>
         </ul>
       </td>
+    </tr>
+  </tbody>
+</table>
+ 
+<div align = "center">
+  <b>Components</b>
+</div>
+<table align = "center">
+  <tbody>
+    <tr align = "center" valign = "bottom">
+      <td>
+        <b>Backbone</b>
+      </td>
+      <td>
+        <b>Neck</b>
+      </td>
+      <td>
+        <b>Other</b>
+      </td>
+    </tr>
+    <tr valign = "top">
       <td>
         <ul>
           <li>VGGNet(2015)</li>
@@ -67,10 +114,32 @@ TFDetection is an detection toolbox based on Tensorflow2. TFDetection supports t
           <li>BiFPN(2019)</a></li>
         </ul>
       </td>
+      <td>
+        <ul>
+          <li><b>Assign</b></li>
+        </ul>
+        <ul>
+          <ul>
+            <li>Max Iou(2015)</li>
+            <li>Center Region(2019)</li>
+            <li>FCOS(2019)</li>
+            <li>Adaptive Training Sample Selection(2020)</li>
+          </ul>
+        </ul>
+        <ul>
+          <li><b>Metric</b></li>
+        </ul>
+        <ul>
+          <ul>
+            <li>Mean Average Precision</li>
+          </ul>
+        </ul>
+      </td>
     </tr>
   </tbody>
 </table>
- 
+
+
 ## Requirements
 
 - Python 3

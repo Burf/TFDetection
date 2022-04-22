@@ -1,10 +1,10 @@
 import tensorflow as tf
 
 from tfdet.core.assign import max_iou
-from tfdet.core.target import anchor_target
-from tfdet.core.util.loss import regularize_loss
-from tfdet.core.util.tf import map_fn
-from ..loss.retina import classnet_accuracy, classnet_loss, boxnet_loss
+from tfdet.core.loss import regularize as regularize_loss
+from tfdet.core.util import map_fn
+from .loss.retina import classnet_accuracy, classnet_loss, boxnet_loss
+from .target import anchor_target
 
 def train_model(input, logits, regress, anchors,
                 assign = max_iou, sampling_count = 256, positive_ratio = 0.5,

@@ -1,10 +1,10 @@
 import tensorflow as tf
 
 from tfdet.core.assign import max_iou
-from tfdet.core.target import yolo_target
-from tfdet.core.util.loss import regularize_loss
-from tfdet.core.util.tf import map_fn
-from ..loss.yolo import score_accuracy, score_loss, logits_accuracy, logits_loss, regress_loss
+from tfdet.core.loss import regularize as regularize_loss
+from tfdet.core.util import map_fn
+from .loss.yolo import score_accuracy, score_loss, logits_accuracy, logits_loss, regress_loss
+from .target import yolo_target
 
 def yolo_assign(bbox_true, bbox_pred, positive_threshold = 0.5, negative_threshold = 0.5, mode = "normal"):
     return max_iou(bbox_true, bbox_pred, positive_threshold = positive_threshold, negative_threshold = negative_threshold, mode = mode)

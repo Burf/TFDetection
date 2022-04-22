@@ -1,7 +1,7 @@
 import tensorflow as tf
 
-from ..assign import max_iou
-from ..bbox import yolo2bbox
+from tfdet.core.assign import max_iou
+from tfdet.core.bbox import yolo2bbox
 
 def yolo_assign(bbox_true, bbox_pred, positive_threshold = 0.5, negative_threshold = 0.5, mode = "normal"):
     return max_iou(bbox_true, bbox_pred, positive_threshold = positive_threshold, negative_threshold = negative_threshold, mode = mode)

@@ -3,10 +3,10 @@ import numpy as np
 
 from tfdet.core.anchor import generate_anchors
 from tfdet.core.assign import max_iou
-from tfdet.core.target import sampling_target
-from tfdet.core.util.tf import map_fn
+from tfdet.core.util import map_fn
 from ..head.rcnn import RegionProposalNetwork, Rpn2Proposal, RoiAlign, RoiClassifier, RoiMask, Classifier2Proposal, FusedSemanticHead
 from ..neck import fpn
+from ..train.target import sampling_target
 
 def cls_assign(bbox_true, bbox_pred, positive_threshold = 0.5, negative_threshold = 0.5, mode = "normal"):
     return max_iou(bbox_true, bbox_pred, positive_threshold = positive_threshold, negative_threshold = negative_threshold, mode = mode)

@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from tfdet.core.util.anodet import core_sampling
+from tfdet.core.util import core_sampling
 from ..head.patch_core import FeatureExtractor
 
 def train(feature, sampling_index = None, n_sample = 0.001, n_feature = "auto", eps = 0.9, pool_size = 3, memory_reduce = True):

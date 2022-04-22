@@ -2,7 +2,7 @@ import tensorflow as tf
 
 from ..bbox import overlap_point
 
-def point(bbox_true, point_pred, regress_range, threshold = 0.0001):
+def fcos(bbox_true, point_pred, regress_range, threshold = 0.0001):
     overlaps = tf.transpose(overlap_point(bbox_true, point_pred, regress_range)) #(P, T)
     max_area = tf.reduce_max(overlaps, axis = -1)
     match = tf.where(tf.logical_and(threshold <= max_area, 0 < max_area), 1, -1)

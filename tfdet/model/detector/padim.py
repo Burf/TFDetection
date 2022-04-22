@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from tfdet.core.util.distance import mahalanobis
+from tfdet.core.util import mahalanobis
 from ..head.padim import FeatureExtractor, Head
 
 def padim(feature, mean, cvar_inv = None, image_shape = [224, 224], sampling_index = None, sigma = 4, metric = mahalanobis, method = "bilinear", memory_reduce = True, batch_size = 1):

@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from .common import smooth_l1_loss
+from tfdet.core.loss import smooth_l1
     
 def classnet_accuracy(y_true, y_pred, missing_value = 0.):
     """
@@ -73,7 +73,7 @@ def boxnet_loss(y_true, bbox_true, bbox_pred, sigma = 3, missing_value = 0.):
     bbox_true = tf.gather_nd(bbox_true, true_indices)
     bbox_pred = tf.gather_nd(bbox_pred, true_indices)
     
-    loss = smooth_l1_loss(bbox_true, bbox_pred, sigma)
+    loss = smooth_l1(bbox_true, bbox_pred, sigma)
     
     loss = tf.reduce_mean(loss)
     loss = tf.where(tf.math.is_nan(loss), missing_value, loss)

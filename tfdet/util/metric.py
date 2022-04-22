@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 
 from ..core.bbox import overlap_bbox
-from ..core.util.tf import map_fn
+from ..core.util import map_fn
 
 def mean_average_precision(y_true, bbox_true, y_pred, bbox_pred, threshold = 0.5, r = 11, interpolate = True, mode = "normal", batch_size = 10, reduce = True, return_precision_n_recall = False):
     """

@@ -2,8 +2,7 @@ import tensorflow as tf
 import cv2
 import numpy as np
 
-from tfdet.core.util.anodet import feature_extract
-from tfdet.core.util.distance import euclidean_matrix
+from tfdet.core.util import feature_extract, euclidean_matrix
 
 class FeatureExtractor(tf.keras.layers.Layer):
     def __init__(self, sampling_index = None, pool_size = 3, memory_reduce = True, **kwargs):

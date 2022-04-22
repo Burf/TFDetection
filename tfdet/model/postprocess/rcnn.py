@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from tfdet.core.bbox import delta2bbox
-from tfdet.core.util.tf import map_fn
+from tfdet.core.util import map_fn
 
 def filter_detection(cls_logit, cls_regress, proposal, mask_regress = None, proposal_count = 100, iou_threshold = 0.3, score_threshold = 0.7, soft_nms = False, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000):
     """

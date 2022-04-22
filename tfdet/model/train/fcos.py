@@ -1,13 +1,13 @@
 import tensorflow as tf
 
-from tfdet.core.assign import point
-from tfdet.core.target import point_target
-from tfdet.core.util.loss import regularize_loss
-from tfdet.core.util.tf import map_fn
-from ..loss.fcos import classnet_accuracy, classnet_loss, boxnet_loss, centernessnet_loss
+from tfdet.core.assign import fcos as fcos_assign
+from tfdet.core.loss import regularize as regularize_loss
+from tfdet.core.util import map_fn
+from .loss.fcos import classnet_accuracy, classnet_loss, boxnet_loss, centernessnet_loss
+from .target import fcos_target
 
 def train_model(input, logits, regress, points, centerness = None,
-                assign = point, sampling_count = 256, positive_ratio = 0.5,
+                assign = fcos_assign, sampling_count = 256, positive_ratio = 0.5,
                 batch_size = 1, regularize = True, weight_decay = 1e-4, focal = True, alpha = .25, gamma = 2., sigma = 3, class_weight = None, missing_value = 0.):
     if not isinstance(logits, list):
         logits, regress, points = [logits], [regress], [points]
@@ -33,9 +33,9 @@ def train_model(input, logits, regress, points, centerness = None,
     regress_range = tf.tile(tf.expand_dims(regress_range, axis = 0), [tf.shape(input)[0], 1, 1])
     
     if centerness is not None:
-        target_y_true, target_bbox_true, target_centerness_true, target_y_pred, target_bbox_pred, target_centerness_pred = tf.keras.layers.Lambda(lambda args: map_fn(point_target, *args, dtype = (y_true.dtype, bbox_true.dtype, bbox_true.dtype, logits.dtype, regress.dtype, centerness.dtype), batch_size = batch_size, assign = assign, sampling_count = sampling_count, positive_ratio = positive_ratio), name = "point_target")([y_true, bbox_true, logits, regress, points, regress_range, centerness])
+        target_y_true, target_bbox_true, target_centerness_true, target_y_pred, target_bbox_pred, target_centerness_pred = tf.keras.layers.Lambda(lambda args: map_fn(fcos_target, *args, dtype = (y_true.dtype, bbox_true.dtype, bbox_true.dtype, logits.dtype, regress.dtype, centerness.dtype), batch_size = batch_size, assign = assign, sampling_count = sampling_count, positive_ratio = positive_ratio), name = "fcos_target")([y_true, bbox_true, logits, regress, points, regress_range, centerness])
     else:
-        target_y_true, target_bbox_true, target_y_pred, target_bbox_pred = tf.keras.layers.Lambda(lambda args: map_fn(point_target, *args, dtype = (y_true.dtype, bbox_true.dtype, logits.dtype, regress.dtype), batch_size = batch_size, assign = assign, sampling_count = sampling_count, positive_ratio = positive_ratio), name = "point_target")([y_true, bbox_true, logits, regress, points, regress_range])
+        target_y_true, target_bbox_true, target_y_pred, target_bbox_pred = tf.keras.layers.Lambda(lambda args: map_fn(fcos_target, *args, dtype = (y_true.dtype, bbox_true.dtype, logits.dtype, regress.dtype), batch_size = batch_size, assign = assign, sampling_count = sampling_count, positive_ratio = positive_ratio), name = "fcos_target")([y_true, bbox_true, logits, regress, points, regress_range])
     
     score_accuracy = tf.keras.layers.Lambda(lambda args: classnet_accuracy(*args, missing_value = missing_value), name = "score_accuracy")([target_y_true, target_y_pred])
     score_loss = tf.keras.layers.Lambda(lambda args: classnet_loss(*args, focal = focal, alpha = alpha, gamma = gamma, weight = class_weight, missing_value = missing_value), name = "score_loss")([target_y_true, target_y_pred])

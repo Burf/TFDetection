@@ -8,3 +8,9 @@ from .yolo import yolo_v3, yolo_tiny_v3, yolo_v4, yolo_tiny_v4
 from .spade import spade
 from .padim import padim
 from .patch_core import patch_core
+
+from .deeplab import deeplab_v3, deeplab_v3_plus
+from .fcn import fcn
+from .pspnet import pspnet
+from .unet import unet, unet_2plus
+from .upernet import upernet
