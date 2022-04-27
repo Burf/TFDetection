@@ -185,16 +185,20 @@ class RoiAlign(tf.keras.layers.Layer):
         return config
 
 class RoiClassifier(tf.keras.layers.Layer):
-    def __init__(self, n_class = 21, n_feature = 1024, activation = tf.keras.activations.relu, **kwargs):
+    def __init__(self, n_class = 21, n_feature = 1024, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu, **kwargs):
         super(RoiClassifier, self).__init__(**kwargs)   
         self.n_class = n_class
         self.n_feature = n_feature
+        self.normalize = normalize
         self.activation = activation
 
-        self.bn1 = tf.keras.layers.TimeDistributed(tf.keras.layers.BatchNormalization(axis = -1), name = "pooling_bn")
+        self.norm1 = self.norm2 = None
+        if self.normalize is not None:
+            self.norm1 = tf.keras.layers.TimeDistributed(self.normalize(), name = "pooling_norm")
         self.act1 = tf.keras.layers.Activation(activation, name = "pooling_act")
         self.conv2 = tf.keras.layers.TimeDistributed(tf.keras.layers.Conv2D(n_feature, 1, use_bias = True, kernel_initializer = "he_normal", bias_initializer = "zeros"), name = "feature_conv")
-        self.bn2 = tf.keras.layers.TimeDistributed(tf.keras.layers.BatchNormalization(axis = -1), name = "feature_bn")
+        if self.normalize is not None:
+            self.norm2 = tf.keras.layers.TimeDistributed(self.normalize(), name = "feature_norm")
         self.act2 = tf.keras.layers.Activation(activation, name = "feature_act")
         self.feature = tf.keras.layers.Reshape([-1, n_feature], name = "shared_feature")
         self.logits = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(n_class, activation = tf.keras.activations.softmax), name = "logits")
@@ -206,9 +210,10 @@ class RoiClassifier(tf.keras.layers.Layer):
 
     def call(self, inputs):
         out = inputs
-        for layer in [self.conv1, self.bn1, self.act1, 
-                      self.conv2, self.bn2, self.act2]:
-            out = layer(out)
+        for layer in [self.conv1, self.norm1, self.act1, 
+                      self.conv2, self.norm2, self.act2]:
+            if layer is not None:
+                out = layer(out)
         out = self.feature(out)
         logits = self.logits(out)
         regress = self.regress(out)
@@ -219,21 +224,24 @@ class RoiClassifier(tf.keras.layers.Layer):
         config = super(RoiClassifier, self).get_config()
         config["n_class"] = self.n_class
         config["n_feature"] = self.n_feature
+        config["normalize"] = self.normalize
         config["activation"] = self.activation
         return config
 
 class RoiMask(tf.keras.layers.Layer):
-    def __init__(self, n_class = 21, n_feature = 256, n_depth = 4, activation = tf.keras.activations.relu, **kwargs):
+    def __init__(self, n_class = 21, n_feature = 256, n_depth = 4, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu, **kwargs):
         super(RoiMask, self).__init__(**kwargs)   
         self.n_class = n_class
         self.n_feature = n_feature
         self.n_depth = n_depth
+        self.normalize = normalize
         self.activation = activation
         
         self.layers = []        
         for index in range(n_depth):
             self.layers.append(tf.keras.layers.TimeDistributed(tf.keras.layers.Conv2D(n_feature, 3, use_bias = True, padding = "same", kernel_initializer = "he_normal", bias_initializer = "zeros"), name = "feature_conv{0}".format(index + 1)))
-            self.layers.append(tf.keras.layers.TimeDistributed(tf.keras.layers.BatchNormalization(axis = -1), name = "feature_bn{0}".format(index + 1)))
+            if self.normalize is not None:
+                self.layers.append(tf.keras.layers.TimeDistributed(self.normalize(), name = "feature_norm{0}".format(index + 1)))
             self.layers.append(tf.keras.layers.Activation(activation, name = "feature_act{0}".format(index + 1)))
         self.deconv = tf.keras.layers.TimeDistributed(tf.keras.layers.Conv2DTranspose(256, (2, 2), strides = 2, activation = activation), name = "deconv")
         self.mask = tf.keras.layers.TimeDistributed(tf.keras.layers.Conv2D(n_class, (1, 1), activation = tf.keras.activations.sigmoid), name = "mask")
@@ -262,6 +270,7 @@ class RoiMask(tf.keras.layers.Layer):
         config["n_class"] = self.n_class
         config["n_feature"] = self.n_feature
         config["n_depth"] = self.n_depth
+        config["normalize"] = self.normalize
         config["activation"] = self.activation
         return config
 
@@ -330,7 +339,7 @@ class FusedSemanticHead(tf.keras.layers.Layer):
         for index in range(len(input_shape)):
             conv = [tf.keras.layers.Conv2D(ch, 1, use_bias = self.normalize is None, name = "lateral_conv{0}".format(index + 1))]
             if self.normalize is not None:
-                conv.append(self.normalize(name = "lateral_bn{0}".format(index + 1)))
+                conv.append(self.normalize(name = "lateral_norm{0}".format(index + 1)))
             if self.activation is not None:
                 conv.append(tf.keras.layers.Activation(self.activation, name = "lateral_act{0}".format(index + 1)))
             self.lateral_convs.append(conv)
@@ -339,13 +348,13 @@ class FusedSemanticHead(tf.keras.layers.Layer):
         for index in range(self.n_depth):
             self.convs.append(tf.keras.layers.Conv2D(self.n_feature if index != 0 else ch, 3, padding = "same", use_bias = self.normalize is None, name = "feature_conv{0}".format(index + 1)))
             if self.normalize is not None:
-                self.convs.append(self.normalize(axis = -1, name = "feature_bn{0}".format(index + 1)))
+                self.convs.append(self.normalize(axis = -1, name = "feature_norm{0}".format(index + 1)))
             if self.activation is not None:
                 self.convs.append(tf.keras.layers.Activation(self.activation, name = "feature_act{0}".format(index + 1)))
         
         self.embed = [tf.keras.layers.Conv2D(self.n_feature, 1, use_bias = self.normalize is None, name = "embed_conv")]
         if self.normalize is not None:
-            self.embed.append(self.normalize(axis = -1, name = "embed_bn"))
+            self.embed.append(self.normalize(axis = -1, name = "embed_norm"))
         if self.activation is not None:
             self.embed.append(tf.keras.layers.Activation(self.activation, name = "embed_act"))
             

@@ -7,30 +7,27 @@ def mish(x):
     
 def leaky_relu(x, alpha = 0.1):
     return tf.nn.leaky_relu(x, alpha = alpha)
-    
-def normalize(axis = -1, **kwargs):
-    return tf.keras.layers.BatchNormalization(axis = axis, **kwargs)
 
-def darknet_conv_block(x, n_feature, kernel_size = 3, stride_size = 1, normalize = normalize, activation = mish):
+def darknet_conv_block(x, n_feature, kernel_size = 3, stride_size = 1, normalize = tf.keras.layers.BatchNormalization, activation = mish):
     padding = "same"
     if stride_size != 1:
         x = tf.keras.layers.ZeroPadding2D(((1, 0), (1, 0)))(x)  # top left half-padding
         padding = "valid"
 
-    out = tf.keras.layers.Conv2D(n_feature, kernel_size, strides = stride_size, padding = padding, use_bias = not callable(normalize), kernel_initializer = tf.random_normal_initializer(stddev = 0.01), bias_initializer = "zeros")(x)
-    if callable(normalize):
+    out = tf.keras.layers.Conv2D(n_feature, kernel_size, strides = stride_size, padding = padding, use_bias = normalize is None, kernel_initializer = tf.random_normal_initializer(stddev = 0.01), bias_initializer = "zeros")(x)
+    if normalize is not None:
         out = normalize()(out)
     if activation is not None:
         out = tf.keras.layers.Activation(activation)(out)
     return out
 
-def darknet_res_block(x, n_feature, reduce = True, normalize = normalize, activation = mish):
+def darknet_res_block(x, n_feature, reduce = True, normalize = tf.keras.layers.BatchNormalization, activation = mish):
     out = darknet_conv_block(x, n_feature // 2 if reduce else n_feature, 1, normalize = normalize, activation = activation)
     out = darknet_conv_block(out, n_feature, 3, normalize = normalize, activation = activation)
     out = tf.keras.layers.Add()([x, out])
     return out
 
-def darknet_block(x, n_feature, n_block, stride_size = 2, csp_filter = None, reduce = True, normalize = normalize, activation = mish):
+def darknet_block(x, n_feature, n_block, stride_size = 2, csp_filter = None, reduce = True, normalize = tf.keras.layers.BatchNormalization, activation = mish):
     out = darknet_conv_block(x, n_feature, 3, stride_size = stride_size, normalize = normalize, activation = activation)
     res_filter = n_feature
     if isinstance(csp_filter, int):
@@ -45,7 +42,7 @@ def darknet_block(x, n_feature, n_block, stride_size = 2, csp_filter = None, red
         out = darknet_conv_block(out, n_feature, 1, normalize = normalize, activation = activation)
     return out
 
-def darknet_tiny_block(x, n_feature, stride_size = 2, csp_filter = None, feature = False, normalize = normalize, activation = mish):
+def darknet_tiny_block(x, n_feature, stride_size = 2, csp_filter = None, feature = False, normalize = tf.keras.layers.BatchNormalization, activation = mish):
     feat = res1 = out = darknet_conv_block(x, n_feature, 3, normalize = normalize, activation = activation)
     if isinstance(csp_filter, int):
         out = tf.split(out, num_or_size_splits = 2, axis = -1)[1]
@@ -59,7 +56,7 @@ def darknet_tiny_block(x, n_feature, stride_size = 2, csp_filter = None, feature
         out = [out, feat]
     return out
 
-def darknet53(x, csp = False, normalize = normalize, activation = mish, post_activation = leaky_relu, weights = "darknet"):
+def darknet53(x, csp = False, normalize = tf.keras.layers.BatchNormalization, activation = mish, post_activation = leaky_relu, weights = "darknet"):
     csp_filter = [None, None, None, None, None]
     if csp:
         csp_filter = [64, 64, 128, 256, 512]
@@ -97,7 +94,7 @@ def darknet53(x, csp = False, normalize = normalize, activation = mish, post_act
             model.load_weights(weights)
     return feature
 
-def darknet19(x, csp = False, normalize = normalize, activation = mish, weights = "darknet"):
+def darknet19(x, csp = False, normalize = tf.keras.layers.BatchNormalization, activation = mish, weights = "darknet"):
     if csp:
         n_feature = [64, 128, 256]
         csp_filter = [32, 64, 128]
@@ -130,10 +127,10 @@ def darknet19(x, csp = False, normalize = normalize, activation = mish, weights 
             model.load_weights(weights)
     return feature
     
-def csp_darknet53(x, csp = True, normalize = normalize, activation = mish, post_activation = leaky_relu, weights = "darknet"):
+def csp_darknet53(x, csp = True, normalize = tf.keras.layers.BatchNormalization, activation = mish, post_activation = leaky_relu, weights = "darknet"):
     return darknet53(x, csp = csp, normalize = normalize, activation = activation, post_activation = post_activation, weights = weights)
     
-def csp_darknet19(x, csp = True, normalize = normalize, activation = mish, weights = "darknet"):
+def csp_darknet19(x, csp = True, normalize = tf.keras.layers.BatchNormalization, activation = mish, weights = "darknet"):
     return darknet19(x, csp = csp, normalize = normalize, activation = activation, weights = weights)
     
 darknet_urls = {"darknet53":"https://pjreddie.com/media/files/yolov3.weights",

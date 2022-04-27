@@ -1,8 +1,5 @@
 import tensorflow as tf
 
-def normalize(axis = -1, momentum = 0.997, epsilon = 1e-4, **kwargs):
-    return tf.keras.layers.BatchNormalization(axis = axis, momentum = momentum, epsilon = epsilon, **kwargs)
-
 class WeightedAdd(tf.keras.layers.Layer):
     def __init__(self, **kwargs):
         super(WeightedAdd, self).__init__(**kwargs)
@@ -24,7 +21,7 @@ class WeightedAdd(tf.keras.layers.Layer):
         return input_shape[0]
 
 class FeaturePyramidNetwork(tf.keras.layers.Layer):
-    def __init__(self, mode = "bifpn", n_feature = 256, use_bias = True, weighted_add = True, method = "nearest", normalize = normalize, activation = tf.nn.swish, **kwargs):
+    def __init__(self, mode = "bifpn", n_feature = 256, use_bias = True, weighted_add = True, method = "nearest", normalize = tf.keras.layers.BatchNormalization, activation = tf.nn.swish, **kwargs):
         """
         fpn > mode = "fpn", use_bias = True, weighted_add = False, normalize = None
         panet > mode = "panet", use_bias = True, weighted_add = False, normalize = None
@@ -187,6 +184,6 @@ def fpn(n_feature = 256, use_bias = True, weighted_add = False, method = "neares
 def panet(n_feature = 256, use_bias = True, weighted_add = False, method = "nearest", normalize = None, activation = None, mode = "panet", **kwargs):
     return FeaturePyramidNetwork(mode = mode, n_feature = n_feature, use_bias = use_bias, weighted_add = weighted_add, method = method, normalize = normalize, activation = activation, **kwargs)
     
-def bifpn(n_feature = 256, use_bias = True, weighted_add = True, method = "nearest", normalize = normalize, activation = tf.nn.swish, mode = "bifpn", **kwargs):
+def bifpn(n_feature = 256, use_bias = True, weighted_add = True, method = "nearest", normalize = tf.keras.layers.BatchNormalization, activation = tf.nn.swish, mode = "bifpn", **kwargs):
     return FeaturePyramidNetwork(mode = mode, n_feature = n_feature, use_bias = use_bias, weighted_add = weighted_add, method = method, normalize = normalize, activation = activation, **kwargs)
     

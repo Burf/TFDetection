@@ -5,10 +5,7 @@ from ..backbone.darknet import darknet_conv_block
 def leaky_relu(x, alpha = 0.1):
     return tf.nn.leaky_relu(x, alpha = alpha)
     
-def normalize(axis = -1, **kwargs):
-    return tf.keras.layers.BatchNormalization(axis = axis, **kwargs)
-
-def yolo_conv_block(x, n_feature, normalize = normalize, activation = leaky_relu):
+def yolo_conv_block(x, n_feature, normalize = tf.keras.layers.BatchNormalization, activation = leaky_relu):
     out = darknet_conv_block(x, n_feature, 1, normalize = normalize, activation = activation)
     out = darknet_conv_block(out, n_feature * 2, 3, normalize = normalize, activation = activation)
     out = darknet_conv_block(out, n_feature, 1, normalize = normalize, activation = activation)

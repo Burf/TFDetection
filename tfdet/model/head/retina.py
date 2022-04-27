@@ -1,12 +1,13 @@
 import tensorflow as tf
 
 class ClassNet(tf.keras.layers.Layer):
-    def __init__(self, n_anchor, n_class = 21, n_feature = 224, n_depth = 4, activation = tf.nn.swish, concat = True, **kwargs):
+    def __init__(self, n_anchor, n_class = 21, n_feature = 224, n_depth = 4, normalize = tf.keras.layers.BatchNormalization, activation = tf.nn.swish, concat = True, **kwargs):
         super(ClassNet, self).__init__(**kwargs)   
         self.n_anchor = n_anchor
         self.n_class = n_class
         self.n_feature = n_feature
         self.n_depth = n_depth
+        self.normalize = normalize
         self.activation = activation
         self.concat = concat
 
@@ -14,7 +15,8 @@ class ClassNet(tf.keras.layers.Layer):
         if not isinstance(input_shape, list):
             input_shape = [input_shape]
         self.convs = [tf.keras.layers.SeparableConv2D(self.n_feature, 3, padding = "same", depthwise_initializer = tf.keras.initializers.VarianceScaling(), pointwise_initializer = tf.keras.initializers.VarianceScaling(), bias_initializer = "zeros", name = "depth{0}_conv".format(i + 1)) for i in range(self.n_depth)]
-        self.bns = [[tf.keras.layers.BatchNormalization(momentum = 0.997, epsilon = 1e-4, name = "depth{0}_bn{1}".format(i + 1, j + 1)) for j in range(len(input_shape))] for i in range(self.n_depth)]
+        if self.normalize is not None:
+            self.norms = [[self.normalize(name = "depth{0}_norm{1}".format(i + 1, j + 1)) for j in range(len(input_shape))] for i in range(self.n_depth)]
         self.acts = [tf.keras.layers.Activation(self.activation, name = "depth{0}_act".format(i + 1)) for i in range(self.n_depth)]
         self.head = tf.keras.layers.SeparableConv2D(self.n_anchor * self.n_class, 3, padding = "same", depthwise_initializer = tf.keras.initializers.VarianceScaling(), pointwise_initializer = tf.keras.initializers.VarianceScaling(), bias_initializer = "zeros", name = "head")
         self.reshape = tf.keras.layers.Reshape([-1, self.n_class], name = "head_reshape")
@@ -29,7 +31,10 @@ class ClassNet(tf.keras.layers.Layer):
         features = []
         for j, x in enumerate(inputs):
             for i in range(self.n_depth):
-                x = self.acts[i](self.bns[i][j](self.convs[i](x)))
+                x = self.convs[i](x)
+                if self.normalize is not None:
+                    x = self.norms[i][j](x)
+                x = self.acts[i](x)
             features.append(x)
             x = self.act(self.reshape(self.head(x)))
             out.append(x)
@@ -47,16 +52,18 @@ class ClassNet(tf.keras.layers.Layer):
         config["n_class"] = self.n_class
         config["n_feature"] = self.n_feature
         config["n_depth"] = self.n_depth
+        config["normalize"] = self.normalize
         config["activation"] = self.activation
         config["concat"] = self.concat
         return config
 
 class BoxNet(tf.keras.layers.Layer):
-    def __init__(self, n_anchor, n_feature = 224, n_depth = 4, activation = tf.nn.swish, concat = True, **kwargs):
+    def __init__(self, n_anchor, n_feature = 224, n_depth = 4, normalize = tf.keras.layers.BatchNormalization, activation = tf.nn.swish, concat = True, **kwargs):
         super(BoxNet, self).__init__(**kwargs)   
         self.n_anchor = n_anchor
         self.n_feature = n_feature
         self.n_depth = n_depth
+        self.normalize = normalize
         self.activation = activation
         self.concat = concat
 
@@ -64,7 +71,8 @@ class BoxNet(tf.keras.layers.Layer):
         if not isinstance(input_shape, list):
             input_shape = [input_shape]
         self.convs = [tf.keras.layers.SeparableConv2D(self.n_feature, 3, padding = "same", depthwise_initializer = tf.keras.initializers.VarianceScaling(), pointwise_initializer = tf.keras.initializers.VarianceScaling(), bias_initializer = "zeros", name = "depth{0}_conv".format(i + 1)) for i in range(self.n_depth)]
-        self.bns = [[tf.keras.layers.BatchNormalization(momentum = 0.997, epsilon = 1e-4, name = "depth{0}_bn{1}".format(i + 1, j + 1)) for j in range(len(input_shape))] for i in range(self.n_depth)]
+        if self.normalize is not None:
+            self.norms = [[self.normalize(name = "depth{0}_norm{1}".format(i + 1, j + 1)) for j in range(len(input_shape))] for i in range(self.n_depth)]
         self.acts = [tf.keras.layers.Activation(self.activation, name = "depth{0}_act".format(i + 1)) for i in range(self.n_depth)]
         self.head = tf.keras.layers.SeparableConv2D(self.n_anchor * 4, 3, padding = "same", depthwise_initializer = tf.keras.initializers.VarianceScaling(), pointwise_initializer = tf.keras.initializers.VarianceScaling(), bias_initializer = "zeros", name = "head")
         self.reshape = tf.keras.layers.Reshape([-1, 4], name = "regress")
@@ -79,7 +87,10 @@ class BoxNet(tf.keras.layers.Layer):
         features = []
         for j, x in enumerate(inputs):
             for i in range(self.n_depth):
-                x = self.acts[i](self.bns[i][j](self.convs[i](x)))
+                x = self.convs[i](x)
+                if self.normalize is not None:
+                    x = self.norms[i][j](x)
+                x = self.acts[i](x)
             features.append(x)
             x = self.reshape(self.head(x))
             out.append(x)
@@ -96,6 +107,7 @@ class BoxNet(tf.keras.layers.Layer):
         config["n_anchor"] = self.n_anchor
         config["n_feature"] = self.n_feature
         config["n_depth"] = self.n_depth
+        config["normalize"] = self.normalize
         config["activation"] = self.activation
         config["concat"] = self.concat
         return config

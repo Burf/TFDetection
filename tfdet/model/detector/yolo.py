@@ -11,9 +11,6 @@ def mish(x):
     
 def leaky_relu(x, alpha = 0.1):
     return tf.nn.leaky_relu(x, alpha = alpha)
-    
-def normalize(axis = -1, **kwargs):
-    return tf.keras.layers.BatchNormalization(axis = axis, **kwargs)
 
 def yolo(x, n_class = 80,
          size = [[0.01645, 0.02138], [0.02632, 0.04934], [0.05428, 0.03783],
@@ -21,7 +18,7 @@ def yolo(x, n_class = 80,
                  [0.19079, 0.14803], [0.25658, 0.32566], [0.61349, 0.53618]], 
          auto_size = True,
          tiny = False, csp = True, shared = True, method = "nearest",
-         normalize = normalize, activation = mish, post_activation = leaky_relu,
+         normalize = tf.keras.layers.BatchNormalization, activation = mish, post_activation = leaky_relu,
          weights = "darknet"):
     image_shape = tf.shape(x)[-3:-1] if tf.keras.backend.int_shape(x)[-3] is None else tf.keras.backend.int_shape(x)[-3:-1]
     result = []
@@ -196,7 +193,7 @@ def yolo_v3(x, n_class = 80, size = [[0.01645, 0.02138], [0.02632, 0.04934], [0.
                                      [0.04934, 0.10033], [0.10197, 0.07401], [0.09704, 0.19572],
                                      [0.19079, 0.14803], [0.25658, 0.32566], [0.61349, 0.53618]], 
             auto_size = True, shared = True, method = "nearest",
-            normalize = normalize, activation = mish, post_activation = leaky_relu, weights = "darknet"):
+            normalize = tf.keras.layers.BatchNormalization, activation = mish, post_activation = leaky_relu, weights = "darknet"):
     out = yolo(x, n_class, size = size, auto_size = auto_size, tiny = False, csp = False, shared = shared, method = method, normalize = normalize, activation = activation, post_activation = post_activation, weights = "darknet" if weights == "darknet" else None)
     
     if weights is not None and weights != "darknet":
@@ -210,7 +207,7 @@ def yolo_v3(x, n_class = 80, size = [[0.01645, 0.02138], [0.02632, 0.04934], [0.
 def yolo_tiny_v3(x, n_class = 80, size = [[0.05529, 0.06490], [0.08894, 0.13942], [0.19471, 0.19712],
                                           [0.19471, 0.19712], [0.32452, 0.40625], [0.82692, 0.76683]],
                  auto_size = True, shared = True, method = "nearest",
-                 normalize = normalize, activation = mish, post_activation = leaky_relu, weights = "darknet"):
+                 normalize = tf.keras.layers.BatchNormalization, activation = mish, post_activation = leaky_relu, weights = "darknet"):
     out = yolo(x, n_class, size = size, auto_size = auto_size, tiny = True, csp = False, shared = shared, method = method, normalize = normalize, activation = activation, post_activation = post_activation, weights = "darknet" if weights == "darknet" else None)
     
     if weights is not None and weights != "darknet":
@@ -225,7 +222,7 @@ def yolo_v4(x, n_class = 80, size = [[0.01645, 0.02138], [0.02632, 0.04934], [0.
                                      [0.04934, 0.10033], [0.10197, 0.07401], [0.09704, 0.19572],
                                      [0.19079, 0.14803], [0.25658, 0.32566], [0.61349, 0.53618]], 
             auto_size = True, shared = True, method = "nearest",
-            normalize = normalize, activation = mish, post_activation = leaky_relu, weights = "darknet"):
+            normalize = tf.keras.layers.BatchNormalization, activation = mish, post_activation = leaky_relu, weights = "darknet"):
     out = yolo(x, n_class, size = size, auto_size = auto_size, tiny = False, csp = True, shared = shared, method = method, normalize = normalize, activation = activation, post_activation = post_activation, weights = "darknet" if weights == "darknet" else None)
     
     if weights is not None and weights != "darknet":
@@ -239,7 +236,7 @@ def yolo_v4(x, n_class = 80, size = [[0.01645, 0.02138], [0.02632, 0.04934], [0.
 def yolo_tiny_v4(x, n_class = 80, size = [[0.05529, 0.06490], [0.08894, 0.13942], [0.19471, 0.19712],
                                           [0.19471, 0.19712], [0.32452, 0.40625], [0.82692, 0.76683]],
                  auto_size = True, shared = True, method = "nearest",
-                 normalize = normalize, activation = mish, post_activation = leaky_relu, weights = "darknet"):
+                 normalize = tf.keras.layers.BatchNormalization, activation = mish, post_activation = leaky_relu, weights = "darknet"):
     out = yolo(x, n_class, size = size, auto_size = auto_size, tiny = True, csp = True, shared = shared, method = method, normalize = normalize, activation = activation, post_activation = post_activation, weights = "darknet" if weights == "darknet" else None)
     
     if weights is not None and weights != "darknet":

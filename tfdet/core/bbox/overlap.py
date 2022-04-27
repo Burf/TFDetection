@@ -65,7 +65,7 @@ def overlap_bbox(bbox_true, bbox_pred, mode = "normal"):
     overlaps = tf.reshape(iou, [true_count, pred_count])
     return overlaps
 
-def overlap_point(bbox_true, points, regress_range):
+def overlap_fcos(bbox_true, points, regress_range):
     true_count = tf.shape(bbox_true)[0]
     pred_count = tf.shape(points)[0]
 
