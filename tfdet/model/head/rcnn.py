@@ -3,13 +3,18 @@ import tensorflow as tf
 from tfdet.core.bbox import delta2bbox
 from tfdet.core.util import pad_nms, map_fn
 
+def conv(filters, kernel_size, strides = 1, padding = "same", use_bias = True, kernel_initializer = "he_normal", **kwargs):
+    return tf.keras.layers.Conv2D(filters, kernel_size, strides = strides, padding = padding, use_bias = use_bias, kernel_initializer = kernel_initializer, **kwargs)
+
 class RegionProposalNetwork(tf.keras.layers.Layer):
-    def __init__(self, n_anchor, share = True, n_feature = 512, use_bias = False, activation = tf.keras.activations.relu, **kwargs):
-        super(RegionProposalNetwork, self).__init__(**kwargs)   
+    def __init__(self, n_anchor, share = True, n_feature = 512, use_bias = True, convolution = conv, normalize = None, activation = tf.keras.activations.relu, **kwargs):
+        super(RegionProposalNetwork, self).__init__(**kwargs)
         self.n_anchor = n_anchor
         self.share = share
         self.n_feature = n_feature
         self.use_bias = use_bias
+        self.convolution = convolution
+        self.normalize = normalize
         self.activation = activation
 
         self.score_reshape = tf.keras.layers.Reshape((-1, 1), name = "score")
@@ -19,13 +24,15 @@ class RegionProposalNetwork(tf.keras.layers.Layer):
         if not isinstance(input_shape, list):
             input_shape = [input_shape]
         if self.share:
-            self.feature = [tf.keras.layers.Conv2D(self.n_feature, (3, 3), padding = "same", use_bias = False, activation = self.activation, name = "shared_feature_conv")] * len(input_shape)
-            self.score = [tf.keras.layers.Conv2D(self.n_anchor, (1, 1), use_bias = self.use_bias, activation = tf.keras.activations.sigmoid, name = "shared_score_conv")] * len(input_shape)
-            self.regress = [tf.keras.layers.Conv2D(self.n_anchor * 4, (1, 1), use_bias = self.use_bias, activation = tf.keras.activations.linear, name = "shared_regress_conv")] * len(input_shape)
+            self.feature = [self.convolution(self.n_feature, 3, padding = "same", use_bias = False, activation = self.activation, name = "shared_feature_conv")] * len(input_shape)
+            self.score = [self.convolution(self.n_anchor, 1, use_bias = self.use_bias, activation = tf.keras.activations.sigmoid, name = "shared_score_conv")] * len(input_shape)
+            self.regress = [self.convolution(self.n_anchor * 4, 1, use_bias = self.use_bias, name = "shared_regress_conv")] * len(input_shape)
         else:
-            self.feature = [tf.keras.layers.Conv2D(self.n_feature, (3, 3), padding = "same", use_bias = False, activation = self.activation, name = "feature_conv{0}".format(index + 1)) for index in range(len(input_shape))]
-            self.score = [tf.keras.layers.Conv2D(self.n_anchor, (1, 1), use_bias = self.use_bias, activation = tf.keras.activations.sigmoid, name = "score_conv{0}".format(index + 1)) for index in range(len(input_shape))]
-            self.regress = [tf.keras.layers.Conv2D(self.n_anchor * 4, (1, 1), use_bias = self.use_bias, activation = tf.keras.activations.linear, name = "regress_conv{0}".format(index + 1)) for index in range(len(input_shape))]
+            self.feature = [self.convolution(self.n_feature, 3, padding = "same", use_bias = False, activation = self.activation, name = "feature_conv{0}".format(index + 1)) for index in range(len(input_shape))]
+            self.score = [self.convolution(self.n_anchor, 1, use_bias = self.use_bias, activation = tf.keras.activations.sigmoid, name = "score_conv{0}".format(index + 1)) for index in range(len(input_shape))]
+            self.regress = [self.convolution(self.n_anchor * 4, 1, use_bias = self.use_bias, name = "regress_conv{0}".format(index + 1)) for index in range(len(input_shape))]
+        if self.normalize is not None:
+            self.norm = [self.normalize(name = "feature_norm{0}".format(index + 1)) for index in range(len(input_shape))]
         
         if 1 < len(input_shape):
             self.score_concat = tf.keras.layers.Concatenate(axis = -2, name = "score_concat")
@@ -38,6 +45,8 @@ class RegionProposalNetwork(tf.keras.layers.Layer):
         out = []
         for i, x in enumerate(inputs):
             feature = self.feature[i](x)
+            if self.normalize is not None:
+                feature = self.norm[i](feature)
             score = self.score[i](feature)
             regress = self.regress[i](feature)
             score = self.score_reshape(score)
@@ -57,6 +66,8 @@ class RegionProposalNetwork(tf.keras.layers.Layer):
         config["share"] = self.share
         config["n_feature"] = self.n_feature
         config["use_bias"] = self.use_bias
+        config["convolution"] = self.convolution
+        config["normalize"] = self.normalize
         config["activation"] = self.activation
         return config
     
@@ -185,10 +196,11 @@ class RoiAlign(tf.keras.layers.Layer):
         return config
 
 class RoiClassifier(tf.keras.layers.Layer):
-    def __init__(self, n_class = 21, n_feature = 1024, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu, **kwargs):
+    def __init__(self, n_class = 21, n_feature = 1024, convolution = conv, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu, **kwargs):
         super(RoiClassifier, self).__init__(**kwargs)   
         self.n_class = n_class
         self.n_feature = n_feature
+        self.convolution = convolution
         self.normalize = normalize
         self.activation = activation
 
@@ -196,17 +208,17 @@ class RoiClassifier(tf.keras.layers.Layer):
         if self.normalize is not None:
             self.norm1 = tf.keras.layers.TimeDistributed(self.normalize(), name = "pooling_norm")
         self.act1 = tf.keras.layers.Activation(activation, name = "pooling_act")
-        self.conv2 = tf.keras.layers.TimeDistributed(tf.keras.layers.Conv2D(n_feature, 1, use_bias = True, kernel_initializer = "he_normal", bias_initializer = "zeros"), name = "feature_conv")
+        self.conv2 = tf.keras.layers.TimeDistributed(self.convolution(n_feature, 1, use_bias = True), name = "feature_conv")
         if self.normalize is not None:
             self.norm2 = tf.keras.layers.TimeDistributed(self.normalize(), name = "feature_norm")
         self.act2 = tf.keras.layers.Activation(activation, name = "feature_act")
         self.feature = tf.keras.layers.Reshape([-1, n_feature], name = "shared_feature")
         self.logits = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(n_class, activation = tf.keras.activations.softmax), name = "logits")
-        self.regress = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(n_class * 4, activation = tf.keras.activations.linear), name = "regress")
+        self.regress = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(n_class * 4), name = "regress")
         self.delta = tf.keras.layers.Reshape([-1, n_class, 4], name = "delta")
 
     def build(self, input_shape):
-        self.conv1 = tf.keras.layers.TimeDistributed(tf.keras.layers.Conv2D(self.n_feature, input_shape[-3:-1], padding = "valid", use_bias = True, kernel_initializer = "he_normal", bias_initializer = "zeros"), name = "pooling_conv")
+        self.conv1 = tf.keras.layers.TimeDistributed(self.convolution(self.n_feature, input_shape[-3:-1], padding = "valid", use_bias = True), name = "pooling_conv")
 
     def call(self, inputs):
         out = inputs
@@ -224,31 +236,33 @@ class RoiClassifier(tf.keras.layers.Layer):
         config = super(RoiClassifier, self).get_config()
         config["n_class"] = self.n_class
         config["n_feature"] = self.n_feature
+        config["convolution"] = self.convolution
         config["normalize"] = self.normalize
         config["activation"] = self.activation
         return config
 
 class RoiMask(tf.keras.layers.Layer):
-    def __init__(self, n_class = 21, n_feature = 256, n_depth = 4, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu, **kwargs):
+    def __init__(self, n_class = 21, n_feature = 256, n_depth = 4, convolution = conv, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu, **kwargs):
         super(RoiMask, self).__init__(**kwargs)   
         self.n_class = n_class
         self.n_feature = n_feature
         self.n_depth = n_depth
+        self.convolution = convolution
         self.normalize = normalize
         self.activation = activation
         
         self.layers = []        
         for index in range(n_depth):
-            self.layers.append(tf.keras.layers.TimeDistributed(tf.keras.layers.Conv2D(n_feature, 3, use_bias = True, padding = "same", kernel_initializer = "he_normal", bias_initializer = "zeros"), name = "feature_conv{0}".format(index + 1)))
+            self.layers.append(tf.keras.layers.TimeDistributed(self.convolution(n_feature, 3, padding = "same", use_bias = True), name = "feature_conv{0}".format(index + 1)))
             if self.normalize is not None:
                 self.layers.append(tf.keras.layers.TimeDistributed(self.normalize(), name = "feature_norm{0}".format(index + 1)))
             self.layers.append(tf.keras.layers.Activation(activation, name = "feature_act{0}".format(index + 1)))
-        self.deconv = tf.keras.layers.TimeDistributed(tf.keras.layers.Conv2DTranspose(256, (2, 2), strides = 2, activation = activation), name = "deconv")
-        self.mask = tf.keras.layers.TimeDistributed(tf.keras.layers.Conv2D(n_class, (1, 1), activation = tf.keras.activations.sigmoid), name = "mask")
+        self.deconv = tf.keras.layers.TimeDistributed(tf.keras.layers.Conv2DTranspose(256, (2, 2), strides = 2, activation = activation, kernel_initializer = "he_normal"), name = "deconv")
+        self.mask = tf.keras.layers.TimeDistributed(self.convolution(n_class, 1, activation = tf.keras.activations.sigmoid), name = "mask")
         
     def build(self, input_shape):
         if isinstance(input_shape, list):
-            self.resample = tf.keras.layers.TimeDistributed(tf.keras.layers.Conv2D(input_shape[0][-1], 1, use_bias = True, kernel_initializer = "he_normal", bias_initializer = "zeros"), name = "resample_conv")
+            self.resample = tf.keras.layers.TimeDistributed(self.convolution(input_shape[0][-1], 1, use_bias = True), name = "resample_conv")
 
     def call(self, inputs, feature = False):
         out = inputs
@@ -270,6 +284,7 @@ class RoiMask(tf.keras.layers.Layer):
         config["n_class"] = self.n_class
         config["n_feature"] = self.n_feature
         config["n_depth"] = self.n_depth
+        config["convolution"] = self.convolution
         config["normalize"] = self.normalize
         config["activation"] = self.activation
         return config
@@ -318,7 +333,7 @@ class Classifier2Proposal(tf.keras.layers.Layer):
         return config
 
 class FusedSemanticHead(tf.keras.layers.Layer):
-    def __init__(self, n_class = 21, n_feature = 256, n_depth = 4, method = "bilinear", normalize = None, activation = tf.keras.activations.relu,  **kwargs):
+    def __init__(self, n_class = 21, n_feature = 256, n_depth = 4, method = "bilinear", logits_activation = None, convolution = conv, normalize = None, activation = tf.keras.activations.relu,  **kwargs):
         """
         Multi-level fused semantic segmentation head.(https://github.com/open-mmlab/mmdetection/blob/ff9bc39913cb3ff5dde79d3933add7dc2561bab7/mmdet/models/roi_heads/mask_heads/fused_semantic_head.py)
         """
@@ -327,6 +342,8 @@ class FusedSemanticHead(tf.keras.layers.Layer):
         self.n_feature = n_feature
         self.n_depth = n_depth
         self.method = method
+        self.logits_activation = logits_activation
+        self.convolution = convolution
         self.normalize = normalize
         self.activation = activation
 
@@ -337,28 +354,25 @@ class FusedSemanticHead(tf.keras.layers.Layer):
         
         self.lateral_convs = []
         for index in range(len(input_shape)):
-            conv = [tf.keras.layers.Conv2D(ch, 1, use_bias = self.normalize is None, name = "lateral_conv{0}".format(index + 1))]
+            conv = [self.convolution(ch, 1, use_bias = self.normalize is None, name = "lateral_conv{0}".format(index + 1))]
             if self.normalize is not None:
                 conv.append(self.normalize(name = "lateral_norm{0}".format(index + 1)))
-            if self.activation is not None:
-                conv.append(tf.keras.layers.Activation(self.activation, name = "lateral_act{0}".format(index + 1)))
+            conv.append(tf.keras.layers.Activation(self.activation, name = "lateral_act{0}".format(index + 1)))
             self.lateral_convs.append(conv)
         
         self.convs = []
         for index in range(self.n_depth):
-            self.convs.append(tf.keras.layers.Conv2D(self.n_feature if index != 0 else ch, 3, padding = "same", use_bias = self.normalize is None, name = "feature_conv{0}".format(index + 1)))
+            self.convs.append(self.convolution(self.n_feature if index != 0 else ch, 3, padding = "same", use_bias = self.normalize is None, name = "feature_conv{0}".format(index + 1)))
             if self.normalize is not None:
                 self.convs.append(self.normalize(axis = -1, name = "feature_norm{0}".format(index + 1)))
-            if self.activation is not None:
-                self.convs.append(tf.keras.layers.Activation(self.activation, name = "feature_act{0}".format(index + 1)))
+            self.convs.append(tf.keras.layers.Activation(self.activation, name = "feature_act{0}".format(index + 1)))
         
-        self.embed = [tf.keras.layers.Conv2D(self.n_feature, 1, use_bias = self.normalize is None, name = "embed_conv")]
+        self.embed = [self.convolution(self.n_feature, 1, use_bias = self.normalize is None, name = "embed_conv")]
         if self.normalize is not None:
             self.embed.append(self.normalize(axis = -1, name = "embed_norm"))
-        if self.activation is not None:
-            self.embed.append(tf.keras.layers.Activation(self.activation, name = "embed_act"))
+        self.embed.append(tf.keras.layers.Activation(self.activation, name = "embed_act"))
             
-        self.logits = tf.keras.layers.Conv2D(self.n_class, 1, use_bias = True, name = "logits")
+        self.logits = tf.keras.layers.Conv2D(self.n_class, 1, use_bias = True, activation = self.logits_activation, kernel_initializer = "he_normal", name = "logits")
         
     def call(self, inputs, level = 1, feature = False):
         if not isinstance(inputs, list):
@@ -391,6 +405,8 @@ class FusedSemanticHead(tf.keras.layers.Layer):
         config["n_feature"] = self.n_feature
         config["n_depth"] = self.n_depth
         config["method"] = self.method
+        config["logits_activation"] = self.logits_activation
+        config["convolution"] = self.convolution
         config["normalize"] = self.normalize
         config["activation"] = self.activation
         return config

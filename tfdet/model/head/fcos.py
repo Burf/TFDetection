@@ -2,22 +2,27 @@ import tensorflow as tf
 
 from .retina import ClassNet, BoxNet
 
+def conv(filters, kernel_size, strides = 1, padding = "same", use_bias = True, kernel_initializer = "he_normal", **kwargs):
+    return tf.keras.layers.Conv2D(filters, kernel_size, strides = strides, padding = padding, use_bias = use_bias, kernel_initializer = kernel_initializer, **kwargs)
+
 class CenternessNet(tf.keras.layers.Layer):
-    def __init__(self, n_anchor, concat = True, normalize = None, **kwargs):
+    def __init__(self, n_anchor, concat = True, logits_activation = tf.keras.activations.sigmoid, convolution = conv, normalize = None, **kwargs):
         super(CenternessNet, self).__init__(**kwargs)
         self.n_anchor = n_anchor
         self.concat = concat
+        self.logits_activation = logits_activation
+        self.convolution = convolution
         self.normalize = normalize
 
     def build(self, input_shape):
         if not isinstance(input_shape, list):
             input_shape = [input_shape]
         
-        self.layers = [tf.keras.layers.SeparableConv2D(self.n_anchor, 3, padding = "same", depthwise_initializer = tf.keras.initializers.VarianceScaling(), pointwise_initializer = tf.keras.initializers.VarianceScaling(), bias_initializer = "zeros", name = "head")]
+        self.layers = [self.convolution(self.n_anchor, 3, padding = "same", name = "head")]
         if self.normalize is not None:
             self.layers.append(self.normalize(name = "norm"))
         self.layers.append(tf.keras.layers.Reshape([-1, 1], name = "reshape"))
-        self.layers.append(tf.keras.layers.Activation(tf.keras.activations.sigmoid, name = "logits"))
+        self.layers.append(tf.keras.layers.Activation(self.logits_activation, name = "logits"))
         if self.concat and 1 < len(input_shape):
             self.post = tf.keras.layers.Concatenate(axis = -2, name = "logits_concat")
 
@@ -39,6 +44,8 @@ class CenternessNet(tf.keras.layers.Layer):
         config = super(BoxNet, self).get_config()
         config["n_anchor"] = self.n_anchor
         config["concat"] = self.concat
+        config["logits_activation"] = self.logits_activation
+        config["convolution"] = self.convolution
         config["normalize"] = self.normalize
         return config
     

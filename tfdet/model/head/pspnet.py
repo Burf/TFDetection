@@ -1,16 +1,18 @@
 import tensorflow as tf
 import numpy as np
 
-from .fcn import UpsamplingFeature
+def conv(filters, kernel_size, strides = 1, padding = "same", use_bias = True, kernel_initializer = "he_normal", **kwargs):
+    return tf.keras.layers.Conv2D(filters, kernel_size, strides = strides, padding = padding, use_bias = use_bias, kernel_initializer = kernel_initializer, **kwargs)
 
 class PoolingPyramidModule(tf.keras.layers.Layer):
-    def __init__(self, pool_scale = [1, 2, 3, 6], n_feature = 512, method = "bilinear", normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu, **kwargs):
+    def __init__(self, pool_scale = [1, 2, 3, 6], n_feature = 512, method = "bilinear", convolution = conv, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu, **kwargs):
         super(PoolingPyramidModule, self).__init__(**kwargs)
         self.pool_scale = pool_scale
         self.n_feature = n_feature
+        self.method = method
+        self.convolution = convolution
         self.normalize = normalize
         self.activation = activation
-        self.method = method
 
     def build(self, input_shape):
         target_size = input_shape[1:3]
@@ -19,7 +21,7 @@ class PoolingPyramidModule(tf.keras.layers.Layer):
         self.layers = []
         for size in self.pool_size:
             layer = [tf.keras.layers.AveragePooling2D(size)]
-            layer.append(tf.keras.layers.Conv2D(self.n_feature, 1, use_bias = self.normalize is None, kernel_initializer = "he_normal"))
+            layer.append(self.convolution(self.n_feature, 1, use_bias = self.normalize is None))
             if self.normalize is not None:
                 layer.append(self.normalize())
             layer.append(tf.keras.layers.Activation(self.activation))
@@ -39,24 +41,8 @@ class PoolingPyramidModule(tf.keras.layers.Layer):
         config = super(PoolingPyramidModule, self).get_config()
         config["pool_scale"] = self.pool_scale
         config["n_feature"] = self.n_feature
+        config["method"] = self.method
+        config["convolution"] = self.convolution
         config["normalize"] = self.normalize
         config["activation"] = self.activation
-        config["method"] = self.method
         return config
-
-def pspnet(feature, n_class = 35, n_feature = 512, pool_scale = [1, 2, 3, 6], method = "bilinear", logits_activation = tf.keras.activations.sigmoid, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu):
-    #https://arxiv.org/abs/1612.01105
-    if not isinstance(feature, list):
-        feature = [feature]
-    
-    feature = UpsamplingFeature(concat = True, method = method, name = "upsampling_feature")(feature)
-    out = PoolingPyramidModule(pool_scale, n_feature, method = method, normalize = normalize, activation = activation, name = "pooling_pyramoid_feature")(feature)
-    out = tf.keras.layers.Concatenate(axis = -1, name = "feature_concat")([feature] + out)
-    
-    out = tf.keras.layers.Conv2D(n_feature, 3, padding = "same", use_bias = normalize is None, kernel_initializer = "he_normal", name = "feature_conv")(out)
-    if normalize is not None:
-        out = normalize(name = "feature_norm")(out)
-    out = tf.keras.layers.Activation(activation, name = "feature_act")(out)
-    
-    out = tf.keras.layers.Conv2D(n_class, 1, use_bias = True, activation = logits_activation, kernel_initializer = "he_normal", name = "logits")(out)
-    return out

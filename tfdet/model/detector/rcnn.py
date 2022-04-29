@@ -8,6 +8,9 @@ from ..head.rcnn import RegionProposalNetwork, Rpn2Proposal, RoiAlign, RoiClassi
 from ..neck import fpn
 from ..train.target import sampling_target
 
+def conv(filters, kernel_size, strides = 1, padding = "same", use_bias = True, kernel_initializer = "he_normal", **kwargs):
+    return tf.keras.layers.Conv2D(filters, kernel_size, strides = strides, padding = padding, use_bias = use_bias, kernel_initializer = kernel_initializer, **kwargs)
+
 def cls_assign(bbox_true, bbox_pred, positive_threshold = 0.5, negative_threshold = 0.5, mode = "normal"):
     return max_iou(bbox_true, bbox_pred, positive_threshold = positive_threshold, negative_threshold = negative_threshold, mode = mode)
 
@@ -19,12 +22,11 @@ def rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_d
          mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, batch_size = 1,
          sub_n_feature = None, sub_normalize = tf.keras.layers.BatchNormalization, 
          neck = fpn, neck_n_depth = 1,
-         rpn_feature_share = True, rpn_n_feature = None, rpn_use_bias = False, rpn_activation = tf.keras.activations.relu,
-         cls_n_feature = None, cls_normalize = tf.keras.layers.BatchNormalization, cls_activation = tf.keras.activations.relu,
-         mask_n_feature = None, mask_n_depth = None, mask_normalize = tf.keras.layers.BatchNormalization, mask_activation = tf.keras.activations.relu,
-         semantic_level = 1, semantic_n_feature = None, semantic_n_depth = None, semantic_pool_size = 14, semantic_normalize = None, semantic_activation = tf.keras.activations.relu,
-         sampling_assign = cls_assign, sampling_count = None, sampling_positive_ratio = 0.25,
-         **kwargs):
+         rpn_feature_share = True, rpn_n_feature = None, rpn_use_bias = True, rpn_convolution = conv, rpn_normalize = None, rpn_activation = tf.keras.activations.relu,
+         cls_n_feature = None, cls_convolution = conv, cls_normalize = tf.keras.layers.BatchNormalization, cls_activation = tf.keras.activations.relu,
+         mask_n_feature = None, mask_n_depth = None, mask_convolution = conv, mask_normalize = tf.keras.layers.BatchNormalization, mask_activation = tf.keras.activations.relu,
+         semantic_level = 1, semantic_n_feature = None, semantic_n_depth = None, semantic_pool_size = 14, semantic_logits_activation = None, semantic_convolution = conv, semantic_normalize = None, semantic_activation = tf.keras.activations.relu,
+         sampling_assign = cls_assign, sampling_count = None, sampling_positive_ratio = 0.25):
     """
     with single feature                   > feature = single feature
     with fpn                              > feature = multi feature, sub_sampling = len(scale) - len(feature), neck = fpn
@@ -68,7 +70,7 @@ def rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_d
         n_anchor = len(scale[0]) * len(ratio)
     elif auto_scale and (len(scale) % len(feature)) == 0:
         n_anchor = (len(scale) // len(feature)) * len(ratio)
-    rpn_score, rpn_regress = RegionProposalNetwork(n_anchor, rpn_feature_share, rpn_n_feature, rpn_use_bias, activation = rpn_activation, name = "region_proposal_network")(feature)
+    rpn_score, rpn_regress = RegionProposalNetwork(n_anchor, rpn_feature_share, rpn_n_feature, rpn_use_bias, convolution = rpn_convolution, normalize = rpn_normalize, activation = rpn_activation, name = "region_proposal_network")(feature)
     anchors = generate_anchors(feature, image_shape, scale, ratio, normalize = True, auto_scale = auto_scale)
 
     _proposals = Rpn2Proposal(proposal_count, iou_threshold, soft_nms, valid, performance_count, batch_size, mean, std, clip_ratio, name = "rpn_to_proposal")([rpn_score, rpn_regress], anchors)
@@ -95,7 +97,7 @@ def rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_d
 
     semantic_regress = None
     if semantic_feature:
-        semantic_regress, _semantic_feature = FusedSemanticHead(n_class, semantic_n_feature, semantic_n_depth, normalize = semantic_normalize, activation = semantic_activation, name = "semantic_feature")(feature, min(semantic_level, len(feature) - 1), feature = True)
+        semantic_regress, _semantic_feature = FusedSemanticHead(n_class, semantic_n_feature, semantic_n_depth, logits_activation = semantic_logits_activation, convolution = semantic_convolution, normalize = semantic_normalize, activation = semantic_activation, name = "semantic_feature")(feature, min(semantic_level, len(feature) - 1), feature = True)
         semantic_roi_extractor = RoiAlign(semantic_pool_size, method, name = "semantic_roi_align")
         if pool_size != semantic_pool_size:
             semantic_resize = tf.keras.layers.TimeDistributed(tf.keras.layers.Lambda(lambda args: tf.image.resize(args, [pool_size, pool_size], method = "bilinear")), name = "semantic_resize_roi_align")
@@ -116,7 +118,7 @@ def rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_d
             roi = tf.keras.layers.Add(name = "roi_align_with_semantic_feature{0}".format(index + 1) if n_stage != 1 else "roi_align_with_semantic_feature")([roi, semantic_roi])
         
         if n_stage in [1, 3] or (n_stage in [2, 4] and index < (n_stage - 1)):
-            _cls_logits, _cls_regress = RoiClassifier(n_class, cls_n_feature, normalize = cls_normalize, activation = cls_activation, name = "roi_classifier{0}".format(index + 1) if 2 < n_stage else "roi_classifier")(roi)
+            _cls_logits, _cls_regress = RoiClassifier(n_class, cls_n_feature, convolution = cls_convolution, normalize = cls_normalize, activation = cls_activation, name = "roi_classifier{0}".format(index + 1) if 2 < n_stage else "roi_classifier")(roi)
             cls_logits.append(_cls_logits)
             cls_regress.append(_cls_regress)
         
@@ -126,10 +128,10 @@ def rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_d
         if mask:
             if mask_info_flow:
                 if 0 < index:
-                    _mask_regress, mask_feature = RoiMask(n_class, mask_n_feature, mask_n_depth, normalize = mask_normalize, activation = mask_activation, name = "roi_mask{0}".format(index) if 2 < n_stage else "roi_mask")([roi, mask_feature], feature = True)
+                    _mask_regress, mask_feature = RoiMask(n_class, mask_n_feature, mask_n_depth, convolution = mask_convolution, normalize = mask_normalize, activation = mask_activation, name = "roi_mask{0}".format(index) if 2 < n_stage else "roi_mask")([roi, mask_feature], feature = True)
                     mask_regress.append(_mask_regress)
             else:
-                _mask_regress = RoiMask(n_class, mask_n_feature, mask_n_depth, normalize = mask_normalize, activation = mask_activation, name = "roi_mask{0}".format(index + 1) if 2 < n_stage else "roi_mask")(roi)
+                _mask_regress = RoiMask(n_class, mask_n_feature, mask_n_depth, convolution = mask_convolution, normalize = mask_normalize, activation = mask_activation, name = "roi_mask{0}".format(index + 1) if 2 < n_stage else "roi_mask")(roi)
                 mask_regress.append(_mask_regress)
 
     if len(mask_regress) == 0:
@@ -160,10 +162,10 @@ def faster_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 2
                 mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, batch_size = 1,
                 sub_n_feature = None, sub_normalize = tf.keras.layers.BatchNormalization, 
                 neck = fpn, neck_n_depth = 1,
-                rpn_feature_share = True, rpn_n_feature = None, rpn_use_bias = False, rpn_activation = tf.keras.activations.relu,
-                cls_n_feature = None, cls_normalize = tf.keras.layers.BatchNormalization, cls_activation = tf.keras.activations.relu,
-                mask_n_feature = None, mask_n_depth = None, mask_normalize = tf.keras.layers.BatchNormalization, mask_activation = tf.keras.activations.relu,
-                semantic_level = 1, semantic_n_feature = None, semantic_n_depth = None, semantic_pool_size = 14, semantic_normalize = None, semantic_activation = tf.keras.activations.relu,
+                rpn_feature_share = True, rpn_n_feature = None, rpn_use_bias = True, rpn_convolution = conv, rpn_normalize = None, rpn_activation = tf.keras.activations.relu,
+                cls_n_feature = None, cls_convolution = conv, cls_normalize = tf.keras.layers.BatchNormalization, cls_activation = tf.keras.activations.relu,
+                mask_n_feature = None, mask_n_depth = None, mask_convolution = conv, mask_normalize = tf.keras.layers.BatchNormalization, mask_activation = tf.keras.activations.relu,
+                semantic_level = 1, semantic_n_feature = None, semantic_n_depth = None, semantic_pool_size = 14, semantic_logits_activation = None, semantic_convolution = conv, semantic_normalize = None, semantic_activation = tf.keras.activations.relu,
                 sampling_assign = cls_assign, sampling_count = None, sampling_positive_ratio = 0.25):
     out = rcnn(feature, n_class = n_class, image_shape = image_shape, n_feature = n_feature, n_depth = n_depth, sub_sampling = sub_sampling,
                scale = scale, ratio = ratio, auto_scale = auto_scale,
@@ -173,10 +175,10 @@ def faster_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 2
                mean = mean, std = std, clip_ratio = clip_ratio, batch_size = batch_size,
                sub_n_feature = sub_n_feature, sub_normalize = sub_normalize, 
                neck = neck, neck_n_depth = neck_n_depth,
-               rpn_feature_share = rpn_feature_share, rpn_n_feature = rpn_n_feature, rpn_use_bias = rpn_use_bias, rpn_activation = rpn_activation,
-               cls_n_feature = cls_n_feature, cls_normalize = cls_normalize, cls_activation = cls_activation,
-               mask_n_feature = mask_n_feature, mask_n_depth = mask_n_depth, mask_normalize = mask_normalize, mask_activation = mask_activation,
-               semantic_level = semantic_level, semantic_n_feature = semantic_n_feature, semantic_n_depth = semantic_n_depth, semantic_pool_size = semantic_pool_size, semantic_normalize = semantic_normalize, semantic_activation = semantic_activation,
+               rpn_feature_share = rpn_feature_share, rpn_n_feature = rpn_n_feature, rpn_use_bias = rpn_use_bias, rpn_convolution = rpn_convolution, rpn_normalize = rpn_normalize, rpn_activation = rpn_activation,
+               cls_n_feature = cls_n_feature, cls_convolution = cls_convolution, cls_normalize = cls_normalize, cls_activation = cls_activation,
+               mask_n_feature = mask_n_feature, mask_n_depth = mask_n_depth, mask_convolution = mask_convolution, mask_normalize = mask_normalize, mask_activation = mask_activation,
+               semantic_level = semantic_level, semantic_n_feature = semantic_n_feature, semantic_n_depth = semantic_n_depth, semantic_pool_size = semantic_pool_size, semantic_logits_activation = semantic_logits_activation, semantic_convolution = semantic_convolution, semantic_normalize = semantic_normalize, semantic_activation = semantic_activation,
                sampling_assign = sampling_assign, sampling_count = sampling_count, sampling_positive_ratio = sampling_positive_ratio)
     return out
 
@@ -188,10 +190,10 @@ def mask_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256
               mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, batch_size = 1,
               sub_n_feature = None, sub_normalize = tf.keras.layers.BatchNormalization, 
               neck = fpn, neck_n_depth = 1,
-              rpn_feature_share = True, rpn_n_feature = None, rpn_use_bias = False, rpn_activation = tf.keras.activations.relu,
-              cls_n_feature = None, cls_normalize = tf.keras.layers.BatchNormalization, cls_activation = tf.keras.activations.relu,
-              mask_n_feature = None, mask_n_depth = None, mask_normalize = tf.keras.layers.BatchNormalization, mask_activation = tf.keras.activations.relu,
-              semantic_level = 1, semantic_n_feature = None, semantic_n_depth = None, semantic_pool_size = 14, semantic_normalize = None, semantic_activation = tf.keras.activations.relu,
+              rpn_feature_share = True, rpn_n_feature = None, rpn_use_bias = True, rpn_convolution = conv, rpn_normalize = None, rpn_activation = tf.keras.activations.relu,
+              cls_n_feature = None, cls_convolution = conv, cls_normalize = tf.keras.layers.BatchNormalization, cls_activation = tf.keras.activations.relu,
+              mask_n_feature = None, mask_n_depth = None, mask_convolution = conv, mask_normalize = tf.keras.layers.BatchNormalization, mask_activation = tf.keras.activations.relu,
+              semantic_level = 1, semantic_n_feature = None, semantic_n_depth = None, semantic_pool_size = 14, semantic_logits_activation = None, semantic_convolution = conv, semantic_normalize = None, semantic_activation = tf.keras.activations.relu,
               sampling_assign = cls_assign, sampling_count = None, sampling_positive_ratio = 0.25):
     out = rcnn(feature, n_class = n_class, image_shape = image_shape, n_feature = n_feature, n_depth = n_depth, sub_sampling = sub_sampling,
                scale = scale, ratio = ratio, auto_scale = auto_scale,
@@ -201,10 +203,10 @@ def mask_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256
                mean = mean, std = std, clip_ratio = clip_ratio, batch_size = batch_size,
                sub_n_feature = sub_n_feature, sub_normalize = sub_normalize, 
                neck = neck, neck_n_depth = neck_n_depth,
-               rpn_feature_share = rpn_feature_share, rpn_n_feature = rpn_n_feature, rpn_use_bias = rpn_use_bias, rpn_activation = rpn_activation,
-               cls_n_feature = cls_n_feature, cls_normalize = cls_normalize, cls_activation = cls_activation,
-               mask_n_feature = mask_n_feature, mask_n_depth = mask_n_depth, mask_normalize = mask_normalize, mask_activation = mask_activation,
-               semantic_level = semantic_level, semantic_n_feature = semantic_n_feature, semantic_n_depth = semantic_n_depth, semantic_pool_size = semantic_pool_size, semantic_normalize = semantic_normalize, semantic_activation = semantic_activation,
+               rpn_feature_share = rpn_feature_share, rpn_n_feature = rpn_n_feature, rpn_use_bias = rpn_use_bias, rpn_convolution = rpn_convolution, rpn_normalize = rpn_normalize, rpn_activation = rpn_activation,
+               cls_n_feature = cls_n_feature, cls_convolution = cls_convolution, cls_normalize = cls_normalize, cls_activation = cls_activation,
+               mask_n_feature = mask_n_feature, mask_n_depth = mask_n_depth, mask_convolution = mask_convolution, mask_normalize = mask_normalize, mask_activation = mask_activation,
+               semantic_level = semantic_level, semantic_n_feature = semantic_n_feature, semantic_n_depth = semantic_n_depth, semantic_pool_size = semantic_pool_size, semantic_logits_activation = semantic_logits_activation, semantic_convolution = semantic_convolution, semantic_normalize = semantic_normalize, semantic_activation = semantic_activation,
                sampling_assign = sampling_assign, sampling_count = sampling_count, sampling_positive_ratio = sampling_positive_ratio)
     return out
 
@@ -216,10 +218,10 @@ def cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 
                  mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, batch_size = 1,
                  sub_n_feature = None, sub_normalize = tf.keras.layers.BatchNormalization, 
                  neck = fpn, neck_n_depth = 1,
-                 rpn_feature_share = True, rpn_n_feature = None, rpn_use_bias = False, rpn_activation = tf.keras.activations.relu,
-                 cls_n_feature = None, cls_normalize = tf.keras.layers.BatchNormalization, cls_activation = tf.keras.activations.relu,
-                 mask_n_feature = None, mask_n_depth = None, mask_normalize = tf.keras.layers.BatchNormalization, mask_activation = tf.keras.activations.relu,
-                 semantic_level = 1, semantic_n_feature = None, semantic_n_depth = None, semantic_pool_size = 14, semantic_normalize = None, semantic_activation = tf.keras.activations.relu,
+                 rpn_feature_share = True, rpn_n_feature = None, rpn_use_bias = True, rpn_convolution = conv, rpn_normalize = None, rpn_activation = tf.keras.activations.relu,
+                 cls_n_feature = None, cls_convolution = conv, cls_normalize = tf.keras.layers.BatchNormalization, cls_activation = tf.keras.activations.relu,
+                 mask_n_feature = None, mask_n_depth = None, mask_convolution = conv, mask_normalize = tf.keras.layers.BatchNormalization, mask_activation = tf.keras.activations.relu,
+                 semantic_level = 1, semantic_n_feature = None, semantic_n_depth = None, semantic_pool_size = 14, semantic_logits_activation = None, semantic_convolution = conv, semantic_normalize = None, semantic_activation = tf.keras.activations.relu,
                  sampling_assign = cls_assign, sampling_count = None, sampling_positive_ratio = 0.25):
     out = rcnn(feature, n_class = n_class, image_shape = image_shape, n_feature = n_feature, n_depth = n_depth, sub_sampling = sub_sampling,
                scale = scale, ratio = ratio, auto_scale = auto_scale,
@@ -229,10 +231,10 @@ def cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 
                mean = mean, std = std, clip_ratio = clip_ratio, batch_size = batch_size,
                sub_n_feature = sub_n_feature, sub_normalize = sub_normalize, 
                neck = neck, neck_n_depth = neck_n_depth,
-               rpn_feature_share = rpn_feature_share, rpn_n_feature = rpn_n_feature, rpn_use_bias = rpn_use_bias, rpn_activation = rpn_activation,
-               cls_n_feature = cls_n_feature, cls_normalize = cls_normalize, cls_activation = cls_activation,
-               mask_n_feature = mask_n_feature, mask_n_depth = mask_n_depth, mask_normalize = mask_normalize, mask_activation = mask_activation,
-               semantic_level = semantic_level, semantic_n_feature = semantic_n_feature, semantic_n_depth = semantic_n_depth, semantic_pool_size = semantic_pool_size, semantic_normalize = semantic_normalize, semantic_activation = semantic_activation,
+               rpn_feature_share = rpn_feature_share, rpn_n_feature = rpn_n_feature, rpn_use_bias = rpn_use_bias, rpn_convolution = rpn_convolution, rpn_normalize = rpn_normalize, rpn_activation = rpn_activation,
+               cls_n_feature = cls_n_feature, cls_convolution = cls_convolution, cls_normalize = cls_normalize, cls_activation = cls_activation,
+               mask_n_feature = mask_n_feature, mask_n_depth = mask_n_depth, mask_convolution = mask_convolution, mask_normalize = mask_normalize, mask_activation = mask_activation,
+               semantic_level = semantic_level, semantic_n_feature = semantic_n_feature, semantic_n_depth = semantic_n_depth, semantic_pool_size = semantic_pool_size, semantic_logits_activation = semantic_logits_activation, semantic_convolution = semantic_convolution, semantic_normalize = semantic_normalize, semantic_activation = semantic_activation,
                sampling_assign = sampling_assign, sampling_count = sampling_count, sampling_positive_ratio = sampling_positive_ratio)
     return out
 
@@ -244,10 +246,10 @@ def cascade_mask_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_featu
                       mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, batch_size = 1,
                       sub_n_feature = None, sub_normalize = tf.keras.layers.BatchNormalization, 
                       neck = fpn, neck_n_depth = 1,
-                      rpn_feature_share = True, rpn_n_feature = None, rpn_use_bias = False, rpn_activation = tf.keras.activations.relu,
-                      cls_n_feature = None, cls_normalize = tf.keras.layers.BatchNormalization, cls_activation = tf.keras.activations.relu,
-                      mask_n_feature = None, mask_n_depth = None, mask_normalize = tf.keras.layers.BatchNormalization, mask_activation = tf.keras.activations.relu,
-                      semantic_level = 1, semantic_n_feature = None, semantic_n_depth = None, semantic_pool_size = 14, semantic_normalize = None, semantic_activation = tf.keras.activations.relu,
+                      rpn_feature_share = True, rpn_n_feature = None, rpn_use_bias = True, rpn_convolution = conv, rpn_normalize = None, rpn_activation = tf.keras.activations.relu,
+                      cls_n_feature = None, cls_convolution = conv, cls_normalize = tf.keras.layers.BatchNormalization, cls_activation = tf.keras.activations.relu,
+                      mask_n_feature = None, mask_n_depth = None, mask_convolution = conv, mask_normalize = tf.keras.layers.BatchNormalization, mask_activation = tf.keras.activations.relu,
+                      semantic_level = 1, semantic_n_feature = None, semantic_n_depth = None, semantic_pool_size = 14, semantic_logits_activation = None, semantic_convolution = conv, semantic_normalize = None, semantic_activation = tf.keras.activations.relu,
                       sampling_assign = cls_assign, sampling_count = None, sampling_positive_ratio = 0.25):
     out = rcnn(feature, n_class = n_class, image_shape = image_shape, n_feature = n_feature, n_depth = n_depth, sub_sampling = sub_sampling,
                scale = scale, ratio = ratio, auto_scale = auto_scale,
@@ -257,10 +259,10 @@ def cascade_mask_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_featu
                mean = mean, std = std, clip_ratio = clip_ratio, batch_size = batch_size,
                sub_n_feature = sub_n_feature, sub_normalize = sub_normalize, 
                neck = neck, neck_n_depth = neck_n_depth,
-               rpn_feature_share = rpn_feature_share, rpn_n_feature = rpn_n_feature, rpn_use_bias = rpn_use_bias, rpn_activation = rpn_activation,
-               cls_n_feature = cls_n_feature, cls_normalize = cls_normalize, cls_activation = cls_activation,
-               mask_n_feature = mask_n_feature, mask_n_depth = mask_n_depth, mask_normalize = mask_normalize, mask_activation = mask_activation,
-               semantic_level = semantic_level, semantic_n_feature = semantic_n_feature, semantic_n_depth = semantic_n_depth, semantic_pool_size = semantic_pool_size, semantic_normalize = semantic_normalize, semantic_activation = semantic_activation,
+               rpn_feature_share = rpn_feature_share, rpn_n_feature = rpn_n_feature, rpn_use_bias = rpn_use_bias, rpn_convolution = rpn_convolution, rpn_normalize = rpn_normalize, rpn_activation = rpn_activation,
+               cls_n_feature = cls_n_feature, cls_convolution = cls_convolution, cls_normalize = cls_normalize, cls_activation = cls_activation,
+               mask_n_feature = mask_n_feature, mask_n_depth = mask_n_depth, mask_convolution = mask_convolution, mask_normalize = mask_normalize, mask_activation = mask_activation,
+               semantic_level = semantic_level, semantic_n_feature = semantic_n_feature, semantic_n_depth = semantic_n_depth, semantic_pool_size = semantic_pool_size, semantic_logits_activation = semantic_logits_activation, semantic_convolution = semantic_convolution, semantic_normalize = semantic_normalize, semantic_activation = semantic_activation,
                sampling_assign = sampling_assign, sampling_count = sampling_count, sampling_positive_ratio = sampling_positive_ratio)
     return out
 
@@ -272,10 +274,10 @@ def hybrid_task_cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], 
                              mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, batch_size = 1,
                              sub_n_feature = None, sub_normalize = tf.keras.layers.BatchNormalization, 
                              neck = fpn, neck_n_depth = 1,
-                             rpn_feature_share = True, rpn_n_feature = None, rpn_use_bias = False, rpn_activation = tf.keras.activations.relu,
-                             cls_n_feature = None, cls_normalize = tf.keras.layers.BatchNormalization, cls_activation = tf.keras.activations.relu,
-                             mask_n_feature = None, mask_n_depth = None, mask_normalize = tf.keras.layers.BatchNormalization, mask_activation = tf.keras.activations.relu,
-                             semantic_level = 1, semantic_n_feature = None, semantic_n_depth = None, semantic_pool_size = 14, semantic_normalize = None, semantic_activation = tf.keras.activations.relu,
+                             rpn_feature_share = True, rpn_n_feature = None, rpn_use_bias = True, rpn_convolution = conv, rpn_normalize = None, rpn_activation = tf.keras.activations.relu,
+                             cls_n_feature = None, cls_convolution = conv, cls_normalize = tf.keras.layers.BatchNormalization, cls_activation = tf.keras.activations.relu,
+                             mask_n_feature = None, mask_n_depth = None, mask_convolution = conv, mask_normalize = tf.keras.layers.BatchNormalization, mask_activation = tf.keras.activations.relu,
+                             semantic_level = 1, semantic_n_feature = None, semantic_n_depth = None, semantic_pool_size = 14, semantic_logits_activation = None, semantic_convolution = conv, semantic_normalize = None, semantic_activation = tf.keras.activations.relu,
                              sampling_assign = cls_assign, sampling_count = None, sampling_positive_ratio = 0.25):
     out = rcnn(feature, n_class = n_class, image_shape = image_shape, n_feature = n_feature, n_depth = n_depth, sub_sampling = sub_sampling,
                scale = scale, ratio = ratio, auto_scale = auto_scale,
@@ -285,10 +287,10 @@ def hybrid_task_cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], 
                mean = mean, std = std, clip_ratio = clip_ratio, batch_size = batch_size,
                sub_n_feature = sub_n_feature, sub_normalize = sub_normalize, 
                neck = neck, neck_n_depth = neck_n_depth,
-               rpn_feature_share = rpn_feature_share, rpn_n_feature = rpn_n_feature, rpn_use_bias = rpn_use_bias, rpn_activation = rpn_activation,
-               cls_n_feature = cls_n_feature, cls_normalize = cls_normalize, cls_activation = cls_activation,
-               mask_n_feature = mask_n_feature, mask_n_depth = mask_n_depth, mask_normalize = mask_normalize, mask_activation = mask_activation,
-               semantic_level = semantic_level, semantic_n_feature = semantic_n_feature, semantic_n_depth = semantic_n_depth, semantic_pool_size = semantic_pool_size, semantic_normalize = semantic_normalize, semantic_activation = semantic_activation,
+               rpn_feature_share = rpn_feature_share, rpn_n_feature = rpn_n_feature, rpn_use_bias = rpn_use_bias, rpn_convolution = rpn_convolution, rpn_normalize = rpn_normalize, rpn_activation = rpn_activation,
+               cls_n_feature = cls_n_feature, cls_convolution = cls_convolution, cls_normalize = cls_normalize, cls_activation = cls_activation,
+               mask_n_feature = mask_n_feature, mask_n_depth = mask_n_depth, mask_convolution = mask_convolution, mask_normalize = mask_normalize, mask_activation = mask_activation,
+               semantic_level = semantic_level, semantic_n_feature = semantic_n_feature, semantic_n_depth = semantic_n_depth, semantic_pool_size = semantic_pool_size, semantic_logits_activation = semantic_logits_activation, semantic_convolution = semantic_convolution, semantic_normalize = semantic_normalize, semantic_activation = semantic_activation,
                sampling_assign = sampling_assign, sampling_count = sampling_count, sampling_positive_ratio = sampling_positive_ratio)
     return out
 
@@ -300,10 +302,10 @@ def hybrid_task_cascade_mask_rcnn(feature, n_class = 21, image_shape = [1024, 10
                                   mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, batch_size = 1,
                                   sub_n_feature = None, sub_normalize = tf.keras.layers.BatchNormalization, 
                                   neck = fpn, neck_n_depth = 1,
-                                  rpn_feature_share = True, rpn_n_feature = None, rpn_use_bias = False, rpn_activation = tf.keras.activations.relu,
-                                  cls_n_feature = None, cls_normalize = tf.keras.layers.BatchNormalization, cls_activation = tf.keras.activations.relu,
-                                  mask_n_feature = None, mask_n_depth = None, mask_normalize = tf.keras.layers.BatchNormalization, mask_activation = tf.keras.activations.relu,
-                                  semantic_level = 1, semantic_n_feature = None, semantic_n_depth = None, semantic_pool_size = 14, semantic_normalize = None, semantic_activation = tf.keras.activations.relu,
+                                  rpn_feature_share = True, rpn_n_feature = None, rpn_use_bias = True, rpn_convolution = conv, rpn_normalize = None, rpn_activation = tf.keras.activations.relu,
+                                  cls_n_feature = None, cls_convolution = conv, cls_normalize = tf.keras.layers.BatchNormalization, cls_activation = tf.keras.activations.relu,
+                                  mask_n_feature = None, mask_n_depth = None, mask_convolution = conv, mask_normalize = tf.keras.layers.BatchNormalization, mask_activation = tf.keras.activations.relu,
+                                  semantic_level = 1, semantic_n_feature = None, semantic_n_depth = None, semantic_pool_size = 14, semantic_logits_activation = None, semantic_convolution = conv, semantic_normalize = None, semantic_activation = tf.keras.activations.relu,
                                   sampling_assign = cls_assign, sampling_count = None, sampling_positive_ratio = 0.25):
     out = rcnn(feature, n_class = n_class, image_shape = image_shape, n_feature = n_feature, n_depth = n_depth, sub_sampling = sub_sampling,
                scale = scale, ratio = ratio, auto_scale = auto_scale,
@@ -313,9 +315,9 @@ def hybrid_task_cascade_mask_rcnn(feature, n_class = 21, image_shape = [1024, 10
                mean = mean, std = std, clip_ratio = clip_ratio, batch_size = batch_size,
                sub_n_feature = sub_n_feature, sub_normalize = sub_normalize, 
                neck = neck, neck_n_depth = neck_n_depth,
-               rpn_feature_share = rpn_feature_share, rpn_n_feature = rpn_n_feature, rpn_use_bias = rpn_use_bias, rpn_activation = rpn_activation,
-               cls_n_feature = cls_n_feature, cls_normalize = cls_normalize, cls_activation = cls_activation,
-               mask_n_feature = mask_n_feature, mask_n_depth = mask_n_depth, mask_normalize = mask_normalize, mask_activation = mask_activation,
-               semantic_level = semantic_level, semantic_n_feature = semantic_n_feature, semantic_n_depth = semantic_n_depth, semantic_pool_size = semantic_pool_size, semantic_normalize = semantic_normalize, semantic_activation = semantic_activation,
+               rpn_feature_share = rpn_feature_share, rpn_n_feature = rpn_n_feature, rpn_use_bias = rpn_use_bias, rpn_convolution = rpn_convolution, rpn_normalize = rpn_normalize, rpn_activation = rpn_activation,
+               cls_n_feature = cls_n_feature, cls_convolution = cls_convolution, cls_normalize = cls_normalize, cls_activation = cls_activation,
+               mask_n_feature = mask_n_feature, mask_n_depth = mask_n_depth, mask_convolution = mask_convolution, mask_normalize = mask_normalize, mask_activation = mask_activation,
+               semantic_level = semantic_level, semantic_n_feature = semantic_n_feature, semantic_n_depth = semantic_n_depth, semantic_pool_size = semantic_pool_size, semantic_logits_activation = semantic_logits_activation, semantic_convolution = semantic_convolution, semantic_normalize = semantic_normalize, semantic_activation = semantic_activation,
                sampling_assign = sampling_assign, sampling_count = sampling_count, sampling_positive_ratio = sampling_positive_ratio)
     return out

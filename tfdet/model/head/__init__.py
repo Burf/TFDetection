@@ -10,5 +10,3 @@ from . import patch_core
 from . import deeplab
 from . import fcn
 from . import pspnet
-from . import unet
-from . import upernet

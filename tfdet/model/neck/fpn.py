@@ -1,5 +1,11 @@
 import tensorflow as tf
 
+def conv(filters, kernel_size, strides = 1, padding = "same", use_bias = True, kernel_initializer = "he_normal", **kwargs):
+    return tf.keras.layers.Conv2D(filters, kernel_size, strides = strides, padding = padding, use_bias = use_bias, kernel_initializer = kernel_initializer, **kwargs)
+
+def separable_conv(filters, kernel_size, strides = 1, padding = "same", use_bias = True, depthwise_initializer = "he_normal", pointwise_initializer = "he_normal", **kwargs):
+    return tf.keras.layers.SeparableConv2D(filters, kernel_size, strides = strides, padding = padding, use_bias = use_bias, depthwise_initializer = depthwise_initializer, pointwise_initializer = pointwise_initializer, **kwargs)
+
 class WeightedAdd(tf.keras.layers.Layer):
     def __init__(self, **kwargs):
         super(WeightedAdd, self).__init__(**kwargs)
@@ -21,7 +27,7 @@ class WeightedAdd(tf.keras.layers.Layer):
         return input_shape[0]
 
 class FeaturePyramidNetwork(tf.keras.layers.Layer):
-    def __init__(self, mode = "bifpn", n_feature = 256, use_bias = True, weighted_add = True, method = "nearest", normalize = tf.keras.layers.BatchNormalization, activation = tf.nn.swish, **kwargs):
+    def __init__(self, mode = "bifpn", n_feature = 256, use_bias = True, weighted_add = True, method = "nearest", convolution = separable_conv, normalize = tf.keras.layers.BatchNormalization, activation = tf.nn.swish, **kwargs):
         """
         fpn > mode = "fpn", use_bias = True, weighted_add = False, normalize = None
         panet > mode = "panet", use_bias = True, weighted_add = False, normalize = None
@@ -35,6 +41,7 @@ class FeaturePyramidNetwork(tf.keras.layers.Layer):
         self.use_bias = use_bias
         self.weighted_add = weighted_add
         self.method = method
+        self.convolution = convolution
         self.normalize = normalize
         self.activation = activation
 
@@ -63,7 +70,7 @@ class FeaturePyramidNetwork(tf.keras.layers.Layer):
             if self.mode == "bifpn":
                 if self.activation is not None:
                     combine.append(tf.keras.layers.Activation(self.activation, name = "{0}_up2bottom_combine_act{1}".format(self.mode, index)))
-                combine.append(tf.keras.layers.SeparableConv2D(self.n_feature, 3, padding = "same", use_bias = self.use_bias, depthwise_initializer = "he_normal", pointwise_initializer = "he_normal", name = "{0}_up2bottom_combine_conv{1}".format(self.mode, index)))
+                combine.append(self.convolution(self.n_feature, 3, padding = "same", use_bias = self.use_bias, name = "{0}_up2bottom_combine_conv{1}".format(self.mode, index)))
                 if self.normalize is not None:
                     combine.append(self.normalize(name = "{0}_up2bottom_combine_norm{1}".format(self.mode, index)))
             self.u2b_combine.append([upsample, add, combine])
@@ -84,7 +91,7 @@ class FeaturePyramidNetwork(tf.keras.layers.Layer):
             self.b2u_combine = []
             for index in range(1, len(input_shape)):
                 if self.mode == "panet":
-                    downsample = [tf.keras.layers.Conv2D(self.n_feature, 3, strides = 2, padding = "same", use_bias = self.use_bias, kernel_initializer = "he_normal", name = "{0}_bottom2up_downsample_conv{1}".format(self.mode, index))]
+                    downsample = [self.convolution(self.n_feature, 3, strides = 2, padding = "same", use_bias = self.use_bias, name = "{0}_bottom2up_downsample_conv{1}".format(self.mode, index))]
                     if self.normalize:
                         downsample.append(self.normalize(name = "{0}_bottom2up_downsample_norm{1}".format(self.mode, index)))
                     if self.activation is not None:
@@ -99,7 +106,7 @@ class FeaturePyramidNetwork(tf.keras.layers.Layer):
                 if self.mode == "bifpn":
                     if self.activation is not None:
                         combine.append(tf.keras.layers.Activation(self.activation, name = "{0}_bottom2up_combine_act{1}".format(self.mode, index + 1)))
-                    combine.append(tf.keras.layers.SeparableConv2D(self.n_feature, 3, padding = "same", use_bias = self.use_bias, depthwise_initializer = "he_normal", pointwise_initializer = "he_normal", name = "{0}_bottom2up_combine_conv{1}".format(self.mode, index + 1)))
+                    combine.append(self.convolution(self.n_feature, 3, padding = "same", use_bias = self.use_bias, name = "{0}_bottom2up_combine_conv{1}".format(self.mode, index + 1)))
                     if self.normalize is not None:
                         combine.append(self.normalize(name = "{0}_bottom2up_combine_norm{1}".format(self.mode, index + 1)))
                 self.b2u_combine.append([downsample, add, combine])
@@ -109,7 +116,7 @@ class FeaturePyramidNetwork(tf.keras.layers.Layer):
             for index in range(len(input_shape)):
                 conv = []
                 if self.mode != "panet" or index != 0:
-                    conv = [tf.keras.layers.Conv2D(self.n_feature, 3, use_bias = self.use_bias, kernel_initializer = "he_normal", name = "{0}_post_conv{1}".format(self.mode, index + 1))]
+                    conv = [self.convolution(self.n_feature, 3, use_bias = self.use_bias, name = "{0}_post_conv{1}".format(self.mode, index + 1))]
                     if self.normalize is not None:
                         conv.append(self.normalize(name = "{0}_post_norm{1}".format(self.mode, index + 1)))
                     if self.activation is not None:
@@ -174,16 +181,17 @@ class FeaturePyramidNetwork(tf.keras.layers.Layer):
         config["use_bias"] = self.use_bias
         config["weighted_add"] = self.weighted_add
         config["method"] = self.method
+        config["convolution"] = self.convolution
         config["normalize"] = self.normalize
         config["activation"] = self.activation
         return config
         
-def fpn(n_feature = 256, use_bias = True, weighted_add = False, method = "nearest", normalize = None, activation = None, mode = "fpn", **kwargs):
-    return FeaturePyramidNetwork(mode = mode, n_feature = n_feature, use_bias = use_bias, weighted_add = weighted_add, method = method, normalize = normalize, activation = activation, **kwargs)
+def fpn(n_feature = 256, use_bias = True, weighted_add = False, method = "nearest", convolution = conv, normalize = None, activation = None, mode = "fpn", **kwargs):
+    return FeaturePyramidNetwork(mode = mode, n_feature = n_feature, use_bias = use_bias, weighted_add = weighted_add, method = method, convolution = convolution, normalize = normalize, activation = activation, **kwargs)
     
-def panet(n_feature = 256, use_bias = True, weighted_add = False, method = "nearest", normalize = None, activation = None, mode = "panet", **kwargs):
-    return FeaturePyramidNetwork(mode = mode, n_feature = n_feature, use_bias = use_bias, weighted_add = weighted_add, method = method, normalize = normalize, activation = activation, **kwargs)
+def panet(n_feature = 256, use_bias = True, weighted_add = False, method = "nearest", convolution = conv, normalize = None, activation = None, mode = "panet", **kwargs):
+    return FeaturePyramidNetwork(mode = mode, n_feature = n_feature, use_bias = use_bias, weighted_add = weighted_add, method = method, convolution = convolution, normalize = normalize, activation = activation, **kwargs)
     
-def bifpn(n_feature = 256, use_bias = True, weighted_add = True, method = "nearest", normalize = tf.keras.layers.BatchNormalization, activation = tf.nn.swish, mode = "bifpn", **kwargs):
-    return FeaturePyramidNetwork(mode = mode, n_feature = n_feature, use_bias = use_bias, weighted_add = weighted_add, method = method, normalize = normalize, activation = activation, **kwargs)
+def bifpn(n_feature = 256, use_bias = True, weighted_add = True, method = "nearest", convolution = separable_conv, normalize = tf.keras.layers.BatchNormalization, activation = tf.nn.swish, mode = "bifpn", **kwargs):
+    return FeaturePyramidNetwork(mode = mode, n_feature = n_feature, use_bias = use_bias, weighted_add = weighted_add, method = method, convolution = convolution, normalize = normalize, activation = activation, **kwargs)
     
