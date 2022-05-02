@@ -105,9 +105,9 @@ TFDetection is a detection toolbox based on Tensorflow2.
       </td>
       <td>
         <ul>
-          <li>FPN(2017)</a></li>
-          <li>PANet(2018)</a></li>
-          <li>BiFPN(2019)</a></li>
+          <li>FPN(2017)</li>
+          <li>PANet(2018)</li>
+          <li>BiFPN(2019)</li>
         </ul>
       </td>
       <td>
@@ -116,7 +116,7 @@ TFDetection is a detection toolbox based on Tensorflow2.
           <ul>
             <li>Max Iou(2015)</li>
             <li>Center Region(2019)</li>
-            <li>FCOS(2019)</li>
+            <li>Point(2019)</li>
             <li>Adaptive Training Sample Selection(2020)</li>
           </ul>
         </ul>

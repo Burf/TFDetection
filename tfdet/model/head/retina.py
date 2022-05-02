@@ -4,7 +4,7 @@ def conv(filters, kernel_size, strides = 1, padding = "same", use_bias = True, k
     return tf.keras.layers.Conv2D(filters, kernel_size, strides = strides, padding = padding, use_bias = use_bias, kernel_initializer = kernel_initializer, **kwargs)
 
 class ClassNet(tf.keras.layers.Layer):
-    def __init__(self, n_anchor, n_class = 21, n_feature = 224, n_depth = 4, concat = True, convolution = conv, normalize = tf.keras.layers.BatchNormalization, activation = tf.nn.swish, **kwargs):
+    def __init__(self, n_anchor, n_class = 21, n_feature = 224, n_depth = 4, concat = True, convolution = conv, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu, **kwargs):
         super(ClassNet, self).__init__(**kwargs)   
         self.n_anchor = n_anchor
         self.n_class = n_class
@@ -63,7 +63,7 @@ class ClassNet(tf.keras.layers.Layer):
         return config
 
 class BoxNet(tf.keras.layers.Layer):
-    def __init__(self, n_anchor, n_feature = 224, n_depth = 4, concat = True, convolution = conv, normalize = tf.keras.layers.BatchNormalization, activation = tf.nn.swish, **kwargs):
+    def __init__(self, n_anchor, n_feature = 224, n_depth = 4, concat = True, convolution = conv, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu, **kwargs):
         super(BoxNet, self).__init__(**kwargs)   
         self.n_anchor = n_anchor
         self.n_feature = n_feature

@@ -5,31 +5,31 @@ from tfdet.core.anchor import generate_anchors
 from tfdet.core.assign import max_iou
 from tfdet.core.util import map_fn
 from ..head.rcnn import RegionProposalNetwork, Rpn2Proposal, RoiAlign, RoiClassifier, RoiMask, Classifier2Proposal, FusedSemanticHead
-from ..neck import fpn
+from ..neck import FeatureAlign, fpn
 from ..train.target import sampling_target
 
 def conv(filters, kernel_size, strides = 1, padding = "same", use_bias = True, kernel_initializer = "he_normal", **kwargs):
     return tf.keras.layers.Conv2D(filters, kernel_size, strides = strides, padding = padding, use_bias = use_bias, kernel_initializer = kernel_initializer, **kwargs)
 
+def neck(n_feature = 256, n_sampling = 1, pre_sampling = False, neck = fpn, neck_n_depth = 1, convolution = conv, normalize = tf.keras.layers.BatchNormalization, **kwargs):
+    return FeatureAlign(n_feature = n_feature, n_sampling = n_sampling, pre_sampling = pre_sampling, neck = neck, neck_n_depth = neck_n_depth, convolution = convolution, normalize = normalize, **kwargs)
+
 def cls_assign(bbox_true, bbox_pred, positive_threshold = 0.5, negative_threshold = 0.5, mode = "normal"):
     return max_iou(bbox_true, bbox_pred, positive_threshold = positive_threshold, negative_threshold = negative_threshold, mode = mode)
 
-def rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_depth = 4, sub_sampling = 1,
+def rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_depth = 4,
          scale = [0.03125, 0.0625, 0.125, 0.25, 0.5], ratio = [0.5, 1, 2], auto_scale = True,
          mask = False, cascade = True, mask_info_flow = False, semantic_feature = False,
          proposal_count = 1000, iou_threshold = 0.7, soft_nms = True, valid = True, performance_count = 5000,
          pool_size = 7, method = "bilinear",
          mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, batch_size = 1,
-         sub_n_feature = None, sub_normalize = tf.keras.layers.BatchNormalization, 
-         neck = fpn, neck_n_depth = 1,
+         neck = neck,
          rpn_feature_share = True, rpn_n_feature = None, rpn_use_bias = True, rpn_convolution = conv, rpn_normalize = None, rpn_activation = tf.keras.activations.relu,
          cls_n_feature = None, cls_convolution = conv, cls_normalize = tf.keras.layers.BatchNormalization, cls_activation = tf.keras.activations.relu,
          mask_n_feature = None, mask_n_depth = None, mask_convolution = conv, mask_normalize = tf.keras.layers.BatchNormalization, mask_activation = tf.keras.activations.relu,
          semantic_level = 1, semantic_n_feature = None, semantic_n_depth = None, semantic_pool_size = 14, semantic_logits_activation = None, semantic_convolution = conv, semantic_normalize = None, semantic_activation = tf.keras.activations.relu,
          sampling_assign = cls_assign, sampling_count = None, sampling_positive_ratio = 0.25):
     """
-    with single feature                   > feature = single feature
-    with fpn                              > feature = multi feature, sub_sampling = len(scale) - len(feature), neck = fpn
     for speed training(with roi sampling) > sampling_count = 256 (Recommended value for training to apply prior to roi sampling)> return rcnn_layers(rpn, cls, ...) + sampling_tag(sampling_tag is a argument for rcnn_train_model)
     faster rcnn                           > mask = False, cascade = False, mask_info_flow = False, semantic_feature = False     > return rpn_score, rpn_regress, cls_logits, cls_regress, proposals, anchors
     mask rcnn                             > mask = True, cascade = False, mask_info_flow = False, semantic_feature = False      > return rpn_score, rpn_regress, cls_logits, cls_regress, proposals, anchors, mask_regress
@@ -43,7 +43,7 @@ def rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_d
     if not isinstance(feature, list):
         feature = [feature]
     feature = list(feature)
-    sub_n_feature = sub_n_feature if sub_n_feature is not None else n_feature
+    feature_count = len(feature)
     rpn_n_feature = rpn_n_feature if rpn_n_feature is not None else n_feature * 2
     cls_n_feature = cls_n_feature if cls_n_feature is not None else n_feature * 4
     mask_n_feature = mask_n_feature if mask_n_feature is not None else n_feature
@@ -51,20 +51,8 @@ def rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_d
     mask_n_depth = mask_n_depth if mask_n_depth is not None else n_depth
     semantic_n_depth = semantic_n_depth if semantic_n_depth is not None else n_depth
     
-    if neck_n_depth < 1:
-        feature = [tf.keras.layers.Conv2D(n_feature, 1, use_bias = True, kernel_initializer = "he_normal", name = "feature_resample_conv{0}".format(i + 1) if 1 < len(feature) else "feature_resample_conv")(x) for i, x in enumerate(feature)]
-    else:
-        for index in range(neck_n_depth):
-            feature = neck(name = "feature_pyramid_network{0}".format(index + 1) if 1 < neck_n_depth else "feature_pyramid_network")(feature)
-    for index in range(sub_sampling):
-        #feature.append(tf.keras.layers.MaxPooling2D((1, 1), strides = 2, name = "feature_sub_sampling{0}".format(index + 1) if 1 < sub_sampling else "feature_sub_sampling")(feature[-1]))
-        x = feature[-1]
-        if index == 0:
-            x = tf.keras.layers.Conv2D(sub_n_feature, 1, use_bias = sub_normalize is None, name = "feature_sub_sampling_pre_conv")(x)
-            if sub_normalize is not None:
-                x = sub_normalize(name = "feature_sub_sampling_pre_norm")(x)
-        feature.append(tf.keras.layers.MaxPooling2D((3, 3), strides = 2, padding = "same", name = "feature_sub_sampling{0}".format(index + 1) if 1 < sub_sampling else "feature_sub_sampling")(x))
-        
+    feature = neck(name = "neck")(feature)
+    
     n_anchor = len(scale) * len(ratio)
     if isinstance(scale, list) and isinstance(scale[0], list):
         n_anchor = len(scale[0]) * len(ratio)
@@ -105,7 +93,7 @@ def rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_d
     n_stage = 3 if cascade else 1
     if mask and mask_info_flow:
         n_stage += 1
-    feature = feature[:-sub_sampling] if 1 < len(feature) and 0 < sub_sampling else feature
+    feature = feature[:feature_count]
     roi_extractor = RoiAlign(pool_size, method, name = "roi_align")
     mask_feature = None
     cls_logits, cls_regress, proposals, mask_regress = [], [], [_proposals], []
@@ -154,27 +142,25 @@ def rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_d
     result = [r for r in [rpn_score, rpn_regress, cls_logits, cls_regress, proposals, anchors, mask_regress, semantic_regress, sampling_tag] if r is not None]
     return result
 
-def faster_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_depth = 4, sub_sampling = 1,
+def faster_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_depth = 4,
                 scale = [0.03125, 0.0625, 0.125, 0.25, 0.5], ratio = [0.5, 1, 2], auto_scale = True,
                 mask = False, cascade = False, mask_info_flow = False, semantic_feature = False,
                 proposal_count = 1000, iou_threshold = 0.7, soft_nms = True, valid = True, performance_count = 5000,
                 pool_size = 7, method = "bilinear",
                 mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, batch_size = 1,
-                sub_n_feature = None, sub_normalize = tf.keras.layers.BatchNormalization, 
-                neck = fpn, neck_n_depth = 1,
+                neck = neck,
                 rpn_feature_share = True, rpn_n_feature = None, rpn_use_bias = True, rpn_convolution = conv, rpn_normalize = None, rpn_activation = tf.keras.activations.relu,
                 cls_n_feature = None, cls_convolution = conv, cls_normalize = tf.keras.layers.BatchNormalization, cls_activation = tf.keras.activations.relu,
                 mask_n_feature = None, mask_n_depth = None, mask_convolution = conv, mask_normalize = tf.keras.layers.BatchNormalization, mask_activation = tf.keras.activations.relu,
                 semantic_level = 1, semantic_n_feature = None, semantic_n_depth = None, semantic_pool_size = 14, semantic_logits_activation = None, semantic_convolution = conv, semantic_normalize = None, semantic_activation = tf.keras.activations.relu,
                 sampling_assign = cls_assign, sampling_count = None, sampling_positive_ratio = 0.25):
-    out = rcnn(feature, n_class = n_class, image_shape = image_shape, n_feature = n_feature, n_depth = n_depth, sub_sampling = sub_sampling,
+    out = rcnn(feature, n_class = n_class, image_shape = image_shape, n_feature = n_feature, n_depth = n_depth,
                scale = scale, ratio = ratio, auto_scale = auto_scale,
                mask = mask, cascade = cascade, mask_info_flow = mask_info_flow, semantic_feature = semantic_feature,
                proposal_count = proposal_count, iou_threshold = iou_threshold, soft_nms = soft_nms, valid = valid, performance_count = performance_count,
                pool_size = pool_size, method = method,
                mean = mean, std = std, clip_ratio = clip_ratio, batch_size = batch_size,
-               sub_n_feature = sub_n_feature, sub_normalize = sub_normalize, 
-               neck = neck, neck_n_depth = neck_n_depth,
+               neck = neck,
                rpn_feature_share = rpn_feature_share, rpn_n_feature = rpn_n_feature, rpn_use_bias = rpn_use_bias, rpn_convolution = rpn_convolution, rpn_normalize = rpn_normalize, rpn_activation = rpn_activation,
                cls_n_feature = cls_n_feature, cls_convolution = cls_convolution, cls_normalize = cls_normalize, cls_activation = cls_activation,
                mask_n_feature = mask_n_feature, mask_n_depth = mask_n_depth, mask_convolution = mask_convolution, mask_normalize = mask_normalize, mask_activation = mask_activation,
@@ -182,27 +168,25 @@ def faster_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 2
                sampling_assign = sampling_assign, sampling_count = sampling_count, sampling_positive_ratio = sampling_positive_ratio)
     return out
 
-def mask_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_depth = 4, sub_sampling = 1,
+def mask_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_depth = 4,
               scale = [0.03125, 0.0625, 0.125, 0.25, 0.5], ratio = [0.5, 1, 2], auto_scale = True,
               mask = True, cascade = False, mask_info_flow = False, semantic_feature = False,
               proposal_count = 1000, iou_threshold = 0.7, soft_nms = True, valid = True, performance_count = 5000,
               pool_size = 7, method = "bilinear",
               mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, batch_size = 1,
-              sub_n_feature = None, sub_normalize = tf.keras.layers.BatchNormalization, 
-              neck = fpn, neck_n_depth = 1,
+              neck = neck,
               rpn_feature_share = True, rpn_n_feature = None, rpn_use_bias = True, rpn_convolution = conv, rpn_normalize = None, rpn_activation = tf.keras.activations.relu,
               cls_n_feature = None, cls_convolution = conv, cls_normalize = tf.keras.layers.BatchNormalization, cls_activation = tf.keras.activations.relu,
               mask_n_feature = None, mask_n_depth = None, mask_convolution = conv, mask_normalize = tf.keras.layers.BatchNormalization, mask_activation = tf.keras.activations.relu,
               semantic_level = 1, semantic_n_feature = None, semantic_n_depth = None, semantic_pool_size = 14, semantic_logits_activation = None, semantic_convolution = conv, semantic_normalize = None, semantic_activation = tf.keras.activations.relu,
               sampling_assign = cls_assign, sampling_count = None, sampling_positive_ratio = 0.25):
-    out = rcnn(feature, n_class = n_class, image_shape = image_shape, n_feature = n_feature, n_depth = n_depth, sub_sampling = sub_sampling,
+    out = rcnn(feature, n_class = n_class, image_shape = image_shape, n_feature = n_feature, n_depth = n_depth,
                scale = scale, ratio = ratio, auto_scale = auto_scale,
                mask = mask, cascade = cascade, mask_info_flow = mask_info_flow, semantic_feature = semantic_feature,
                proposal_count = proposal_count, iou_threshold = iou_threshold, soft_nms = soft_nms, valid = valid, performance_count = performance_count,
                pool_size = pool_size, method = method,
                mean = mean, std = std, clip_ratio = clip_ratio, batch_size = batch_size,
-               sub_n_feature = sub_n_feature, sub_normalize = sub_normalize, 
-               neck = neck, neck_n_depth = neck_n_depth,
+               neck = neck,
                rpn_feature_share = rpn_feature_share, rpn_n_feature = rpn_n_feature, rpn_use_bias = rpn_use_bias, rpn_convolution = rpn_convolution, rpn_normalize = rpn_normalize, rpn_activation = rpn_activation,
                cls_n_feature = cls_n_feature, cls_convolution = cls_convolution, cls_normalize = cls_normalize, cls_activation = cls_activation,
                mask_n_feature = mask_n_feature, mask_n_depth = mask_n_depth, mask_convolution = mask_convolution, mask_normalize = mask_normalize, mask_activation = mask_activation,
@@ -210,27 +194,25 @@ def mask_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256
                sampling_assign = sampling_assign, sampling_count = sampling_count, sampling_positive_ratio = sampling_positive_ratio)
     return out
 
-def cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_depth = 4, sub_sampling = 1,
+def cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_depth = 4,
                  scale = [0.03125, 0.0625, 0.125, 0.25, 0.5], ratio = [0.5, 1, 2], auto_scale = True,
                  mask = False, cascade = True, mask_info_flow = False, semantic_feature = False,
                  proposal_count = 1000, iou_threshold = 0.7, soft_nms = True, valid = True, performance_count = 5000,
                  pool_size = 7, method = "bilinear",
                  mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, batch_size = 1,
-                 sub_n_feature = None, sub_normalize = tf.keras.layers.BatchNormalization, 
-                 neck = fpn, neck_n_depth = 1,
+                 neck = neck,
                  rpn_feature_share = True, rpn_n_feature = None, rpn_use_bias = True, rpn_convolution = conv, rpn_normalize = None, rpn_activation = tf.keras.activations.relu,
                  cls_n_feature = None, cls_convolution = conv, cls_normalize = tf.keras.layers.BatchNormalization, cls_activation = tf.keras.activations.relu,
                  mask_n_feature = None, mask_n_depth = None, mask_convolution = conv, mask_normalize = tf.keras.layers.BatchNormalization, mask_activation = tf.keras.activations.relu,
                  semantic_level = 1, semantic_n_feature = None, semantic_n_depth = None, semantic_pool_size = 14, semantic_logits_activation = None, semantic_convolution = conv, semantic_normalize = None, semantic_activation = tf.keras.activations.relu,
                  sampling_assign = cls_assign, sampling_count = None, sampling_positive_ratio = 0.25):
-    out = rcnn(feature, n_class = n_class, image_shape = image_shape, n_feature = n_feature, n_depth = n_depth, sub_sampling = sub_sampling,
+    out = rcnn(feature, n_class = n_class, image_shape = image_shape, n_feature = n_feature, n_depth = n_depth,
                scale = scale, ratio = ratio, auto_scale = auto_scale,
                mask = mask, cascade = cascade, mask_info_flow = mask_info_flow, semantic_feature = semantic_feature,
                proposal_count = proposal_count, iou_threshold = iou_threshold, soft_nms = soft_nms, valid = valid, performance_count = performance_count,
                pool_size = pool_size, method = method,
                mean = mean, std = std, clip_ratio = clip_ratio, batch_size = batch_size,
-               sub_n_feature = sub_n_feature, sub_normalize = sub_normalize, 
-               neck = neck, neck_n_depth = neck_n_depth,
+               neck = neck,
                rpn_feature_share = rpn_feature_share, rpn_n_feature = rpn_n_feature, rpn_use_bias = rpn_use_bias, rpn_convolution = rpn_convolution, rpn_normalize = rpn_normalize, rpn_activation = rpn_activation,
                cls_n_feature = cls_n_feature, cls_convolution = cls_convolution, cls_normalize = cls_normalize, cls_activation = cls_activation,
                mask_n_feature = mask_n_feature, mask_n_depth = mask_n_depth, mask_convolution = mask_convolution, mask_normalize = mask_normalize, mask_activation = mask_activation,
@@ -238,27 +220,25 @@ def cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 
                sampling_assign = sampling_assign, sampling_count = sampling_count, sampling_positive_ratio = sampling_positive_ratio)
     return out
 
-def cascade_mask_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_depth = 4, sub_sampling = 1,
+def cascade_mask_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_depth = 4,
                       scale = [0.03125, 0.0625, 0.125, 0.25, 0.5], ratio = [0.5, 1, 2], auto_scale = True,
                       mask = True, cascade = True, mask_info_flow = False, semantic_feature = False,
                       proposal_count = 1000, iou_threshold = 0.7, soft_nms = True, valid = True, performance_count = 5000,
                       pool_size = 7, method = "bilinear",
                       mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, batch_size = 1,
-                      sub_n_feature = None, sub_normalize = tf.keras.layers.BatchNormalization, 
-                      neck = fpn, neck_n_depth = 1,
+                      neck = neck,
                       rpn_feature_share = True, rpn_n_feature = None, rpn_use_bias = True, rpn_convolution = conv, rpn_normalize = None, rpn_activation = tf.keras.activations.relu,
                       cls_n_feature = None, cls_convolution = conv, cls_normalize = tf.keras.layers.BatchNormalization, cls_activation = tf.keras.activations.relu,
                       mask_n_feature = None, mask_n_depth = None, mask_convolution = conv, mask_normalize = tf.keras.layers.BatchNormalization, mask_activation = tf.keras.activations.relu,
                       semantic_level = 1, semantic_n_feature = None, semantic_n_depth = None, semantic_pool_size = 14, semantic_logits_activation = None, semantic_convolution = conv, semantic_normalize = None, semantic_activation = tf.keras.activations.relu,
                       sampling_assign = cls_assign, sampling_count = None, sampling_positive_ratio = 0.25):
-    out = rcnn(feature, n_class = n_class, image_shape = image_shape, n_feature = n_feature, n_depth = n_depth, sub_sampling = sub_sampling,
+    out = rcnn(feature, n_class = n_class, image_shape = image_shape, n_feature = n_feature, n_depth = n_depth,
                scale = scale, ratio = ratio, auto_scale = auto_scale,
                mask = mask, cascade = cascade, mask_info_flow = mask_info_flow, semantic_feature = semantic_feature,
                proposal_count = proposal_count, iou_threshold = iou_threshold, soft_nms = soft_nms, valid = valid, performance_count = performance_count,
                pool_size = pool_size, method = method,
                mean = mean, std = std, clip_ratio = clip_ratio, batch_size = batch_size,
-               sub_n_feature = sub_n_feature, sub_normalize = sub_normalize, 
-               neck = neck, neck_n_depth = neck_n_depth,
+               neck = neck,
                rpn_feature_share = rpn_feature_share, rpn_n_feature = rpn_n_feature, rpn_use_bias = rpn_use_bias, rpn_convolution = rpn_convolution, rpn_normalize = rpn_normalize, rpn_activation = rpn_activation,
                cls_n_feature = cls_n_feature, cls_convolution = cls_convolution, cls_normalize = cls_normalize, cls_activation = cls_activation,
                mask_n_feature = mask_n_feature, mask_n_depth = mask_n_depth, mask_convolution = mask_convolution, mask_normalize = mask_normalize, mask_activation = mask_activation,
@@ -266,27 +246,25 @@ def cascade_mask_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_featu
                sampling_assign = sampling_assign, sampling_count = sampling_count, sampling_positive_ratio = sampling_positive_ratio)
     return out
 
-def hybrid_task_cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_depth = 4, sub_sampling = 1,
+def hybrid_task_cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_depth = 4,
                              scale = [0.03125, 0.0625, 0.125, 0.25, 0.5], ratio = [0.5, 1, 2], auto_scale = True,
                              mask = False, cascade = True, mask_info_flow = True, semantic_feature = True,
                              proposal_count = 1000, iou_threshold = 0.7, soft_nms = True, valid = True, performance_count = 5000,
                              pool_size = 7, method = "bilinear",
                              mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, batch_size = 1,
-                             sub_n_feature = None, sub_normalize = tf.keras.layers.BatchNormalization, 
-                             neck = fpn, neck_n_depth = 1,
+                             neck = neck,
                              rpn_feature_share = True, rpn_n_feature = None, rpn_use_bias = True, rpn_convolution = conv, rpn_normalize = None, rpn_activation = tf.keras.activations.relu,
                              cls_n_feature = None, cls_convolution = conv, cls_normalize = tf.keras.layers.BatchNormalization, cls_activation = tf.keras.activations.relu,
                              mask_n_feature = None, mask_n_depth = None, mask_convolution = conv, mask_normalize = tf.keras.layers.BatchNormalization, mask_activation = tf.keras.activations.relu,
                              semantic_level = 1, semantic_n_feature = None, semantic_n_depth = None, semantic_pool_size = 14, semantic_logits_activation = None, semantic_convolution = conv, semantic_normalize = None, semantic_activation = tf.keras.activations.relu,
                              sampling_assign = cls_assign, sampling_count = None, sampling_positive_ratio = 0.25):
-    out = rcnn(feature, n_class = n_class, image_shape = image_shape, n_feature = n_feature, n_depth = n_depth, sub_sampling = sub_sampling,
+    out = rcnn(feature, n_class = n_class, image_shape = image_shape, n_feature = n_feature, n_depth = n_depth,
                scale = scale, ratio = ratio, auto_scale = auto_scale,
                mask = mask, cascade = cascade, mask_info_flow = mask_info_flow, semantic_feature = semantic_feature,
                proposal_count = proposal_count, iou_threshold = iou_threshold, soft_nms = soft_nms, valid = valid, performance_count = performance_count,
                pool_size = pool_size, method = method,
                mean = mean, std = std, clip_ratio = clip_ratio, batch_size = batch_size,
-               sub_n_feature = sub_n_feature, sub_normalize = sub_normalize, 
-               neck = neck, neck_n_depth = neck_n_depth,
+               neck = neck,
                rpn_feature_share = rpn_feature_share, rpn_n_feature = rpn_n_feature, rpn_use_bias = rpn_use_bias, rpn_convolution = rpn_convolution, rpn_normalize = rpn_normalize, rpn_activation = rpn_activation,
                cls_n_feature = cls_n_feature, cls_convolution = cls_convolution, cls_normalize = cls_normalize, cls_activation = cls_activation,
                mask_n_feature = mask_n_feature, mask_n_depth = mask_n_depth, mask_convolution = mask_convolution, mask_normalize = mask_normalize, mask_activation = mask_activation,
@@ -294,27 +272,25 @@ def hybrid_task_cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], 
                sampling_assign = sampling_assign, sampling_count = sampling_count, sampling_positive_ratio = sampling_positive_ratio)
     return out
 
-def hybrid_task_cascade_mask_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_depth = 4, sub_sampling = 1,
+def hybrid_task_cascade_mask_rcnn(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_depth = 4,
                                   scale = [0.03125, 0.0625, 0.125, 0.25, 0.5], ratio = [0.5, 1, 2], auto_scale = True,
                                   mask = True, cascade = True, mask_info_flow = True, semantic_feature = True,
                                   proposal_count = 1000, iou_threshold = 0.7, soft_nms = True, valid = True, performance_count = 5000,
                                   pool_size = 7, method = "bilinear",
                                   mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, batch_size = 1,
-                                  sub_n_feature = None, sub_normalize = tf.keras.layers.BatchNormalization, 
-                                  neck = fpn, neck_n_depth = 1,
+                                  neck = neck,
                                   rpn_feature_share = True, rpn_n_feature = None, rpn_use_bias = True, rpn_convolution = conv, rpn_normalize = None, rpn_activation = tf.keras.activations.relu,
                                   cls_n_feature = None, cls_convolution = conv, cls_normalize = tf.keras.layers.BatchNormalization, cls_activation = tf.keras.activations.relu,
                                   mask_n_feature = None, mask_n_depth = None, mask_convolution = conv, mask_normalize = tf.keras.layers.BatchNormalization, mask_activation = tf.keras.activations.relu,
                                   semantic_level = 1, semantic_n_feature = None, semantic_n_depth = None, semantic_pool_size = 14, semantic_logits_activation = None, semantic_convolution = conv, semantic_normalize = None, semantic_activation = tf.keras.activations.relu,
                                   sampling_assign = cls_assign, sampling_count = None, sampling_positive_ratio = 0.25):
-    out = rcnn(feature, n_class = n_class, image_shape = image_shape, n_feature = n_feature, n_depth = n_depth, sub_sampling = sub_sampling,
+    out = rcnn(feature, n_class = n_class, image_shape = image_shape, n_feature = n_feature, n_depth = n_depth,
                scale = scale, ratio = ratio, auto_scale = auto_scale,
                mask = mask, cascade = cascade, mask_info_flow = mask_info_flow, semantic_feature = semantic_feature,
                proposal_count = proposal_count, iou_threshold = iou_threshold, soft_nms = soft_nms, valid = valid, performance_count = performance_count,
                pool_size = pool_size, method = method,
                mean = mean, std = std, clip_ratio = clip_ratio, batch_size = batch_size,
-               sub_n_feature = sub_n_feature, sub_normalize = sub_normalize, 
-               neck = neck, neck_n_depth = neck_n_depth,
+               neck = neck,
                rpn_feature_share = rpn_feature_share, rpn_n_feature = rpn_n_feature, rpn_use_bias = rpn_use_bias, rpn_convolution = rpn_convolution, rpn_normalize = rpn_normalize, rpn_activation = rpn_activation,
                cls_n_feature = cls_n_feature, cls_convolution = cls_convolution, cls_normalize = cls_normalize, cls_activation = cls_activation,
                mask_n_feature = mask_n_feature, mask_n_depth = mask_n_depth, mask_convolution = mask_convolution, mask_normalize = mask_normalize, mask_activation = mask_activation,

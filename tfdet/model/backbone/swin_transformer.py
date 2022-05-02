@@ -460,7 +460,7 @@ def get_shape(size, input_shape = None):
         shape = shape[::-1]
     return shape
 
-def swin_transformer_tiny(x, patch_size = 4, n_feature = 96, n_blocks = [2, 2, 6, 2], n_heads = [3, 6, 12, 24], window_size = 7, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.1, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet"):
+def swin_transformer_tiny(x, patch_size = 4, n_feature = 96, n_blocks = [2, 2, 6, 2], n_heads = [3, 6, 12, 24], window_size = 7, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.1, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = None):
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
     
     out = swin_transformer(x, include_top = False, patch_size = patch_size, n_feature = n_feature, n_blocks = n_blocks, n_heads = n_heads, window_size = window_size, ratio = ratio, scale = scale, use_bias = use_bias, patch_normalize = patch_normalize, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation)
@@ -478,9 +478,15 @@ def swin_transformer_tiny(x, patch_size = 4, n_feature = 96, n_blocks = [2, 2, 6
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
         feature.append(out)
-    return feature
+        
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return featurefeature
     
-def swin_transformer_small(x, patch_size = 4, n_feature = 96, n_blocks = [2, 2, 18, 2], n_heads = [3, 6, 12, 24], window_size = 7, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.1, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet"):
+def swin_transformer_small(x, patch_size = 4, n_feature = 96, n_blocks = [2, 2, 18, 2], n_heads = [3, 6, 12, 24], window_size = 7, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.1, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = None):
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
     
     out = swin_transformer(x, include_top = False, patch_size = patch_size, n_feature = n_feature, n_blocks = n_blocks, n_heads = n_heads, window_size = window_size, ratio = ratio, scale = scale, use_bias = use_bias, patch_normalize = patch_normalize, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation)
@@ -498,9 +504,15 @@ def swin_transformer_small(x, patch_size = 4, n_feature = 96, n_blocks = [2, 2, 
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
         feature.append(out)
+        
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
     return feature
 
-def swin_transformer_base(x, patch_size = 4, n_feature = 128, n_blocks = [2, 2, 18, 2], n_heads = [4, 8, 16, 32], window_size = 7, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.1, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet_22k"):
+def swin_transformer_base(x, patch_size = 4, n_feature = 128, n_blocks = [2, 2, 18, 2], n_heads = [4, 8, 16, 32], window_size = 7, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.1, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet_22k", indices = None):
     #input_shape 224, 224, 3 > window_size 7, input_shape 384, 384, 3 > window_size 12
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
     w_size = 7
@@ -528,9 +540,15 @@ def swin_transformer_base(x, patch_size = 4, n_feature = 128, n_blocks = [2, 2, 
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
         feature.append(out)
+        
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
     return feature
 
-def swin_transformer_large(x, patch_size = 4, n_feature = 192, n_blocks = [2, 2, 18, 2], n_heads = [6, 12, 24, 48], window_size = 7, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.1, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet_22k"):
+def swin_transformer_large(x, patch_size = 4, n_feature = 192, n_blocks = [2, 2, 18, 2], n_heads = [6, 12, 24, 48], window_size = 7, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.1, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet_22k", indices = None):
     #input_shape 224, 224, 3 > window_size 7, input_shape 384, 384, 3 > window_size 12
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
     w_size = 7
@@ -556,4 +574,10 @@ def swin_transformer_large(x, patch_size = 4, n_feature = 192, n_blocks = [2, 2,
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
         feature.append(out)
+        
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
     return feature

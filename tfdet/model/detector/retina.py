@@ -3,15 +3,17 @@ import numpy as np
 
 from tfdet.core.anchor import generate_anchors
 from ..head.retina import ClassNet, BoxNet
-from ..neck import fpn
+from ..neck import FeatureAlign, fpn
 
 def conv(filters, kernel_size, strides = 1, padding = "same", use_bias = True, kernel_initializer = "he_normal", **kwargs):
     return tf.keras.layers.Conv2D(filters, kernel_size, strides = strides, padding = padding, use_bias = use_bias, kernel_initializer = kernel_initializer, **kwargs)
 
-def retinanet(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_depth = 4, sub_sampling = 1,
+def neck(n_feature = 256, n_sampling = 1, pre_sampling = True, neck = fpn, neck_n_depth = 1, convolution = conv, normalize = tf.keras.layers.BatchNormalization, **kwargs):
+    return FeatureAlign(n_feature = n_feature, n_sampling = n_sampling, pre_sampling = pre_sampling, neck = neck, neck_n_depth = neck_n_depth, convolution = convolution, normalize = normalize, **kwargs)
+
+def retinanet(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_depth = 4,
               scale = [0.03125, 0.0625, 0.125, 0.25, 0.5], ratio = [0.5, 1, 2], auto_scale = True,
-              sub_n_feature = None, sub_normalize = tf.keras.layers.BatchNormalization, 
-              neck = fpn, neck_n_depth = 1,
+              neck = neck,
               cls_convolution = conv, cls_normalize = tf.keras.layers.BatchNormalization, cls_activation = tf.keras.activations.relu, 
               box_convolution = conv, box_normalize = tf.keras.layers.BatchNormalization, box_activation = tf.keras.activations.relu):
     if tf.is_tensor(image_shape) and 2 < tf.keras.backend.ndim(image_shape) or (not tf.is_tensor(image_shape) and 2 < np.ndim(image_shape)):
@@ -21,20 +23,8 @@ def retinanet(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256
     if not isinstance(feature, list):
         feature = [feature]
     feature = list(feature)
-    sub_n_feature = sub_n_feature if sub_n_feature is not None else n_feature
-
-    for index in range(sub_sampling):
-        x = feature[-1]
-        if index == 0:
-            x = tf.keras.layers.Conv2D(sub_n_feature, 1, use_bias = sub_normalize is None, name = "feature_sub_sampling_pre_conv")(x)
-            if sub_normalize is not None:
-                x = sub_normalize(name = "feature_sub_sampling_pre_norm")(x)
-        feature.append(tf.keras.layers.MaxPooling2D((3, 3), strides = 2, padding = "same", name = "feature_sub_sampling{0}".format(index + 1) if 1 < sub_sampling else "feature_sub_sampling")(x))
-    if neck_n_depth < 1:
-        feature = [tf.keras.layers.Conv2D(n_feature, 1, use_bias = True, kernel_initializer = "he_normal", name = "feature_resample_conv{0}".format(i + 1) if 1 < len(feature) else "feature_resample_conv")(x) for i, x in enumerate(feature)]
-    else:
-        for index in range(neck_n_depth):
-            feature = neck(name = "feature_pyramid_network{0}".format(index + 1) if 1 < neck_n_depth else "feature_pyramid_network")(feature)
+    
+    feature = neck(name = "neck")(feature)
         
     n_anchor = len(scale) * len(ratio)
     if isinstance(scale, list) and isinstance(scale[0], list):

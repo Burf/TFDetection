@@ -1,7 +1,7 @@
 import tensorflow as tf
 
-from ..head.fcn import UpsamplingFeature
 from ..head.pspnet import PoolingPyramidModule
+from ..neck import FeatureUpsample
 
 def conv(filters, kernel_size, strides = 1, padding = "same", use_bias = True, kernel_initializer = "he_normal", **kwargs):
     return tf.keras.layers.Conv2D(filters, kernel_size, strides = strides, padding = padding, use_bias = use_bias, kernel_initializer = kernel_initializer, **kwargs)
@@ -11,7 +11,7 @@ def pspnet(feature, n_class = 35, n_feature = 512, pool_scale = [1, 2, 3, 6], me
     if not isinstance(feature, list):
         feature = [feature]
     
-    feature = UpsamplingFeature(concat = True, method = method, name = "upsampling_feature")(feature)
+    feature = FeatureUpsample(concat = True, method = method, name = "feature_upsample")(feature)
     out = PoolingPyramidModule(pool_scale, n_feature, method = method, convolution = convolution, normalize = normalize, activation = activation, name = "pooling_pyramoid_feature")(feature)
     out = tf.keras.layers.Concatenate(axis = -1, name = "feature_concat")([feature] + out)
     

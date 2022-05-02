@@ -273,7 +273,7 @@ def load_weight(keras_model, torch_url, group_size = 2):
         tf.keras.backend.set_value(w, new_w)
     return keras_model
 
-def resnest50(x, weights = "imagenet"):
+def resnest50(x, weights = "imagenet", indices = None):
     out = ResNet(x, [3, 4, 6, 3], include_top = False, radix = 2, group_size = 1, block_width = 64, stem_width = 32, deep_stem = True, avg_down = True, avd = True, avd_first = False)
     model = tf.keras.Model(x, out)
     
@@ -283,9 +283,15 @@ def resnest50(x, weights = "imagenet"):
         model.load_weights(weights)
         
     layers = ["stage1_block3_shorcut_act", "stage2_block4_shorcut_act", "stage3_block6_shorcut_act", "stage4_block3_shorcut_act"]
-    return [model.get_layer(l).output for l in layers]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
     
-def resnest101(x, weights = "imagenet"):
+def resnest101(x, weights = "imagenet", indices = None):
     out = ResNet(x, [3, 4, 23, 3], include_top = False, radix = 2, group_size = 1, block_width = 64, stem_width = 64, deep_stem = True, avg_down = True, avd = True, avd_first = False)
     model = tf.keras.Model(x, out)
     
@@ -295,9 +301,15 @@ def resnest101(x, weights = "imagenet"):
         model.load_weights(weights)
         
     layers = ["stage1_block3_shorcut_act", "stage2_block4_shorcut_act", "stage3_block23_shorcut_act", "stage4_block3_shorcut_act"]
-    return [model.get_layer(l).output for l in layers]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
 
-def resnest200(x, weights = "imagenet"):
+def resnest200(x, weights = "imagenet", indices = None):
     out = ResNet(x, [3, 24, 36, 3], include_top = False, radix = 2, group_size = 1, block_width = 64, stem_width = 64, deep_stem = True, avg_down = True, avd = True, avd_first = False)
     model = tf.keras.Model(x, out)
     
@@ -307,9 +319,15 @@ def resnest200(x, weights = "imagenet"):
         model.load_weights(weights)
         
     layers = ["stage1_block3_shorcut_act", "stage2_block24_shorcut_act", "stage3_block36_shorcut_act", "stage4_block3_shorcut_act"]
-    return [model.get_layer(l).output for l in layers]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
 
-def resnest269(x, weights = "imagenet"):
+def resnest269(x, weights = "imagenet", indices = None):
     out = ResNet(x, [3, 30, 48, 8], include_top = False, radix = 2, group_size = 1, block_width = 64, stem_width = 64, deep_stem = True, avg_down = True, avd = True, avd_first = False)
     model = tf.keras.Model(x, out)
     
@@ -319,4 +337,10 @@ def resnest269(x, weights = "imagenet"):
         model.load_weights(weights)
         
     layers = ["stage1_block3_shorcut_act", "stage2_block30_shorcut_act", "stage3_block48_shorcut_act", "stage4_block8_shorcut_act"]
-    return [model.get_layer(l).output for l in layers]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature

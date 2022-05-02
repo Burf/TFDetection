@@ -1,13 +1,13 @@
 import tensorflow as tf
 
-from tfdet.core.assign import fcos as fcos_assign
+from tfdet.core.assign import point
 from tfdet.core.loss import regularize as regularize_loss
 from tfdet.core.util import map_fn
 from .loss.fcos import classnet_accuracy, classnet_loss, boxnet_loss, centernessnet_loss
 from .target import fcos_target
 
 def train_model(input, logits, regress, points, centerness = None,
-                assign = fcos_assign, sampling_count = 256, positive_ratio = 0.5,
+                assign = point, sampling_count = 256, positive_ratio = 0.5,
                 batch_size = 1, regularize = True, weight_decay = 1e-4, focal = True, alpha = .25, gamma = 2., sigma = 3, class_weight = None, missing_value = 0.):
     if not isinstance(logits, list):
         logits, regress, points = [logits], [regress], [points]

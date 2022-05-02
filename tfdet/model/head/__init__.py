@@ -8,5 +8,4 @@ from . import padim
 from . import patch_core
 
 from . import deeplab
-from . import fcn
 from . import pspnet

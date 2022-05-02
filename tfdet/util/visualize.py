@@ -1,7 +1,12 @@
 import cv2
 import numpy as np
 
-def draw_bbox(images, bboxes, logits = None, mask = None, label = None, threshold = 0.5, mix_ratio = 0.5, method = cv2.INTER_LINEAR, prefix = "", postfix = "", color = None):
+def draw_bbox(images, bboxes, logits = None, mask = None, label = None, threshold = 0.5, mix_ratio = 0.5, method = cv2.INTER_LINEAR, probability = True, prefix = "", postfix = "", color = None):
+    if np.ndim(images) < 4:
+        images = [images]
+        bboxes = [bboxes]
+        if logits is not None:
+            logits = [logits]
     images = np.array(images)
     bboxes = np.array(bboxes)
     for batch_index in range(len(images)):
@@ -37,7 +42,10 @@ def draw_bbox(images, bboxes, logits = None, mask = None, label = None, threshol
                     name = prob_index
                     if label is not None:
                         name = label[prob_index]
-                    msg = "{0}{1}:{2:.2f}{3}".format(prefix, name, score, postfix)
+                    msg = "{0}{1}".format(prefix, name)
+                    if probability:
+                        msg = "{0}:{1:.2f}".format(msg, score)
+                    msg = "{0}{1}".format(msg, postfix)
                     font_size = max(h, w) / 1250
                     text_size = cv2.getTextSize(msg, cv2.FONT_HERSHEY_SIMPLEX, font_size, size)[0]
                     font_pos = (rect[0], max(rect[1], text_size[1]))
@@ -51,4 +59,6 @@ def draw_bbox(images, bboxes, logits = None, mask = None, label = None, threshol
                     m = np.tile(np.expand_dims(m, axis = -1), 3) * bbox_color
                     crop = image[rect[1]:rect[3] + 1, rect[0]:rect[2] + 1]
                     image[rect[1]:rect[3] + 1, rect[0]:rect[2] + 1] = np.where(0 < m, crop * (1 - mix_ratio) + m * mix_ratio, crop)
+    if len(images) == 1:
+        images = images[0]
     return images

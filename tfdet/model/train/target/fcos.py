@@ -1,9 +1,9 @@
 import tensorflow as tf
 
-from tfdet.core.assign import fcos as fcos_assign
+from tfdet.core.assign import point
 from tfdet.core.bbox import bbox2offset, offset2centerness
 
-def fcos_target(y_true, bbox_true, y_pred, bbox_pred, points, regress_range, centerness_pred = None, assign = fcos_assign, sampling_count = 256, positive_ratio = 0.5):
+def fcos_target(y_true, bbox_true, y_pred, bbox_pred, points, regress_range, centerness_pred = None, assign = point, sampling_count = 256, positive_ratio = 0.5):
     """
     y_true = label #(padded_num_true, 1 or num_class)
     bbox_true = [[x1, y1, x2, y2], ...] #(padded_num_true, bbox)

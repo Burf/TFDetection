@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from ..head.fcn import UpsamplingFeature
+from ..neck import FeatureUpsample
 
 def conv(filters, kernel_size, strides = 1, padding = "same", use_bias = True, kernel_initializer = "he_normal", **kwargs):
     return tf.keras.layers.Conv2D(filters, kernel_size, strides = strides, padding = padding, use_bias = use_bias, kernel_initializer = kernel_initializer, **kwargs)
@@ -10,7 +10,7 @@ def fcn(feature, n_class = 35, n_feature = 512, n_depth = 2, method = "bilinear"
     if not isinstance(feature, list):
         feature = [feature]
     
-    out = feature = UpsamplingFeature(concat = True, method = method, name = "upsampling_feature")(feature)
+    out = feature = FeatureUpsample(concat = True, method = method, name = "feature_upsample")(feature)
     for index in range(n_depth):
         out = convolution(n_feature, 3, padding = "same", use_bias = normalize is None, name = "feature_conv{0}".format(index + 1))(out)
         if normalize is not None:

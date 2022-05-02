@@ -1,44 +1,92 @@
 import tensorflow as tf
 
-def effnet_b0(x, weights = "imagenet"):
+def effnet_b0(x, weights = "imagenet", indices = None):
     model = tf.keras.applications.EfficientNetB0(input_tensor = x, include_top = False, weights = weights)
     layers = ["block2b_add", "block3b_add", "block5c_add", "block7a_project_bn"]
-    return [model.get_layer(l).output for l in layers]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
 
-def effnet_b1(x, weights = "imagenet"):
+def effnet_b1(x, weights = "imagenet", indices = None):
     model = tf.keras.applications.EfficientNetB1(input_tensor = x, include_top = False, weights = weights)
     layers = ["block2c_add", "block3c_add", "block5d_add", "block7b_add"]
-    return [model.get_layer(l).output for l in layers]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
 
-def effnet_b2(x, weights = "imagenet"):
+def effnet_b2(x, weights = "imagenet", indices = None):
     model = tf.keras.applications.EfficientNetB2(input_tensor = x, include_top = False, weights = weights)
     layers = ["block2c_add", "block3c_add", "block5d_add", "block7b_add"]
-    return [model.get_layer(l).output for l in layers]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
 
-def effnet_b3(x, weights = "imagenet"):
+def effnet_b3(x, weights = "imagenet", indices = None):
     model = tf.keras.applications.EfficientNetB3(input_tensor = x, include_top = False, weights = weights)
     layers = ["block2c_add", "block3c_add", "block5e_add", "block7b_add"]
-    return [model.get_layer(l).output for l in layers]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
 
-def effnet_b4(x, weights = "imagenet"):
+def effnet_b4(x, weights = "imagenet", indices = None):
     model = tf.keras.applications.EfficientNetB4(input_tensor = x, include_top = False, weights = weights)
     layers = ["block2d_add", "block3d_add", "block5f_add", "block7b_add"]
-    return [model.get_layer(l).output for l in layers]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
 
-def effnet_b5(x, weights = "imagenet"):
+def effnet_b5(x, weights = "imagenet", indices = None):
     model = tf.keras.applications.EfficientNetB5(input_tensor = x, include_top = False, weights = weights)
     layers = ["block2e_add", "block3e_add", "block5g_add", "block7c_add"]
-    return [model.get_layer(l).output for l in layers]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
 
-def effnet_b6(x, weights = "imagenet"):
+def effnet_b6(x, weights = "imagenet", indices = None):
     model = tf.keras.applications.EfficientNetB6(input_tensor = x, include_top = False, weights = weights)
     layers = ["block2f_add", "block3f_add", "block5h_add", "block7c_add"]
-    return [model.get_layer(l).output for l in layers]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
 
-def effnet_b7(x, weights = "imagenet"):
+def effnet_b7(x, weights = "imagenet", indices = None):
     model = tf.keras.applications.EfficientNetB7(input_tensor = x, include_top = False, weights = weights)
     layers = ["block2g_add", "block3g_add", "block5j_add", "block7d_add"]
-    return [model.get_layer(l).output for l in layers]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
 
 try:
     #https://github.com/Burf/EfficientNet-Lite-Tensorflow2
@@ -206,7 +254,7 @@ def load_weight(model, url):
         tf.keras.backend.set_value(w, new_w.numpy())
     return model
 
-def effnet_lite_b0(x, weights = "imagenet"):
+def effnet_lite_b0(x, weights = "imagenet", indices = None):
     try:
         efficientnet_lite
     except:
@@ -220,9 +268,15 @@ def effnet_lite_b0(x, weights = "imagenet"):
     if hub_weight:
         model = load_weight(model, effnet_lite_urls["effnet_lite_b0"])
     layers = ["block2b_add", "block3b_add", "block5c_add", "block7a_project_bn"]
-    return [model.get_layer(l).output for l in layers]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
 
-def effnet_lite_b1(x, weights = "imagenet"):
+def effnet_lite_b1(x, weights = "imagenet", indices = None):
     try:
         efficientnet_lite
     except:
@@ -236,9 +290,15 @@ def effnet_lite_b1(x, weights = "imagenet"):
     if hub_weight:
         model = load_weight(model, effnet_lite_urls["effnet_lite_b1"])
     layers = ["block2c_add", "block3c_add", "block5d_add", "block7a_project_bn"]
-    return [model.get_layer(l).output for l in layers]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
 
-def effnet_lite_b2(x, weights = "imagenet"):
+def effnet_lite_b2(x, weights = "imagenet", indices = None):
     try:
         efficientnet_lite
     except:
@@ -252,9 +312,15 @@ def effnet_lite_b2(x, weights = "imagenet"):
     if hub_weight:
         model = load_weight(model, effnet_lite_urls["effnet_lite_b2"])
     layers = ["block2c_add", "block3c_add", "block5d_add", "block7a_project_bn"]
-    return [model.get_layer(l).output for l in layers]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
 
-def effnet_lite_b3(x, weights = "imagenet"):
+def effnet_lite_b3(x, weights = "imagenet", indices = None):
     try:
         efficientnet_lite
     except:
@@ -268,9 +334,15 @@ def effnet_lite_b3(x, weights = "imagenet"):
     if hub_weight:
         model = load_weight(model, effnet_lite_urls["effnet_lite_b3"])
     layers = ["block2c_add", "block3c_add", "block5e_add", "block7a_project_bn"]
-    return [model.get_layer(l).output for l in layers]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
 
-def effnet_lite_b4(x, weights = "imagenet"):
+def effnet_lite_b4(x, weights = "imagenet", indices = None):
     try:
         efficientnet_lite
     except:
@@ -284,9 +356,15 @@ def effnet_lite_b4(x, weights = "imagenet"):
     if hub_weight:
         model = load_weight(model, effnet_lite_urls["effnet_lite_b4"])
     layers = ["block2d_add", "block3d_add", "block5f_add", "block7a_project_bn"]
-    return [model.get_layer(l).output for l in layers]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
 
-def effnet_v2_b0(x, weights = "imagenet"):
+def effnet_v2_b0(x, weights = "imagenet", indices = None):
     try:
         tf.keras.applications.EfficientNetV2B0
     except:
@@ -294,9 +372,15 @@ def effnet_v2_b0(x, weights = "imagenet"):
         return
     model = tf.keras.applications.EfficientNetV2B0(input_tensor = x, include_top = False, weights = weights)
     layers = ["block2b_add", "block3b_add", "block5e_add", "block6h_add"]
-    return [model.get_layer(l).output for l in layers]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
     
-def effnet_v2_b1(x, weights = "imagenet"):
+def effnet_v2_b1(x, weights = "imagenet", indices = None):
     try:
         tf.keras.applications.EfficientNetV2B1
     except:
@@ -304,9 +388,15 @@ def effnet_v2_b1(x, weights = "imagenet"):
         return
     model = tf.keras.applications.EfficientNetV2B1(input_tensor = x, include_top = False, weights = weights)
     layers = ["block2c_add", "block3c_add", "block5f_add", "block6i_add"]
-    return [model.get_layer(l).output for l in layers]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
     
-def effnet_v2_b2(x, weights = "imagenet"):
+def effnet_v2_b2(x, weights = "imagenet", indices = None):
     try:
         tf.keras.applications.EfficientNetV2B2
     except:
@@ -314,9 +404,15 @@ def effnet_v2_b2(x, weights = "imagenet"):
         return
     model = tf.keras.applications.EfficientNetV2B2(input_tensor = x, include_top = False, weights = weights)
     layers = ["block2c_add", "block3c_add", "block5f_add", "block6j_add"]
-    return [model.get_layer(l).output for l in layers]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
     
-def effnet_v2_b3(x, weights = "imagenet"):
+def effnet_v2_b3(x, weights = "imagenet", indices = None):
     try:
         tf.keras.applications.EfficientNetV2B3
     except:
@@ -324,9 +420,15 @@ def effnet_v2_b3(x, weights = "imagenet"):
         return
     model = tf.keras.applications.EfficientNetV2B3(input_tensor = x, include_top = False, weights = weights)
     layers = ["block2c_add", "block3c_add", "block5g_add", "block6l_add"]
-    return [model.get_layer(l).output for l in layers]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
     
-def effnet_v2_s(x, weights = "imagenet"):
+def effnet_v2_s(x, weights = "imagenet", indices = None):
     try:
         tf.keras.applications.EfficientNetV2S
     except:
@@ -334,9 +436,15 @@ def effnet_v2_s(x, weights = "imagenet"):
         return
     model = tf.keras.applications.EfficientNetV2S(input_tensor = x, include_top = False, weights = weights)
     layers = ["block2d_add", "block3d_add", "block5i_add", "block6o_add"]
-    return [model.get_layer(l).output for l in layers]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
     
-def effnet_v2_m(x, weights = "imagenet"):
+def effnet_v2_m(x, weights = "imagenet", indices = None):
     try:
         tf.keras.applications.EfficientNetV2M
     except:
@@ -344,9 +452,15 @@ def effnet_v2_m(x, weights = "imagenet"):
         return
     model = tf.keras.applications.EfficientNetV2M(input_tensor = x, include_top = False, weights = weights)
     layers = ["block2e_add", "block3e_add", "block5n_add", "block7e_add"]
-    return [model.get_layer(l).output for l in layers]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
     
-def effnet_v2_l(x, weights = "imagenet"):
+def effnet_v2_l(x, weights = "imagenet", indices = None):
     try:
         tf.keras.applications.EfficientNetV2L
     except:
@@ -354,4 +468,10 @@ def effnet_v2_l(x, weights = "imagenet"):
         return
     model = tf.keras.applications.EfficientNetV2L(input_tensor = x, include_top = False, weights = weights)
     layers = ["block2g_add", "block3g_add", "block5s_add", "block7g_add"]
-    return [model.get_layer(l).output for l in layers]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
