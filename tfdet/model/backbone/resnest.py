@@ -64,7 +64,7 @@ def rsoftmax(x, n_filter, radix, group_size):
     if 1 < radix:
         out = tf.keras.layers.Reshape([group_size, radix, n_filter // group_size])(x)
         out = tf.keras.layers.Permute([2, 1, 3])(out)
-        out = tf.keras.layers.Activation(tf.keras.activations.softmax)(out)
+        out = tf.keras.layers.Lambda(lambda x: tf.nn.softmax(x, axis = 1))(out)
         out = tf.keras.layers.Reshape([1, 1, radix * n_filter])(out)
     else:
         out = tf.keras.layers.Activation(tf.keras.activations.sigmoid)(x)
@@ -81,7 +81,7 @@ class rSoftMax(tf.keras.layers.Layer):
         if 1 < radix:
             self.seq1 = tf.keras.layers.Reshape([group_size, radix, filters // group_size])
             self.seq2 = tf.keras.layers.Permute([2, 1, 3])
-            self.seq3 = tf.keras.layers.Activation(tf.keras.activations.softmax)
+            self.seq3 = tf.keras.layers.Lambda(lambda x: tf.nn.softmax(x, axis = 1))
             self.seq4 = tf.keras.layers.Reshape([1, 1, radix * filters])
             self.seq = [self.seq1, self.seq2, self.seq3, self.seq4]
         else:
