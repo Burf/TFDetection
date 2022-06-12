@@ -1,5 +1,7 @@
 import tensorflow as tf
+import numpy as np
 
+from tfdet.core.anchor import generate_anchors
 from tfdet.core.bbox import delta2bbox
 from tfdet.core.util import pad_nms, map_fn
 
@@ -7,12 +9,12 @@ def conv(filters, kernel_size, strides = 1, padding = "same", use_bias = True, k
     return tf.keras.layers.Conv2D(filters, kernel_size, strides = strides, padding = padding, use_bias = use_bias, kernel_initializer = kernel_initializer, **kwargs)
 
 class RegionProposalNetwork(tf.keras.layers.Layer):
-    def __init__(self, n_anchor, share = True, n_feature = 512, use_bias = True, convolution = conv, normalize = None, activation = tf.keras.activations.relu, **kwargs):
+    def __init__(self, n_anchor, n_feature = 512, use_bias = True, feature_share = True, convolution = conv, normalize = None, activation = tf.keras.activations.relu, **kwargs):
         super(RegionProposalNetwork, self).__init__(**kwargs)
         self.n_anchor = n_anchor
-        self.share = share
         self.n_feature = n_feature
         self.use_bias = use_bias
+        self.feature_share = feature_share
         self.convolution = convolution
         self.normalize = normalize
         self.activation = activation
@@ -23,7 +25,7 @@ class RegionProposalNetwork(tf.keras.layers.Layer):
     def build(self, input_shape):
         if not isinstance(input_shape, list):
             input_shape = [input_shape]
-        if self.share:
+        if self.feature_share:
             self.feature = [self.convolution(self.n_feature, 3, padding = "same", use_bias = False, activation = self.activation, name = "shared_feature_conv")] * len(input_shape)
             self.score = [self.convolution(self.n_anchor, 1, use_bias = self.use_bias, activation = tf.keras.activations.sigmoid, name = "shared_score_conv")] * len(input_shape)
             self.regress = [self.convolution(self.n_anchor * 4, 1, use_bias = self.use_bias, name = "shared_regress_conv")] * len(input_shape)
@@ -63,16 +65,16 @@ class RegionProposalNetwork(tf.keras.layers.Layer):
     def get_config(self):
         config = super(RegionProposalNetwork, self).get_config()
         config["n_anchor"] = self.n_anchor
-        config["share"] = self.share
         config["n_feature"] = self.n_feature
         config["use_bias"] = self.use_bias
+        config["feature_share"] = self.feature_share
         config["convolution"] = self.convolution
         config["normalize"] = self.normalize
         config["activation"] = self.activation
         return config
     
 class Rpn2Proposal(tf.keras.layers.Layer):
-    def __init__(self, proposal_count = 1000, iou_threshold = 0.7, soft_nms = True, valid = True, performance_count = 5000, batch_size = 1, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, **kwargs):
+    def __init__(self, proposal_count = 1000, iou_threshold = 0.7, soft_nms = False, valid = True, performance_count = 5000, batch_size = 1, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, **kwargs):
         super(Rpn2Proposal, self).__init__(**kwargs)   
         self.proposal_count = proposal_count
         self.iou_threshold = iou_threshold
@@ -425,3 +427,161 @@ def roi2level(bbox, n_level, input_shape = (224, 224)):
     roi_level = tf.clip_by_value(roi_level, 0, n_level - 1)
     roi_level = tf.squeeze(roi_level, axis = -1)
     return roi_level
+
+def rpn_head(feature, image_shape = [1024, 1024],
+             scale = [0.03125, 0.0625, 0.125, 0.25, 0.5], ratio = [0.5, 1, 2], auto_scale = True,
+             n_feature = 256, use_bias = True, feature_share = True,
+             convolution = conv, normalize = None, activation = tf.keras.activations.relu):
+    if tf.is_tensor(image_shape) and 2 < tf.keras.backend.ndim(image_shape) or (not tf.is_tensor(image_shape) and 2 < np.ndim(image_shape)):
+        image_shape = tf.shape(image_shape) if tf.keras.backend.int_shape(image_shape)[-3] is None else tf.keras.backend.int_shape(image_shape)
+    if 2 < np.shape(image_shape)[0]:
+        image_shape = image_shape[-3:-1]
+    if not isinstance(feature, list):
+        feature = [feature]
+    feature = list(feature)
+    
+    n_anchor = len(scale) * len(ratio)
+    if isinstance(scale, list) and isinstance(scale[0], list):
+        n_anchor = len(scale[0]) * len(ratio)
+    elif auto_scale and (len(scale) % len(feature)) == 0:
+        n_anchor = (len(scale) // len(feature)) * len(ratio)
+    score, regress = RegionProposalNetwork(n_anchor, n_feature = n_feature, use_bias = use_bias, feature_share = feature_share, convolution = convolution, normalize = normalize, activation = activation, name = "region_proposal_network")(feature)
+    anchors = generate_anchors(feature, image_shape, scale, ratio, normalize = True, auto_scale = auto_scale)
+
+    valid_flags = tf.logical_and(tf.less_equal(anchors[..., 2], 1),
+                                 tf.logical_and(tf.less_equal(anchors[..., 3], 1),
+                                                tf.logical_and(tf.greater_equal(anchors[..., 0], 0),
+                                                               tf.greater_equal(anchors[..., 1], 0))))
+    #valid_indices = tf.range(tf.shape(anchors)[0])[valid_flags]
+    valid_indices = tf.where(valid_flags)[:, 0]
+    score = tf.gather(score, valid_indices, axis = 1)
+    regress = tf.gather(regress, valid_indices, axis = 1)
+    anchors = tf.gather(anchors, valid_indices)
+    return score, regress, anchors
+
+def rcnn_head(feature, proposals, n_class = 21, image_shape = [1024, 1024], mask = False,
+              cls_n_feature = 1024, mask_n_feature = 256, mask_n_depth = 4,
+              pool_size = 7, method = "bilinear",
+              cls_convolution = conv, cls_normalize = tf.keras.layers.BatchNormalization, cls_activation = tf.keras.activations.relu,
+              mask_convolution = conv, mask_normalize = tf.keras.layers.BatchNormalization, mask_activation = tf.keras.activations.relu):
+    if tf.is_tensor(image_shape) and 2 < tf.keras.backend.ndim(image_shape) or (not tf.is_tensor(image_shape) and 2 < np.ndim(image_shape)):
+        image_shape = tf.shape(image_shape) if tf.keras.backend.int_shape(image_shape)[-3] is None else tf.keras.backend.int_shape(image_shape)
+    if 2 < np.shape(image_shape)[0]:
+        image_shape = image_shape[-3:-1]
+    if not isinstance(feature, list):
+        feature = [feature]
+    feature = list(feature)
+    
+    roi_extractor = RoiAlign(pool_size, method, name = "roi_align")
+    roi = roi_extractor([feature, proposals], image_shape)
+    
+    cls_logits, cls_regress = RoiClassifier(n_class, cls_n_feature, convolution = cls_convolution, normalize = cls_normalize, activation = cls_activation, name = "roi_classifier")(roi)
+    mask_regress = None
+    if mask:
+        mask_regress = RoiMask(n_class, mask_n_feature, mask_n_depth, convolution = mask_convolution, normalize = mask_normalize, activation = mask_activation, name = "roi_mask")(roi)
+    
+    result = [r for r in [cls_logits, cls_regress, proposals, mask_regress] if r is not None]
+    return result
+
+def cascade_head(feature, proposals, n_class = 21, image_shape = [1024, 1024], mask = False, mask_info_flow = False, semantic_feature = False,
+                 cls_n_feature = 1024, mask_n_feature = 256, mask_n_depth = 4, semantic_level = 1, semantic_n_feature = 256, semantic_n_depth = 4,
+                 pool_size = 7, semantic_pool_size = 14, method = "bilinear",
+                 mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, batch_size = 1,
+                 cls_convolution = conv, cls_normalize = tf.keras.layers.BatchNormalization, cls_activation = tf.keras.activations.relu,
+                 mask_convolution = conv, mask_normalize = tf.keras.layers.BatchNormalization, mask_activation = tf.keras.activations.relu,
+                 semantic_logits_activation = None, semantic_convolution = conv, semantic_normalize = None, semantic_activation = tf.keras.activations.relu):
+    if tf.is_tensor(image_shape) and 2 < tf.keras.backend.ndim(image_shape) or (not tf.is_tensor(image_shape) and 2 < np.ndim(image_shape)):
+        image_shape = tf.shape(image_shape) if tf.keras.backend.int_shape(image_shape)[-3] is None else tf.keras.backend.int_shape(image_shape)
+    if 2 < np.shape(image_shape)[0]:
+        image_shape = image_shape[-3:-1]
+    if not isinstance(feature, list):
+        feature = [feature]
+    feature = list(feature)
+    
+    roi_extractor = RoiAlign(pool_size, method, name = "roi_align")
+    semantic_regress = None
+    if semantic_feature:
+        semantic_regress, _semantic_feature = FusedSemanticHead(n_class, semantic_n_feature, semantic_n_depth, logits_activation = semantic_logits_activation, convolution = semantic_convolution, normalize = semantic_normalize, activation = semantic_activation, name = "semantic_feature")(feature, min(semantic_level, len(feature) - 1), feature = True)
+        semantic_roi_extractor = RoiAlign(semantic_pool_size, method, name = "semantic_roi_align")
+        if pool_size != semantic_pool_size:
+            semantic_resize = tf.keras.layers.TimeDistributed(tf.keras.layers.Lambda(lambda args: tf.image.resize(args, [pool_size, pool_size], method = "bilinear")), name = "semantic_resize_roi_align")
+    
+    n_stage = 4 if mask and mask_info_flow else 3
+    mask_feature = None
+    cls_logits, cls_regress, proposals, mask_regress = [], [], [proposals], []
+    for index in range(n_stage):
+        roi = roi_extractor([feature, proposals[-1]], image_shape)
+        if semantic_feature:
+            semantic_roi = semantic_roi_extractor([[_semantic_feature], proposals[-1]], image_shape)
+            if pool_size != semantic_pool_size:
+                semantic_roi = semantic_resize(semantic_roi)
+            roi = tf.keras.layers.Add(name = "roi_align_with_semantic_feature{0}".format(index + 1) if n_stage != 1 else "roi_align_with_semantic_feature")([roi, semantic_roi])
+        
+        if index < 3:
+            _cls_logits, _cls_regress = RoiClassifier(n_class, cls_n_feature, convolution = cls_convolution, normalize = cls_normalize, activation = cls_activation, name = "roi_classifier{0}".format(index + 1))(roi)
+            cls_logits.append(_cls_logits)
+            cls_regress.append(_cls_regress)
+        
+        if index < (n_stage - 1):
+            _proposals = Classifier2Proposal(True, batch_size, mean, std, clip_ratio, name = "classifier2proposal{0}".format(index + 1))([cls_logits[-1], cls_regress[-1], proposals[-1]])
+            proposals.append(_proposals)
+        
+        if mask:
+            if mask_info_flow:
+                if 0 < index:
+                    _mask_regress, mask_feature = RoiMask(n_class, mask_n_feature, mask_n_depth, convolution = mask_convolution, normalize = mask_normalize, activation = mask_activation, name = "roi_mask{0}".format(index))([roi, mask_feature], feature = True)
+                    mask_regress.append(_mask_regress)
+            else:
+                _mask_regress = RoiMask(n_class, mask_n_feature, mask_n_depth, convolution = mask_convolution, normalize = mask_normalize, activation = mask_activation, name = "roi_mask{0}".format(index + 1) if 2 < n_stage else "roi_mask")(roi)
+                mask_regress.append(_mask_regress)
+    
+    if len(mask_regress) == 0:
+        mask_regress = None
+    result = [r for r in [cls_logits, cls_regress, proposals, mask_regress, semantic_regress] if r is not None]
+    return result
+
+def faster_rcnn_head(feature, proposals, n_class = 21, image_shape = [1024, 1024], n_feature = 1024,
+                     pool_size = 7, method = "bilinear",
+                     convolution = conv, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu):
+    return rcnn_head(feature, proposals, n_class = n_class, image_shape = image_shape, mask = False, cls_n_feature = n_feature, 
+                     pool_size = pool_size, method = method, 
+                     cls_convolution = convolution, cls_normalize = normalize, cls_activation = activation)
+
+def mask_rcnn_head(feature, proposals, n_class = 21, image_shape = [1024, 1024],
+                   cls_n_feature = 1024, mask_n_feature = 256, mask_n_depth = 4, 
+                   pool_size = 7, method = "bilinear",
+                   cls_convolution = conv, cls_normalize = tf.keras.layers.BatchNormalization, cls_activation = tf.keras.activations.relu,
+                   mask_convolution = conv, mask_normalize = tf.keras.layers.BatchNormalization, mask_activation = tf.keras.activations.relu):
+    return rcnn_head(feature, proposals, n_class = n_class, image_shape = image_shape, mask = True, 
+                     cls_n_feature = cls_n_feature, mask_n_feature = mask_n_feature, mask_n_depth = mask_n_depth, 
+                     pool_size = pool_size, method = method,
+                     cls_convolution = cls_convolution, cls_normalize = cls_normalize, cls_activation = cls_activation,
+                     mask_convolution = mask_convolution, mask_normalize = mask_normalize, mask_activation = mask_activation)
+
+def cascade_rcnn_head(feature, proposals, n_class = 21, image_shape = [1024, 1024], mask = False,
+                      cls_n_feature = 1024, mask_n_feature = 256, mask_n_depth = 4, 
+                      pool_size = 7, method = "bilinear", 
+                      mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, batch_size = 1,
+                      cls_convolution = conv, cls_normalize = tf.keras.layers.BatchNormalization, cls_activation = tf.keras.activations.relu,
+                      mask_convolution = conv, mask_normalize = tf.keras.layers.BatchNormalization, mask_activation = tf.keras.activations.relu):
+    return cascade_head(feature, proposals, n_class = n_class, image_shape = image_shape, mask = mask,
+                        cls_n_feature = cls_n_feature, mask_n_feature = mask_n_feature, mask_n_depth = mask_n_depth,
+                        pool_size = pool_size, method = method,
+                        mean = mean, std = std, clip_ratio = clip_ratio, batch_size = batch_size,
+                        cls_convolution = cls_convolution, cls_normalize = cls_normalize, cls_activation = cls_activation,
+                        mask_convolution = mask_convolution, mask_normalize = mask_normalize, mask_activation = mask_activation)
+
+def hybrid_task_cascade_rcnn_head(feature, proposals, n_class = 21, image_shape = [1024, 1024], mask = True, mask_info_flow = True, semantic_feature = True,
+                                  cls_n_feature = 1024, mask_n_feature = 256, mask_n_depth = 4, semantic_level = 1, semantic_n_feature = 256, semantic_n_depth = 4,
+                                  pool_size = 7, semantic_pool_size = 14, method = "bilinear", 
+                                  mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, batch_size = 1,
+                                  cls_convolution = conv, cls_normalize = tf.keras.layers.BatchNormalization, cls_activation = tf.keras.activations.relu,
+                                  mask_convolution = conv, mask_normalize = tf.keras.layers.BatchNormalization, mask_activation = tf.keras.activations.relu,
+                                  semantic_logits_activation = None, semantic_convolution = conv, semantic_normalize = None, semantic_activation = tf.keras.activations.relu):
+    return cascade_head(feature, proposals, n_class = n_class, image_shape = image_shape, mask = mask, mask_info_flow = mask_info_flow, semantic_feature = semantic_feature,
+                        cls_n_feature = cls_n_feature, mask_n_feature = mask_n_feature, mask_n_depth = mask_n_depth, semantic_level = semantic_level, semantic_n_feature = semantic_n_feature, semantic_n_depth = semantic_n_depth,
+                        pool_size = pool_size, semantic_pool_size = semantic_pool_size, method = method,
+                        mean = mean, std = std, clip_ratio = clip_ratio, batch_size = batch_size,
+                        cls_convolution = cls_convolution, cls_normalize = cls_normalize, cls_activation = cls_activation,
+                        mask_convolution = mask_convolution, mask_normalize = mask_normalize, mask_activation = mask_activation,
+                        semantic_logits_activation = semantic_logits_activation, semantic_convolution = semantic_convolution, semantic_normalize = semantic_normalize, semantic_activation = semantic_activation)

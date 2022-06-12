@@ -52,8 +52,8 @@ TFDetection is a detection toolbox based on Tensorflow2.
           <li><b>Instance Segmentation</b></li>
           <ul>
             <li>Mask R-CNN(2017)</li>
-            <li>Cascade Mask R-CNN(2018)</li>
-            <li>Hybrid Task Cascade Mask R-CNN(2019)</li>
+            <li>Cascade R-CNN(2018)</li>
+            <li>Hybrid Task Cascade R-CNN(2019)</li>
           </ul>
         </ul>
       </td>

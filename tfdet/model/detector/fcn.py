@@ -1,28 +1,13 @@
 import tensorflow as tf
 
+from ..head import fcn_head
 from ..neck import FeatureUpsample
 
 def conv(filters, kernel_size, strides = 1, padding = "same", use_bias = True, kernel_initializer = "he_normal", **kwargs):
     return tf.keras.layers.Conv2D(filters, kernel_size, strides = strides, padding = padding, use_bias = use_bias, kernel_initializer = kernel_initializer, **kwargs)
 
-def fcn(feature, n_class = 35, n_feature = 512, n_depth = 2, method = "bilinear", logits_activation = tf.keras.activations.sigmoid, convolution = conv, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu):
-    #https://arxiv.org/pdf/1411.4038.pdf
-    if not isinstance(feature, list):
-        feature = [feature]
-    
-    out = feature = FeatureUpsample(concat = True, method = method, name = "feature_upsample")(feature)
-    for index in range(n_depth):
-        out = convolution(n_feature, 3, padding = "same", use_bias = normalize is None, name = "feature_conv{0}".format(index + 1))(out)
-        if normalize is not None:
-            out = normalize(name = "feature_norm{0}".format(index + 1))(out)
-        out = tf.keras.layers.Activation(activation, name = "feature_act{0}".format(index + 1))(out)
-    
-    if 0 < n_depth:
-        out = tf.keras.layers.Concatenate(axis = -1, name = "post_concat")([out, feature])
-        out = convolution(n_feature, 3, padding = "same", use_bias = normalize is None, name = "post_conv")(out)
-        if normalize is not None:
-            out = normalize(name = "post_norm")(out)
-        out = tf.keras.layers.Activation(activation, name = "post_act")(out)
-    
-    out = convolution(n_class, 1, use_bias = True, activation = logits_activation, name = "logits")(out)
+def fcn(feature, n_class = 35, n_feature = 512, n_depth = 2, neck = FeatureUpsample, logits_activation = tf.keras.activations.sigmoid, convolution = conv, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu):
+    if neck is not None:
+        feature = neck(name = "neck")(feature)
+    out = fcn_head(feature, n_class = n_class, n_feature = n_feature, n_depth = n_depth, logits_activation = logits_activation, convolution = convolution, normalize = normalize, activation = activation)
     return out

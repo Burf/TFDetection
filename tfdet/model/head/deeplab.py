@@ -65,7 +65,7 @@ class AtrousSpatialPyramidPooling(tf.keras.layers.Layer):
         config["activation"] = self.activation
         return config
 
-def deeplab_v3(x, n_class = 35, rate = [6, 12, 18], n_feature = 256, n_low_feature = 48, method = "bilinear", logits_activation = tf.keras.activations.sigmoid, convolution = conv, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu):
+def deeplab_v3_head(x, n_class = 35, rate = [6, 12, 18], n_feature = 256, n_low_feature = 48, method = "bilinear", logits_activation = tf.keras.activations.sigmoid, convolution = conv, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu):
     if not isinstance(x, list):
         x = [x]
     low_features, feature = x[:-1], x[-1]

@@ -46,3 +46,18 @@ class PoolingPyramidModule(tf.keras.layers.Layer):
         config["normalize"] = self.normalize
         config["activation"] = self.activation
         return config
+
+def pspnet_head(feature, n_class = 35, n_feature = 512, pool_scale = [1, 2, 3, 6], method = "bilinear", logits_activation = tf.keras.activations.sigmoid, convolution = conv, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu):
+    #https://arxiv.org/abs/1612.01105
+    if isinstance(feature, list):
+        feature = feature[-1]
+    out = PoolingPyramidModule(pool_scale, n_feature, method = method, convolution = convolution, normalize = normalize, activation = activation, name = "pooling_pyramoid_feature")(feature)
+    out = tf.keras.layers.Concatenate(axis = -1, name = "feature_concat")([feature] + out)
+    
+    out = convolution(n_feature, 3, padding = "same", use_bias = normalize is None, name = "feature_conv")(out)
+    if normalize is not None:
+        out = normalize(name = "feature_norm")(out)
+    out = tf.keras.layers.Activation(activation, name = "feature_act")(out)
+    
+    out = convolution(n_class, 1, use_bias = True, activation = logits_activation, name = "logits")(out)
+    return out

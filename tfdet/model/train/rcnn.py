@@ -18,8 +18,8 @@ def cls_assign2(bbox_true, bbox_pred, positive_threshold = 0.6, negative_thresho
 def cls_assign3(bbox_true, bbox_pred, positive_threshold = 0.7, negative_threshold = 0.7, mode = "normal"):
     return max_iou(bbox_true, bbox_pred, positive_threshold = positive_threshold, negative_threshold = negative_threshold, mode = mode)
 
-def train_model(input, rpn_score = None, rpn_regress = None, cls_logits = None, cls_regress = None, proposals = None, anchors = None, mask_regress = None, semantic_regress = None,
-                sampling_tag = None, sampling_count = 256, 
+def train_model(input, rpn_score = None, rpn_regress = None, anchors = None, cls_logits = None, cls_regress = None, proposals = None, mask_regress = None, semantic_regress = None,
+                sampling_tag = None, sampling_count = 256,
                 rpn_assign = rpn_assign, rpn_positive_ratio = 0.5, 
                 cls_assign = [cls_assign, cls_assign2, cls_assign3], cls_positive_ratio = 0.25,
                 batch_size = 1, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], method = "bilinear", regularize = True, weight_decay = 1e-4, focal = True, alpha = 1., gamma = 2., sigma = 1, class_weight = None, stage_weight = [1.0, 0.5, 0.25], semantic_weight = 0.2, threshold = 0.5, missing_value = 0.):
@@ -28,13 +28,11 @@ def train_model(input, rpn_score = None, rpn_regress = None, cls_logits = None, 
     bbox_true > #(batch_size, padded_num_true, 4)
     mask_true > #(batch_size, padded_num_true, h, w)
     
-    train rpn > train_model(x, rpn_score, rpn_regress, anchors = anchors)
+    train rpn > train_model(x, rpn_score, rpn_regress, anchors)
     train cls > train_model(x, cls_logits = cls_logits, cls_regress = cls_regress, proposals = proposals)
     train mask > train_model(x, cls_logits = cls_logits, cls_regress = cls_regress, proposals = proposals, mask_regress = mask_regress)
     train semantic context > train_model(x, cls_logits = cls_logits, cls_regress = cls_regress, proposals = proposals, semantic_regress = semantic_regress)
-    train total > train_model(x, rpn_score, rpn_regress, cls_logits, cls_regress, proposals, anchors, mask_regress, semantic_regress)
-    train sampling_cls + mask = train_model(x, sampling_tag = sampling_tag)
-    train rpn + sampling_cls + mask = train_model(x, rpn_score, rpn_regress, anchors = anchors, sampling_tag = sampling_tag)
+    train total > train_model(x, rpn_score, rpn_regress, anchors, cls_logits, cls_regress, proposals, mask_regress, semantic_regress)
     """
     if isinstance(mask_regress, dict):
         sampling_tag = mask_regress
@@ -133,6 +131,8 @@ def train_model(input, rpn_score = None, rpn_regress = None, cls_logits = None, 
                 loss["cls_mask_loss{0}".format(mask_index) if 2 < len(proposals) else "cls_mask_loss"] = cls_mask_loss * mask_stage_weight[i]
 
         if semantic_regress is not None:
+            if mask_true is None:
+                mask_true = tf.keras.layers.Input(shape = (None, None, None), name = "mask_true", dtype = semantic_regress.dtype)
             _semantic_loss = tf.keras.layers.Lambda(lambda args: semantic_loss(*args), name = "semantic_loss")([mask_true, semantic_regress])
             loss["semantic_loss"] = _semantic_loss * semantic_weight
     
