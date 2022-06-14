@@ -28,7 +28,7 @@ TFDetection is a detection toolbox based on Tensorflow2.
           <li>YoloV3 Tiny(2018)</li>
           <li>Cascade R-CNN(2018)</li>
           <li>FCOS(2019)</li>
-          <li>Hybrid Task Cascade R-CNN(2019)</li>
+          <li>Hybrid Task Cascade(2019)</li>
           <li>EfficientDet(2019)</li>
           <li>YoloV4(2020)</li>
           <li>YoloV4 Tiny(2020)</li>
@@ -53,7 +53,7 @@ TFDetection is a detection toolbox based on Tensorflow2.
           <ul>
             <li>Mask R-CNN(2017)</li>
             <li>Cascade R-CNN(2018)</li>
-            <li>Hybrid Task Cascade R-CNN(2019)</li>
+            <li>Hybrid Task Cascade(2019)</li>
           </ul>
         </ul>
       </td>
