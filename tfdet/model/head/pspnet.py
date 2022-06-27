@@ -42,9 +42,6 @@ class PoolingPyramidModule(tf.keras.layers.Layer):
         config["pool_scale"] = self.pool_scale
         config["n_feature"] = self.n_feature
         config["method"] = self.method
-        config["convolution"] = self.convolution
-        config["normalize"] = self.normalize
-        config["activation"] = self.activation
         return config
 
 def pspnet_head(feature, n_class = 35, n_feature = 512, pool_scale = [1, 2, 3, 6], method = "bilinear", logits_activation = tf.keras.activations.sigmoid, convolution = conv, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu):

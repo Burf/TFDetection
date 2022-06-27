@@ -68,9 +68,6 @@ class RegionProposalNetwork(tf.keras.layers.Layer):
         config["n_feature"] = self.n_feature
         config["use_bias"] = self.use_bias
         config["feature_share"] = self.feature_share
-        config["convolution"] = self.convolution
-        config["normalize"] = self.normalize
-        config["activation"] = self.activation
         return config
     
 class Rpn2Proposal(tf.keras.layers.Layer):
@@ -119,7 +116,7 @@ class Rpn2Proposal(tf.keras.layers.Layer):
         proposals = tf.concat([y1, x1, y2, x2], axis = -1)
 
         # NMS
-        proposals = map_fn(pad_nms, proposals, rpn_score, dtype = tf.float32, batch_size = self.batch_size, 
+        proposals = map_fn(pad_nms, proposals, rpn_score, dtype = rpn_score.dtype, batch_size = self.batch_size, 
                            proposal_count = self.proposal_count, iou_threshold = self.iou_threshold, soft_nms = self.soft_nms)
         proposals = tf.reshape(proposals, [-1, self.proposal_count, 4])
 
@@ -238,9 +235,6 @@ class RoiClassifier(tf.keras.layers.Layer):
         config = super(RoiClassifier, self).get_config()
         config["n_class"] = self.n_class
         config["n_feature"] = self.n_feature
-        config["convolution"] = self.convolution
-        config["normalize"] = self.normalize
-        config["activation"] = self.activation
         return config
 
 class RoiMask(tf.keras.layers.Layer):
@@ -286,9 +280,6 @@ class RoiMask(tf.keras.layers.Layer):
         config["n_class"] = self.n_class
         config["n_feature"] = self.n_feature
         config["n_depth"] = self.n_depth
-        config["convolution"] = self.convolution
-        config["normalize"] = self.normalize
-        config["activation"] = self.activation
         return config
 
 def classifier2proposal(cls_logit, cls_regress, proposal, valid = True, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000):
@@ -407,10 +398,6 @@ class FusedSemanticHead(tf.keras.layers.Layer):
         config["n_feature"] = self.n_feature
         config["n_depth"] = self.n_depth
         config["method"] = self.method
-        config["logits_activation"] = self.logits_activation
-        config["convolution"] = self.convolution
-        config["normalize"] = self.normalize
-        config["activation"] = self.activation
         return config
 
 def roi2level(bbox, n_level, input_shape = (224, 224)):
@@ -446,17 +433,17 @@ def rpn_head(feature, image_shape = [1024, 1024],
     elif auto_scale and (len(scale) % len(feature)) == 0:
         n_anchor = (len(scale) // len(feature)) * len(ratio)
     score, regress = RegionProposalNetwork(n_anchor, n_feature = n_feature, use_bias = use_bias, feature_share = feature_share, convolution = convolution, normalize = normalize, activation = activation, name = "region_proposal_network")(feature)
-    anchors = generate_anchors(feature, image_shape, scale, ratio, normalize = True, auto_scale = auto_scale)
+    anchors = generate_anchors(feature, image_shape, scale, ratio, normalize = True, auto_scale = auto_scale, dtype = score.dtype)
 
-    valid_flags = tf.logical_and(tf.less_equal(anchors[..., 2], 1),
-                                 tf.logical_and(tf.less_equal(anchors[..., 3], 1),
-                                                tf.logical_and(tf.greater_equal(anchors[..., 0], 0),
-                                                               tf.greater_equal(anchors[..., 1], 0))))
-    #valid_indices = tf.range(tf.shape(anchors)[0])[valid_flags]
-    valid_indices = tf.where(valid_flags)[:, 0]
-    score = tf.gather(score, valid_indices, axis = 1)
-    regress = tf.gather(regress, valid_indices, axis = 1)
-    anchors = tf.gather(anchors, valid_indices)
+    #valid_flags = tf.logical_and(tf.less_equal(anchors[..., 2], 1),
+    #                             tf.logical_and(tf.less_equal(anchors[..., 3], 1),
+    #                                            tf.logical_and(tf.greater_equal(anchors[..., 0], 0),
+    #                                                           tf.greater_equal(anchors[..., 1], 0))))
+    ##valid_indices = tf.range(tf.shape(anchors)[0])[valid_flags]
+    #valid_indices = tf.where(valid_flags)[:, 0]
+    #score = tf.gather(score, valid_indices, axis = 1)
+    #regress = tf.gather(regress, valid_indices, axis = 1)
+    #anchors = tf.gather(anchors, valid_indices)
     return score, regress, anchors
 
 def rcnn_head(feature, proposals, n_class = 21, image_shape = [1024, 1024], mask = False,

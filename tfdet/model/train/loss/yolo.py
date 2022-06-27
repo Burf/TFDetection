@@ -16,7 +16,7 @@ def score_accuracy(score_true, score_pred, threshold = 0.5, missing_value = 0.):
     score = tf.expand_dims(tf.clip_by_value(score, tf.keras.backend.epsilon(), 1 - tf.keras.backend.epsilon()), axis = -1)
     score = tf.cast(tf.greater_equal(score, threshold), score.dtype)
   
-    accuracy = tf.reduce_mean(tf.cast(tf.equal(match_score, score), tf.float32))
+    accuracy = tf.reduce_mean(tf.cast(tf.equal(match_score, score), score.dtype))
     accuracy = tf.where(tf.math.is_nan(accuracy), missing_value, accuracy)
     return accuracy
 
@@ -57,11 +57,12 @@ def logits_accuracy(score_true, logit_true, logit_pred, missing_value = 0.):
     logit_true = tf.gather_nd(logit_true, true_indices)
     logit_pred = tf.gather_nd(logit_pred, true_indices)
 
+    dtype = logit_pred.dtype
     logit_true = tf.cond(tf.equal(n_true_class, 1), true_fn = lambda: logit_true[..., 0], false_fn = lambda: tf.cast(tf.argmax(logit_true, axis = -1), logit_true.dtype))
     logit_pred = tf.argmax(logit_pred, axis = -1)
-    logit_true = tf.cast(logit_true, logit_pred.dtype)
+    logit_true = tf.cast(logit_true, dtype)
     
-    accuracy = tf.reduce_mean(tf.cast(tf.equal(logit_true, logit_pred), tf.float32))
+    accuracy = tf.reduce_mean(tf.cast(tf.equal(logit_true, logit_pred), dtype))
     accuracy = tf.where(tf.math.is_nan(accuracy), missing_value, accuracy)
     return accuracy
 

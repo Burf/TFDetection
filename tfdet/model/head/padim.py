@@ -57,11 +57,8 @@ class Head(tf.keras.layers.Layer):
     
     def get_config(self):
         config = super(Head, self).get_config()
-        config["mean"] = self.mean
-        config["cvar_inv"] = self.cvar_inv
         config["image_shape"] = self.image_shape
         config["sigma"] = self.sigma
-        config["metric"] = self.metric
         config["method"] = self.method
         config["batch_size"] = self.batch_size
         return config

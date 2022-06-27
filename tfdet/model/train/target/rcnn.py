@@ -21,9 +21,18 @@ def rpn_target(bbox_true, rpn_score, rpn_regress, anchors, assign = rpn_assign, 
     y_pred = -1 : negative / 0 : neutral / 1 : positive #(sampling_count, 1)
     bbox_pred = [[x1, y1, x2, y2], ...] #(sampling_count, delta)
     """
-    pred_count = tf.shape(anchors)[0]
     valid_indices = tf.where(tf.reduce_max(tf.cast(0 < bbox_true, tf.int32), axis = -1))
     bbox_true = tf.gather_nd(bbox_true, valid_indices)
+    valid_flags = tf.logical_and(tf.less_equal(anchors[..., 2], 1),
+                             tf.logical_and(tf.less_equal(anchors[..., 3], 1),
+                                            tf.logical_and(tf.greater_equal(anchors[..., 0], 0),
+                                                           tf.greater_equal(anchors[..., 1], 0))))
+    #valid_indices = tf.range(tf.shape(anchors)[0])[valid_flags]
+    valid_indices = tf.where(valid_flags)[:, 0]
+    rpn_score = tf.gather(rpn_score, valid_indices)
+    rpn_regress = tf.gather(rpn_regress, valid_indices)
+    anchors = tf.gather(anchors, valid_indices)
+    pred_count = tf.shape(anchors)[0]
 
     true_indices, positive_indices, negative_indices = assign(bbox_true, anchors)
     
@@ -33,7 +42,7 @@ def rpn_target(bbox_true, rpn_score, rpn_regress, anchors, assign = rpn_assign, 
         indices = tf.random.shuffle(indices)[:positive_count]
         positive_indices = tf.gather(positive_indices, indices)
         true_indices = tf.gather(true_indices, indices)
-        positive_count = tf.cast(tf.shape(positive_indices)[0], tf.float32)
+        positive_count = tf.cast(tf.shape(positive_indices)[0], rpn_score.dtype)
         negative_count = tf.cast(1 / positive_ratio * positive_count - positive_count, tf.int32)
         negative_indices = tf.random.shuffle(negative_indices)[:negative_count]
     else:
@@ -85,7 +94,7 @@ def sampling_target(y_true, bbox_true, proposal, mask_true = None, assign = cls_
         indices = tf.random.shuffle(indices)[:positive_count]
         positive_indices = tf.gather(positive_indices, indices)
         true_indices = tf.gather(true_indices, indices)
-        positive_count = tf.cast(tf.shape(positive_indices)[0], tf.float32)
+        positive_count = tf.cast(tf.shape(positive_indices)[0], proposal.dtype)
         negative_count = tf.cast(1 / positive_ratio * positive_count - positive_count, tf.int32)
         negative_indices = tf.random.shuffle(negative_indices)[:negative_count]
     else:
@@ -204,7 +213,7 @@ def cls_target(y_true, bbox_true, cls_logit, cls_regress, proposal, mask_true = 
         indices = tf.random.shuffle(indices)[:positive_count]
         positive_indices = tf.gather(positive_indices, indices)
         true_indices = tf.gather(true_indices, indices)
-        positive_count = tf.cast(tf.shape(positive_indices)[0], tf.float32)
+        positive_count = tf.cast(tf.shape(positive_indices)[0], cls_logit.dtype)
         negative_count = tf.cast(1 / positive_ratio * positive_count - positive_count, tf.int32)
         negative_indices = tf.random.shuffle(negative_indices)[:negative_count]
     else:
@@ -285,7 +294,7 @@ def mask_target(y_true, bbox_true, mask_true, mask_regress, proposal, assign = c
         indices = tf.random.shuffle(indices)[:positive_count]
         positive_indices = tf.gather(positive_indices, indices)
         true_indices = tf.gather(true_indices, indices)
-        positive_count = tf.cast(tf.shape(positive_indices)[0], tf.float32)
+        positive_count = tf.cast(tf.shape(positive_indices)[0], mask_regress.dtype)
         negative_count = tf.cast(1 / positive_ratio * positive_count - positive_count, tf.int32)
         negative_indices = tf.random.shuffle(negative_indices)[:negative_count]
     else:

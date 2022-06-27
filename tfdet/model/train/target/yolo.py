@@ -15,10 +15,20 @@ def yolo_target(y_true, bbox_true, score_pred, logit_pred, bbox_pred, anchors, a
     bbox_pred = classifier regress #(num_anchors, delta)
     anchors = [[x1, y1, x2, y2], ...] #(num_anchors, bbox)
     """
-    pred_count = tf.shape(anchors)[0]
     valid_indices = tf.where(tf.reduce_max(tf.cast(0 < bbox_true, tf.int32), axis = -1))
     y_true = tf.gather_nd(y_true, valid_indices)
     bbox_true = tf.gather_nd(bbox_true, valid_indices)
+    valid_flags = tf.logical_and(tf.less_equal(anchors[..., 2], 1),
+                             tf.logical_and(tf.less_equal(anchors[..., 3], 1),
+                                            tf.logical_and(tf.greater_equal(anchors[..., 0], 0),
+                                                           tf.greater_equal(anchors[..., 1], 0))))
+    #valid_indices = tf.range(tf.shape(anchors)[0])[valid_flags]
+    valid_indices = tf.where(valid_flags)[:, 0]
+    score_pred = tf.gather(score_pred, valid_indices)
+    logit_pred = tf.gather(logit_pred, valid_indices)
+    bbox_pred = tf.gather(bbox_pred, valid_indices)
+    anchors = tf.gather(anchors, valid_indices)
+    pred_count = tf.shape(anchors)[0]
     
     true_indices, positive_indices, negative_indices = assign(bbox_true, anchors)
     
@@ -28,7 +38,7 @@ def yolo_target(y_true, bbox_true, score_pred, logit_pred, bbox_pred, anchors, a
         indices = tf.random.shuffle(indices)[:positive_count]
         positive_indices = tf.gather(positive_indices, indices)
         true_indices = tf.gather(true_indices, indices)
-        positive_count = tf.cast(tf.shape(positive_indices)[0], tf.float32)
+        positive_count = tf.cast(tf.shape(positive_indices)[0], score_pred.dtype)
         negative_count = tf.cast(1 / positive_ratio * positive_count - positive_count, tf.int32)
         negative_indices = tf.random.shuffle(negative_indices)[:negative_count]
     else:

@@ -14,7 +14,7 @@ def train_model(input, logits, regress, points, centerness = None,
         if centerness is not None:
             centerness = [centerness]
     
-    y_true = tf.keras.layers.Input(shape = (None, None), name = "y_true", dtype = tf.float32)
+    y_true = tf.keras.layers.Input(shape = (None, None), name = "y_true", dtype = logits.dtype)
     bbox_true = tf.keras.layers.Input(shape = (None, 4), name = "bbox_true", dtype = regress[0].dtype)
     
     #[[0, 64], [64, 128], [128, 256], [256, 512], [512, float("inf")]] > [[0, 0.0625], [0.0625, 0.125], [0.125, 0.25], [0.25, 0.5], [0.5, 1.0]]

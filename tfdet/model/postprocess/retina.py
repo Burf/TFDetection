@@ -92,6 +92,16 @@ class FilterDetection(tf.keras.layers.Layer):
             anchors = tf.concat(anchors, axis = 0)
             if centerness is not None:
                 centerness = tf.concat(centerness, axis = -2)
+        if tf.keras.backend.int_shape(anchors)[-1] == 4: #anchors
+            valid_flags = tf.logical_and(tf.less_equal(anchors[..., 2], 1),
+                                         tf.logical_and(tf.less_equal(anchors[..., 3], 1),
+                                                        tf.logical_and(tf.greater_equal(anchors[..., 0], 0),
+                                                                       tf.greater_equal(anchors[..., 1], 0))))
+            #valid_indices = tf.range(tf.shape(anchors)[0])[valid_flags]
+            valid_indices = tf.where(valid_flags)[:, 0]
+            logits = tf.gather(logits, valid_indices, axis = 1)
+            regress = tf.gather(regress, valid_indices, axis = 1)
+            anchors = tf.gather(anchors, valid_indices)
         anchors = tf.tile(tf.expand_dims(anchors, axis = 0), [tf.shape(logits)[0], 1, 1])
         args = [l for l in [logits, regress, anchors, centerness] if l is not None]
         out = map_fn(filter_detection, *args, dtype = (logits.dtype, regress.dtype), batch_size = self.batch_size,

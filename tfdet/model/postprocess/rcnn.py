@@ -112,7 +112,7 @@ class FilterDetection(tf.keras.layers.Layer):
 
     def call(self, inputs):
         if 5 < len(inputs):
-            inputs = inputs[2:5] + inputs[6:7]       
+            inputs = inputs[3:7]  
         cls_logits, cls_regress, proposals = inputs[:3]
         mask_regress = inputs[3] if 3 < len(inputs) else None
         if isinstance(proposals, list):
@@ -128,7 +128,6 @@ class FilterDetection(tf.keras.layers.Layer):
         out = map_fn(filter_detection, *args, dtype = dtype, batch_size = self.batch_size, 
                      proposal_count = self.proposal_count, iou_threshold = self.iou_threshold, score_threshold = self.score_threshold, soft_nms = self.soft_nms, mean = self.mean, std = self.std, clip_ratio = self.clip_ratio)
         return out
-
         
     def get_config(self):
         config = super(FilterDetection, self).get_config()

@@ -4,7 +4,7 @@ import numpy as np
 from ..core.bbox import overlap_bbox
 from ..core.util import map_fn
 
-def mean_average_precision(y_true, bbox_true, y_pred, bbox_pred, threshold = 0.5, r = 11, interpolate = True, mode = "normal", batch_size = 10, reduce = True, return_precision_n_recall = False):
+def mean_average_precision(y_true, bbox_true, y_pred, bbox_pred, threshold = 0.5, r = 11, interpolate = True, mode = "normal", batch_size = 10, reduce = True, return_precision_n_recall = False, dtype = tf.float32):
     """
     y_true = label #(batch_size, padded_num_true, 1)
     bbox_true = [[x1, y1, x2, y2], ...] #(batch_size, padded_num_true, bbox)
@@ -32,9 +32,9 @@ def mean_average_precision(y_true, bbox_true, y_pred, bbox_pred, threshold = 0.5
         
         def cls_body(tp, fp, fn, cls_id):
             true_indices = tf.where(tf.equal(_y_true, cls_id))[..., 0]
-            true_count = tf.cast(tf.shape(true_indices)[0], tf.float32)
+            true_count = tf.cast(tf.shape(true_indices)[0], dtype)
             pred_flag = tf.equal(label, cls_id)
-            pred_count = tf.reduce_sum(tf.cast(pred_flag, tf.float32))
+            pred_count = tf.reduce_sum(tf.cast(pred_flag, dtype))
             
             mask = None
             if pred_count == 0:
@@ -49,12 +49,12 @@ def mean_average_precision(y_true, bbox_true, y_pred, bbox_pred, threshold = 0.5
                 
                 def r_body(cls_tp, cls_fp, cls_fn, r_index):
                     _pred_flag = tf.logical_and(pred_flag, tf.greater_equal(score, r_threshold[r_index]))
-                    _pred_count = tf.reduce_sum(tf.cast(_pred_flag, tf.float32))
+                    _pred_count = tf.reduce_sum(tf.cast(_pred_flag, dtype))
                     if true_count == 0:
                         return cls_tp, tf.tensor_scatter_nd_update(cls_fp, [[r_index]], [cls_fp[r_index] + _pred_count]), cls_fn
                     else:
                         _mask = tf.gather_nd(mask, tf.where(_pred_flag))
-                        tp_count = tf.reduce_sum(tf.cast(tf.reduce_any(_mask, axis = 0), tf.float32))
+                        tp_count = tf.reduce_sum(tf.cast(tf.reduce_any(_mask, axis = 0), dtype))
                         return tf.tensor_scatter_nd_update(cls_tp, [[r_index]], [cls_tp[r_index] + tp_count]),\
                                tf.tensor_scatter_nd_update(cls_fp, [[r_index]], [cls_fp[r_index] + (_pred_count - tp_count)]),\
                                tf.tensor_scatter_nd_update(cls_fn, [[r_index]], [cls_fn[r_index] + (true_count - tp_count)])
@@ -76,9 +76,9 @@ def mean_average_precision(y_true, bbox_true, y_pred, bbox_pred, threshold = 0.5
                                    parallel_iterations = 1)[1:]
         return tp, fp, fn
     
-    tp = tf.zeros((n_class, r), dtype = tf.float32)
-    fp = tf.zeros((n_class, r), dtype = tf.float32)
-    fn = tf.zeros((n_class, r), dtype = tf.float32)
+    tp = tf.zeros((n_class, r), dtype = dtype)
+    fp = tf.zeros((n_class, r), dtype = dtype)
+    fn = tf.zeros((n_class, r), dtype = dtype)
     tp, fp, fn = tf.while_loop(lambda index, tp, fp, fn: index < n_batch,
                                lambda index, tp, fp, fn: (index + 1, *metric(tp, fp, fn, index)),
                                (0, tp, fp, fn),
@@ -86,8 +86,8 @@ def mean_average_precision(y_true, bbox_true, y_pred, bbox_pred, threshold = 0.5
     
     tp_fp = tp + fp
     tp_fn = tp + fn
-    precision = tf.where(tf.equal(tp_fp, 0.), tf.where(tf.equal(tp_fn, 0.), 1., 0.), tp / tp_fp)
-    recall = tf.where(tf.equal(tp_fn, 0.), 1., tp / tp_fn)
+    precision = tf.cast(tf.where(tf.equal(tp_fp, 0.), tf.where(tf.equal(tp_fn, 0.), 1., 0.), tp / tp_fp), dtype)
+    recall = tf.cast(tf.where(tf.equal(tp_fn, 0.), 1., tp / tp_fn), dtype)
     if interpolate:
         def interpolation(precision, r_index):
             new_precision = tf.reduce_max(precision[..., :r_index + 1], axis = 1)
@@ -102,7 +102,7 @@ def mean_average_precision(y_true, bbox_true, y_pred, bbox_pred, threshold = 0.5
     if return_precision_n_recall:
         return precision, recall
     
-    average_precision = tf.reduce_sum(precision[..., ::-1] * (recall[..., ::-1] - tf.concat([tf.zeros((n_class, 1), dtype = tf.float32), recall[..., 1:][..., ::-1]], axis = -1)), axis = -1)
+    average_precision = tf.reduce_sum(precision[..., ::-1] * (recall[..., ::-1] - tf.concat([tf.zeros((n_class, 1), dtype = dtype), recall[..., 1:][..., ::-1]], axis = -1)), axis = -1)
     if reduce:
         average_precision = tf.reduce_mean(average_precision)
     return average_precision

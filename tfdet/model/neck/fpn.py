@@ -15,7 +15,7 @@ class WeightedAdd(tf.keras.layers.Layer):
                                  shape = (len(input_shape),),
                                  initializer = tf.keras.initializers.constant(1 / len(input_shape)),
                                  trainable = self.trainable,
-                                 dtype = tf.float32)
+                                 dtype = self.dtype)
 
     def call(self, inputs, **kwargs):
         w = tf.keras.activations.relu(self.w)
@@ -181,9 +181,6 @@ class FeaturePyramidNetwork(tf.keras.layers.Layer):
         config["use_bias"] = self.use_bias
         config["weighted_add"] = self.weighted_add
         config["method"] = self.method
-        config["convolution"] = self.convolution
-        config["normalize"] = self.normalize
-        config["activation"] = self.activation
         return config
         
 def fpn(n_feature = 256, use_bias = True, weighted_add = False, method = "nearest", convolution = conv, normalize = None, activation = None, mode = "fpn", **kwargs):

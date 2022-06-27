@@ -60,9 +60,6 @@ class ClassNet(tf.keras.layers.Layer):
         config["n_feature"] = self.n_feature
         config["n_depth"] = self.n_depth
         config["concat"] = self.concat
-        config["convolution"] = self.convolution
-        config["normalize"] = self.normalize
-        config["activation"] = self.activation
         return config
 
 class BoxNet(tf.keras.layers.Layer):
@@ -117,9 +114,6 @@ class BoxNet(tf.keras.layers.Layer):
         config["n_feature"] = self.n_feature
         config["n_depth"] = self.n_depth
         config["concat"] = self.concat
-        config["convolution"] = self.convolution
-        config["normalize"] = self.normalize
-        config["activation"] = self.activation
         return config
 
 def retina_head(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_depth = 4,
@@ -140,15 +134,15 @@ def retina_head(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 2
         n_anchor = (len(scale) // len(feature)) * len(ratio)
     logits = ClassNet(n_anchor, n_class, n_feature, n_depth, convolution = convolution, normalize = normalize, activation = activation, name = "class_net")(feature)
     regress = BoxNet(n_anchor, n_feature, n_depth, convolution = convolution, normalize = normalize, activation = activation, name = "box_net")(feature)
-    anchors = generate_anchors(feature, image_shape, scale, ratio, normalize = True, auto_scale = auto_scale)
+    anchors = generate_anchors(feature, image_shape, scale, ratio, normalize = True, auto_scale = auto_scale, dtype = logits.dtype)
 
-    valid_flags = tf.logical_and(tf.less_equal(anchors[..., 2], 1),
-                                 tf.logical_and(tf.less_equal(anchors[..., 3], 1),
-                                                tf.logical_and(tf.greater_equal(anchors[..., 0], 0),
-                                                               tf.greater_equal(anchors[..., 1], 0))))
-    #valid_indices = tf.range(tf.shape(anchors)[0])[valid_flags]
-    valid_indices = tf.where(valid_flags)[:, 0]
-    logits = tf.gather(logits, valid_indices, axis = 1)
-    regress = tf.gather(regress, valid_indices, axis = 1)
-    anchors = tf.gather(anchors, valid_indices)
+    #valid_flags = tf.logical_and(tf.less_equal(anchors[..., 2], 1),
+    #                             tf.logical_and(tf.less_equal(anchors[..., 3], 1),
+    #                                            tf.logical_and(tf.greater_equal(anchors[..., 0], 0),
+    #                                                           tf.greater_equal(anchors[..., 1], 0))))
+    ##valid_indices = tf.range(tf.shape(anchors)[0])[valid_flags]
+    #valid_indices = tf.where(valid_flags)[:, 0]
+    #logits = tf.gather(logits, valid_indices, axis = 1)
+    #regress = tf.gather(regress, valid_indices, axis = 1)
+    #anchors = tf.gather(anchors, valid_indices)
     return logits, regress, anchors

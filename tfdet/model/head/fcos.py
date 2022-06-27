@@ -46,9 +46,6 @@ class CenternessNet(tf.keras.layers.Layer):
         config = super(BoxNet, self).get_config()
         config["n_anchor"] = self.n_anchor
         config["concat"] = self.concat
-        config["activation"] = self.activation
-        config["convolution"] = self.convolution
-        config["normalize"] = self.normalize
         return config
     
 class Scale(tf.keras.layers.Layer):
@@ -63,7 +60,7 @@ class Scale(tf.keras.layers.Layer):
                                  shape = (1,),
                                  initializer = tf.keras.initializers.constant(self.value),
                                  trainable = self.trainable,
-                                 dtype = tf.float32) for index in range(len(input_shape))]
+                                 dtype = self.dtype) for index in range(len(input_shape))]
 
     def call(self, inputs, **kwargs):
         if not isinstance(inputs, list):
@@ -76,6 +73,7 @@ class Scale(tf.keras.layers.Layer):
     def get_config(self):
         config = super(Scale, self).get_config()
         config["value"] = self.value
+        return config
         
 
 def fcos_head(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_depth = 4, centerness = True,
@@ -103,6 +101,6 @@ def fcos_head(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256
         centerness = CenternessNet(n_anchor, concat = False, convolution = centerness_convolution, normalize = centerness_normalize, activation = centerness_activation, name = "centerness_net")(logits_feature)
     else:
         centerness = None
-    points = generate_points(feature, image_shape, stride = None, normalize = True, concat = False) #stride = None > Auto Stride (ex: level 3~5 + pooling 6~7 > [8, 16, 32, 64, 128], level 2~5 + pooling 6 > [4, 8, 16, 32, 64])
+    points = generate_points(feature, image_shape, stride = None, normalize = True, concat = False, dtype = logits[0].dtype if isinstance(logits, list) else logits.dtype) #stride = None > Auto Stride (ex: level 3~5 + pooling 6~7 > [8, 16, 32, 64, 128], level 2~5 + pooling 6 > [4, 8, 16, 32, 64])
     result = [r for r in [logits, regress, points, centerness] if r is not None]
     return result

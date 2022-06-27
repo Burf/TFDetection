@@ -75,10 +75,8 @@ class FeatureAlign(tf.keras.layers.Layer):
         config["n_feature"] = self.n_feature
         config["n_sampling"] = self.n_sampling
         config["pre_sampling"] = self.pre_sampling
-        config["neck"] = self.neck
         config["neck_n_depth"] = self.neck_n_depth
-        config["convolution"] = self.convolution
-        config["normalize"] = self.normalize
+        return config
 
 class FeatureUpsample(tf.keras.layers.Layer):
     def __init__(self, concat = True, method = "bilinear", **kwargs):

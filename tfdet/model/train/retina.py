@@ -9,7 +9,7 @@ from .target import anchor_target
 def train_model(input, logits, regress, anchors,
                 assign = max_iou, sampling_count = 256, positive_ratio = 0.5,
                 batch_size = 1, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], regularize = True, weight_decay = 1e-4, focal = True, alpha = .25, gamma = 1.5, sigma = 3, class_weight = None, missing_value = 0.):
-    y_true = tf.keras.layers.Input(shape = (None, None), name = "y_true", dtype = tf.float32)
+    y_true = tf.keras.layers.Input(shape = (None, None), name = "y_true", dtype = logits.dtype)
     bbox_true = tf.keras.layers.Input(shape = (None, 4), name = "bbox_true", dtype = regress.dtype)
     
     anchors = tf.tile(tf.expand_dims(anchors, axis = 0), [tf.shape(input)[0], 1, 1])

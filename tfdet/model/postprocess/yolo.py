@@ -60,6 +60,16 @@ class FilterDetection(tf.keras.layers.Layer):
 
     def call(self, inputs):
         score, logits, regress, anchors = inputs
+        valid_flags = tf.logical_and(tf.less_equal(anchors[..., 2], 1),
+                                     tf.logical_and(tf.less_equal(anchors[..., 3], 1),
+                                                    tf.logical_and(tf.greater_equal(anchors[..., 0], 0),
+                                                                   tf.greater_equal(anchors[..., 1], 0))))
+        #valid_indices = tf.range(tf.shape(anchors)[0])[valid_flags]
+        valid_indices = tf.where(valid_flags)[:, 0]
+        score = tf.gather(score, valid_indices, axis = 1)
+        logits = tf.gather(logits, valid_indices, axis = 1)
+        regress = tf.gather(regress, valid_indices, axis = 1)
+        anchors = tf.gather(anchors, valid_indices)
         anchors = tf.tile(tf.expand_dims(anchors, axis = 0), [tf.shape(logits)[0], 1, 1])
         out = map_fn(filter_detection, score, logits, regress, anchors, dtype = (logits.dtype, regress.dtype), batch_size = self.batch_size,
                      proposal_count = self.proposal_count, iou_threshold = self.iou_threshold, score_threshold = self.score_threshold, soft_nms = self.soft_nms, clip_ratio = self.clip_ratio)

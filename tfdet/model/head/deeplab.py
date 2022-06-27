@@ -60,9 +60,6 @@ class AtrousSpatialPyramidPooling(tf.keras.layers.Layer):
         config["rate"] = self.rate
         config["n_feature"] = self.n_feature
         config["method"] = self.method
-        config["convolution"] = self.convolution
-        config["normalize"] = self.normalize
-        config["activation"] = self.activation
         return config
 
 def deeplab_v3_head(x, n_class = 35, rate = [6, 12, 18], n_feature = 256, n_low_feature = 48, method = "bilinear", logits_activation = tf.keras.activations.sigmoid, convolution = conv, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu):

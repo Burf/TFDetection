@@ -26,7 +26,7 @@ def fcos_target(y_true, bbox_true, y_pred, bbox_pred, points, regress_range, cen
         indices = tf.random.shuffle(indices)[:positive_count]
         positive_indices = tf.gather(positive_indices, indices)
         true_indices = tf.gather(true_indices, indices)
-        positive_count = tf.cast(tf.shape(positive_indices)[0], tf.float32)
+        positive_count = tf.cast(tf.shape(positive_indices)[0], y_pred.dtype)
         negative_count = tf.cast(1 / positive_ratio * positive_count - positive_count, tf.int32)
         negative_indices = tf.random.shuffle(negative_indices)[:negative_count]
     else:

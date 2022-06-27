@@ -12,7 +12,7 @@ def yolo_assign(bbox_true, bbox_pred, positive_threshold = 0.5, negative_thresho
 def train_model(input, score, logits, regress, anchors,
                 assign = yolo_assign, sampling_count = 256, positive_ratio = 0.5,
                 batch_size = 1, clip_ratio = 16 / 1000, regularize = True, weight_decay = 1e-4, mode = "general", focal = True, alpha = .25, gamma = 1.5, class_weight = None, threshold = 0.5, missing_value = 0.):
-    y_true = tf.keras.layers.Input(shape = (None, None), name = "y_true", dtype = tf.float32)
+    y_true = tf.keras.layers.Input(shape = (None, None), name = "y_true", dtype = score.dtype)
     bbox_true = tf.keras.layers.Input(shape = (None, 4), name = "bbox_true", dtype = regress.dtype)
     
     anchors = tf.tile(tf.expand_dims(anchors, axis = 0), [tf.shape(input)[0], 1, 1])

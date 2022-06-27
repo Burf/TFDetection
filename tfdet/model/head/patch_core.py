@@ -57,7 +57,6 @@ class Head(tf.keras.layers.Layer):
     
     def get_config(self):
         config = super(Head, self).get_config()
-        config["feature_vector"] = self.feature_vector
         config["k"] = self.k
         config["image_shape"] = self.image_shape
         config["sigma"] = self.sigma

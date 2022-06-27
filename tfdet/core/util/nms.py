@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-def pad_nms(proposal, score, proposal_count, iou_threshold, score_threshold = float('-inf'), soft_nms = True):
+def pad_nms(proposal, score, proposal_count, iou_threshold, score_threshold = float('-inf'), soft_nms = False):
     soft_nms_sigma = soft_nms
     if not isinstance(soft_nms, float):
         soft_nms_sigma = 0.5 if soft_nms else 0.

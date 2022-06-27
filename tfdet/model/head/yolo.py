@@ -56,13 +56,6 @@ def yolo_head(feature, n_class = 80, image_shape = [608, 608],
     result = []
     if tiny:
         #feature = darknet19(x, csp = csp, normalize = normalize, activation = activation, weights = None)
-        n_anchor = len(size)
-        if isinstance(size, list) and isinstance(size[0], list) and isinstance(size[0][0], list):
-            n_anchor = len(size[0][0])
-        elif auto_size and (len(size) % len(feature)) == 0:
-            n_anchor = len(size) // len(feature)
-        anchors = generate_yolo_anchors(feature, image_shape, size, normalize = True, auto_size = auto_size)
-        
         out = feature[-1]
         out = darknet_conv_block(out, 256, 1, normalize = normalize, activation = post_activation)
         score, logits, regress = yolo_classifier(out, n_class, 512, n_anchor = n_anchor, feature_share = feature_share, normalize = normalize, activation = post_activation)
@@ -78,13 +71,6 @@ def yolo_head(feature, n_class = 80, image_shape = [608, 608],
         result = result[::-1]
     else:
         #feature = darknet53(x, csp = csp, normalize = normalize, activation = activation, weights = None)
-        n_anchor = len(size)
-        if isinstance(size, list) and isinstance(size[0], list) and isinstance(size[0][0], list):
-            n_anchor = len(size[0][0])
-        elif auto_size and (len(size) % len(feature)) == 0:
-            n_anchor = len(size) // len(feature)
-        anchors = generate_yolo_anchors(feature, image_shape, size, normalize = True, auto_size = auto_size)
-        
         out = feature[-1]
         if csp:
             n_feature = [256, 128]
@@ -120,16 +106,23 @@ def yolo_head(feature, n_class = 80, image_shape = [608, 608],
     result = list(zip(*result))
     score, logits, regress = [tf.keras.layers.Concatenate(axis = 1)(r) for r in result]
     
-    valid_flags = tf.logical_and(tf.less_equal(anchors[..., 2], 1),
-                                 tf.logical_and(tf.less_equal(anchors[..., 3], 1),
-                                                tf.logical_and(tf.greater_equal(anchors[..., 0], 0),
-                                                               tf.greater_equal(anchors[..., 1], 0))))
-    #valid_indices = tf.range(tf.shape(anchors)[0])[valid_flags]
-    valid_indices = tf.where(valid_flags)[:, 0]
-    score = tf.gather(score, valid_indices, axis = 1)
-    logits = tf.gather(logits, valid_indices, axis = 1)
-    regress = tf.gather(regress, valid_indices, axis = 1)
-    anchors = tf.gather(anchors, valid_indices)
+    n_anchor = len(size)
+    if isinstance(size, list) and isinstance(size[0], list) and isinstance(size[0][0], list):
+        n_anchor = len(size[0][0])
+    elif auto_size and (len(size) % len(feature)) == 0:
+        n_anchor = len(size) // len(feature)
+    anchors = generate_yolo_anchors(feature, image_shape, size, normalize = True, auto_size = auto_size, dtype = logits.dtype)
+    
+    #valid_flags = tf.logical_and(tf.less_equal(anchors[..., 2], 1),
+    #                             tf.logical_and(tf.less_equal(anchors[..., 3], 1),
+    #                                            tf.logical_and(tf.greater_equal(anchors[..., 0], 0),
+    #                                                           tf.greater_equal(anchors[..., 1], 0))))
+    ##valid_indices = tf.range(tf.shape(anchors)[0])[valid_flags]
+    #valid_indices = tf.where(valid_flags)[:, 0]
+    #score = tf.gather(score, valid_indices, axis = 1)
+    #logits = tf.gather(logits, valid_indices, axis = 1)
+    #regress = tf.gather(regress, valid_indices, axis = 1)
+    #anchors = tf.gather(anchors, valid_indices)
     return score, logits, regress, anchors
 
 def yolo_v3_head(feature, n_class = 80, image_shape = [608, 608], size = [[0.01645, 0.02138], [0.02632, 0.04934], [0.05428, 0.03783],
