@@ -97,6 +97,7 @@ TFDetection is a detection toolbox based on Tensorflow2.
           <li>DarkNet(2018)</li>
           <li>MobileNetV3(2019)</li>
           <li>EfficientNet(2019)</li>
+          <li>EfficientNet Lite(2020)</li>
           <li>ResNeSt(2020)</li>
           <li>CSP DarkNet(2020)</li>
           <li>SwinTransformer(2021)</li>
