@@ -4,7 +4,7 @@ TFDetection is a detection toolbox based on Tensorflow2.
 
 ## Overview of Components
 <div align = "center">
-  <b>Detector</b>
+  <a href = "https://github.com/Burf/TFDetection/blob/main/tfdet/model/detector/__init__.py"><b>Detector</b></a>
 </div>
 <table align = "center">
   <tbody>
@@ -75,10 +75,10 @@ TFDetection is a detection toolbox based on Tensorflow2.
   <tbody>
     <tr align = "center" valign = "bottom">
       <td>
-        <b>Backbone</b>
+        <a href = "https://github.com/Burf/TFDetection/blob/main/tfdet/model/backbone/__init__.py"><b>Backbone</b></a>
       </td>
       <td>
-        <b>Neck</b>
+        <a href = "https://github.com/Burf/TFDetection/blob/main/tfdet/model/neck/__init__.py"><b>Neck</b></a>
       </td>
       <td>
         <b>Other</b>
@@ -113,7 +113,7 @@ TFDetection is a detection toolbox based on Tensorflow2.
       </td>
       <td>
         <ul>
-          <li><b>Assign</b></li>
+          <li><a href = "https://github.com/Burf/TFDetection/blob/main/tfdet/core/assign/__init__.py"><b>Assign</b></a></li>
           <ul>
             <li>Max Iou(2015)</li>
             <li>Center Region(2019)</li>
@@ -122,7 +122,7 @@ TFDetection is a detection toolbox based on Tensorflow2.
           </ul>
         </ul>
         <ul>
-          <li><b>Metric</b></li>
+          <li><a href = "https://github.com/Burf/TFDetection/blob/main/tfdet/util/metric.py"><b>Metric</b></a></li>
           <ul>
             <li>Mean Average Precision</li>
           </ul>
