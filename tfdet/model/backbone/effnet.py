@@ -254,7 +254,7 @@ def load_weight(model, url):
         tf.keras.backend.set_value(w, new_w.numpy())
     return model
 
-def effnet_lite_b0(x, weights = "imagenet", indices = None):
+def effnet_lite_b0(x, activation = tf.nn.relu6, weights = "imagenet", indices = None):
     try:
         efficientnet_lite
     except:
@@ -264,7 +264,7 @@ def effnet_lite_b0(x, weights = "imagenet", indices = None):
     if weights == "imagenet":
         hub_weight = True
         weights = None
-    model = efficientnet_lite(1.0, 1.0, 224, 0.2, input_tensor = x, include_top = False, weights = weights)
+    model = efficientnet_lite(1.0, 1.0, 224, 0.2, activation_fn = activation, input_tensor = x, include_top = False, weights = weights)
     if hub_weight:
         model = load_weight(model, effnet_lite_urls["effnet_lite_b0"])
     layers = ["block2b_add", "block3b_add", "block5c_add", "block7a_project_bn"]
@@ -276,7 +276,7 @@ def effnet_lite_b0(x, weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
 
-def effnet_lite_b1(x, weights = "imagenet", indices = None):
+def effnet_lite_b1(x, activation = tf.nn.relu6, weights = "imagenet", indices = None):
     try:
         efficientnet_lite
     except:
@@ -286,7 +286,7 @@ def effnet_lite_b1(x, weights = "imagenet", indices = None):
     if weights == "imagenet":
         hub_weight = True
         weights = None
-    model = efficientnet_lite(1.0, 1.1, 240, 0.2, input_tensor = x, include_top = False, weights = weights)
+    model = efficientnet_lite(1.0, 1.1, 240, 0.2, activation_fn = activation, input_tensor = x, include_top = False, weights = weights)
     if hub_weight:
         model = load_weight(model, effnet_lite_urls["effnet_lite_b1"])
     layers = ["block2c_add", "block3c_add", "block5d_add", "block7a_project_bn"]
@@ -298,7 +298,7 @@ def effnet_lite_b1(x, weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
 
-def effnet_lite_b2(x, weights = "imagenet", indices = None):
+def effnet_lite_b2(x, activation = tf.nn.relu6, weights = "imagenet", indices = None):
     try:
         efficientnet_lite
     except:
@@ -308,7 +308,7 @@ def effnet_lite_b2(x, weights = "imagenet", indices = None):
     if weights == "imagenet":
         hub_weight = True
         weights = None
-    model = efficientnet_lite(1.1, 1.2, 260, 0.3, input_tensor = x, include_top = False, weights = weights)
+    model = efficientnet_lite(1.1, 1.2, 260, 0.3, activation_fn = activation, input_tensor = x, include_top = False, weights = weights)
     if hub_weight:
         model = load_weight(model, effnet_lite_urls["effnet_lite_b2"])
     layers = ["block2c_add", "block3c_add", "block5d_add", "block7a_project_bn"]
@@ -320,7 +320,7 @@ def effnet_lite_b2(x, weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
 
-def effnet_lite_b3(x, weights = "imagenet", indices = None):
+def effnet_lite_b3(x, activation = tf.nn.relu6, weights = "imagenet", indices = None):
     try:
         efficientnet_lite
     except:
@@ -330,7 +330,7 @@ def effnet_lite_b3(x, weights = "imagenet", indices = None):
     if weights == "imagenet":
         hub_weight = True
         weights = None
-    model = efficientnet_lite(1.2, 1.4, 280, 0.3, input_tensor = x, include_top = False, weights = weights)
+    model = efficientnet_lite(1.2, 1.4, 280, 0.3, activation_fn = activation, input_tensor = x, include_top = False, weights = weights)
     if hub_weight:
         model = load_weight(model, effnet_lite_urls["effnet_lite_b3"])
     layers = ["block2c_add", "block3c_add", "block5e_add", "block7a_project_bn"]
@@ -342,7 +342,7 @@ def effnet_lite_b3(x, weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
 
-def effnet_lite_b4(x, weights = "imagenet", indices = None):
+def effnet_lite_b4(x, activation = tf.nn.relu6, weights = "imagenet", indices = None):
     try:
         efficientnet_lite
     except:
@@ -352,7 +352,7 @@ def effnet_lite_b4(x, weights = "imagenet", indices = None):
     if weights == "imagenet":
         hub_weight = True
         weights = None
-    model = efficientnet_lite(1.4, 1.8, 300, 0.3, input_tensor = x, include_top = False, weights = weights)
+    model = efficientnet_lite(1.4, 1.8, 300, 0.3, activation_fn = activation, input_tensor = x, include_top = False, weights = weights)
     if hub_weight:
         model = load_weight(model, effnet_lite_urls["effnet_lite_b4"])
     layers = ["block2d_add", "block3d_add", "block5f_add", "block7a_project_bn"]

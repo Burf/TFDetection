@@ -7,4 +7,14 @@ from .mobilenet import mobilenet, mobilenet_v2, mobilenet_v3_small, mobilenet_v3
 from .resnet import resnet50, resnet101, resnet152, resnet50_v2, resnet101_v2, resnet152_v2
 from .resnet_torch import resnet18 as resnet18_torch, resnet34 as resnet34_torch, resnet50 as resnet50_torch, resnet101 as resnet101_torch, resnet152 as resnet152_torch, resnext50_32x4d as resnext50_32x4d_torch, resnext101_32x8d as resnext101_32x8d_torch, wide_resnet50_2 as wide_resnet50_2_torch, wide_resnet101_2 as wide_resnet101_2_torch
 from .resnest import resnest50, resnest101, resnest200, resnest269
-from .swin_transformer import swin_transformer_tiny, swin_transformer_small, swin_transformer_base, swin_transformer_large
+from .swin_transformer import (swin_transformer_tiny_224_w7_1k, swin_transformer_tiny_224_w7_22k, swin_transformer_tiny_224_w7_22kto1k,
+                               swin_transformer_small_224_w7_1k, swin_transformer_small_224_w7_22k, swin_transformer_small_224_w7_22kto1k,
+                               swin_transformer_base_224_w7_1k, swin_transformer_base_224_w7_22k, swin_transformer_base_224_w7_22kto1k,
+                               swin_transformer_base_384_w12_1k, swin_transformer_base_384_w12_22k, swin_transformer_base_384_w12_22kto1k,
+                               swin_transformer_large_224_w7_22k, swin_transformer_large_224_w7_22kto1k,
+                               swin_transformer_large_384_w12_22k, swin_transformer_large_384_w12_22kto1k)
+from .swin_transformer import (swin_transformer_v2_tiny_256_w8_1k, swin_transformer_v2_tiny_256_w16_1k,
+                               swin_transformer_v2_small_256_w8_1k, swin_transformer_v2_small_256_w16_1k,
+                               swin_transformer_v2_base_256_w8_1k, swin_transformer_v2_base_256_w16_1k, 
+                               swin_transformer_v2_base_192_w12_22k, swin_transformer_v2_base_256_w16_22kto1k, swin_transformer_v2_base_384_w24_22kto1k,
+                               swin_transformer_v2_large_192_w12_22k, swin_transformer_v2_large_256_w16_22kto1k, swin_transformer_v2_large_384_w24_22kto1k)

@@ -106,8 +106,8 @@ def load_weight(keras_model, torch_url):
         tf.keras.backend.set_value(w, new_w)
     return keras_model
 
-def resnet18(x, weights = "imagenet", indices = None):
-    out = resnet(x, [2, 2, 2, 2], res_basic_block, include_top = False, normalize = normalize, activation = tf.keras.activations.relu)
+def resnet18(x, normalize = normalize, activation = tf.keras.activations.relu, weights = "imagenet", indices = None):
+    out = resnet(x, [2, 2, 2, 2], res_basic_block, include_top = False, normalize = normalize, activation = activation)
     model = tf.keras.Model(x, out)
     
     if weights == "imagenet":
@@ -124,8 +124,8 @@ def resnet18(x, weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
 
-def resnet34(x, weights = "imagenet", indices = None):
-    out = resnet(x, [3, 4, 6, 3], res_basic_block, include_top = False, normalize = normalize, activation = tf.keras.activations.relu)
+def resnet34(x, normalize = normalize, activation = tf.keras.activations.relu, weights = "imagenet", indices = None):
+    out = resnet(x, [3, 4, 6, 3], res_basic_block, include_top = False, normalize = normalize, activation = activation)
     model = tf.keras.Model(x, out)
     
     if weights == "imagenet":
@@ -142,8 +142,8 @@ def resnet34(x, weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
 
-def resnet50(x, weights = "imagenet", indices = None):
-    out = resnet(x, [3, 4, 6, 3], res_bottleneck_block, include_top = False, normalize = normalize, activation = tf.keras.activations.relu)
+def resnet50(x, normalize = normalize, activation = tf.keras.activations.relu, weights = "imagenet", indices = None):
+    out = resnet(x, [3, 4, 6, 3], res_bottleneck_block, include_top = False, normalize = normalize, activation = activation)
     model = tf.keras.Model(x, out)
     
     if weights == "imagenet":
@@ -160,8 +160,8 @@ def resnet50(x, weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
 
-def resnet101(x, weights = "imagenet", indices = None):
-    out = resnet(x, [3, 4, 23, 3], res_bottleneck_block, include_top = False, normalize = normalize, activation = tf.keras.activations.relu)
+def resnet101(x, normalize = normalize, activation = tf.keras.activations.relu, weights = "imagenet", indices = None):
+    out = resnet(x, [3, 4, 23, 3], res_bottleneck_block, include_top = False, normalize = normalize, activation = activation)
     model = tf.keras.Model(x, out)
     
     if weights == "imagenet":
@@ -178,8 +178,8 @@ def resnet101(x, weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
 
-def resnet152(x, weights = "imagenet", indices = None):
-    out = resnet(x, [3, 8, 36, 3], res_bottleneck_block, include_top = False, normalize = normalize, activation = tf.keras.activations.relu)
+def resnet152(x, normalize = normalize, activation = tf.keras.activations.relu, weights = "imagenet", indices = None):
+    out = resnet(x, [3, 8, 36, 3], res_bottleneck_block, include_top = False, normalize = normalize, activation = activation)
     model = tf.keras.Model(x, out)
     
     if weights == "imagenet":
@@ -196,8 +196,8 @@ def resnet152(x, weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
 
-def resnext50_32x4d(x, weights = "imagenet", indices = None):
-    out = resnet(x, [3, 4, 6, 3], res_bottleneck_block, include_top = False, group_size = 32, base_width = 4, normalize = normalize, activation = tf.keras.activations.relu)
+def resnext50_32x4d(x, normalize = normalize, activation = tf.keras.activations.relu, weights = "imagenet", indices = None):
+    out = resnet(x, [3, 4, 6, 3], res_bottleneck_block, include_top = False, group_size = 32, base_width = 4, normalize = normalize, activation = activation)
     model = tf.keras.Model(x, out)
     
     if weights == "imagenet":
@@ -214,8 +214,8 @@ def resnext50_32x4d(x, weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
 
-def resnext101_32x8d(x, weights = "imagenet", indices = None):
-    out = resnet(x, [3, 4, 23, 3], res_bottleneck_block, include_top = False, group_size = 32, base_width = 8, normalize = normalize, activation = tf.keras.activations.relu)
+def resnext101_32x8d(x, normalize = normalize, activation = tf.keras.activations.relu, weights = "imagenet", indices = None):
+    out = resnet(x, [3, 4, 23, 3], res_bottleneck_block, include_top = False, group_size = 32, base_width = 8, normalize = normalize, activation = activation)
     model = tf.keras.Model(x, out)
 
     if weights == "imagenet":
@@ -232,8 +232,8 @@ def resnext101_32x8d(x, weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
 
-def wide_resnet50_2(x, weights = "imagenet", indices = None):
-    out = resnet(x, [3, 4, 6, 3], res_bottleneck_block, include_top = False, base_width = 128, normalize = normalize, activation = tf.keras.activations.relu)
+def wide_resnet50_2(x, normalize = normalize, activation = tf.keras.activations.relu, weights = "imagenet", indices = None):
+    out = resnet(x, [3, 4, 6, 3], res_bottleneck_block, include_top = False, base_width = 128, normalize = normalize, activation = activation)
     model = tf.keras.Model(x, out)
     
     if weights == "imagenet":
@@ -250,8 +250,8 @@ def wide_resnet50_2(x, weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
 
-def wide_resnet101_2(x, weights = "imagenet", indices = None):
-    out = resnet(x, [3, 4, 23, 3], res_bottleneck_block, include_top = False, base_width = 128, normalize = normalize, activation = tf.keras.activations.relu)
+def wide_resnet101_2(x, normalize = normalize, activation = tf.keras.activations.relu, weights = "imagenet", indices = None):
+    out = resnet(x, [3, 4, 23, 3], res_bottleneck_block, include_top = False, base_width = 128, normalize = normalize, activation = activation)
     model = tf.keras.Model(x, out)
 
     if weights == "imagenet":

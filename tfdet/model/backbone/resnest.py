@@ -163,7 +163,7 @@ def resnest_module(x, n_filter, n_block, stride_size = 1, dilation = 1, group_si
         out = resnest_block(out, n_filter, 1, dilation, group_size, radix, block_width, avd, avd_first, dropout_rate = dropout_rate, expansion = expansion, stage = stage, index = index + 1)
     return out
 
-def ResNet(x, stack, n_class = 1000, include_top = True, dilation = 1, group_size =1, radix = 1, block_width = 64, stem_width = 64, deep_stem = False, dilated = False, avg_down = False, avd = False, avd_first = False, dropout_rate = 0., expansion = 4):
+def ResNet(x, stack, n_class = 1000, include_top = True, dilation = 1, group_size = 1, radix = 1, block_width = 64, stem_width = 64, deep_stem = False, dilated = False, avg_down = False, avd = False, avd_first = False, dropout_rate = 0., expansion = 4):
     #https://github.com/Burf/ResNeSt-Tensorflow2
     
     #Stem
@@ -273,8 +273,8 @@ def load_weight(keras_model, torch_url, group_size = 2):
         tf.keras.backend.set_value(w, new_w)
     return keras_model
 
-def resnest50(x, weights = "imagenet", indices = None):
-    out = ResNet(x, [3, 4, 6, 3], include_top = False, radix = 2, group_size = 1, block_width = 64, stem_width = 32, deep_stem = True, avg_down = True, avd = True, avd_first = False)
+def resnest50(x, dropout_rate = 0., weights = "imagenet", indices = None):
+    out = ResNet(x, [3, 4, 6, 3], include_top = False, radix = 2, group_size = 1, block_width = 64, stem_width = 32, deep_stem = True, avg_down = True, avd = True, avd_first = False, dropout_rate = dropout_rate)
     model = tf.keras.Model(x, out)
     
     if weights == "imagenet":
@@ -291,8 +291,8 @@ def resnest50(x, weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
     
-def resnest101(x, weights = "imagenet", indices = None):
-    out = ResNet(x, [3, 4, 23, 3], include_top = False, radix = 2, group_size = 1, block_width = 64, stem_width = 64, deep_stem = True, avg_down = True, avd = True, avd_first = False)
+def resnest101(x, dropout_rate = 0., weights = "imagenet", indices = None):
+    out = ResNet(x, [3, 4, 23, 3], include_top = False, radix = 2, group_size = 1, block_width = 64, stem_width = 64, deep_stem = True, avg_down = True, avd = True, avd_first = False, dropout_rate = dropout_rate)
     model = tf.keras.Model(x, out)
     
     if weights == "imagenet":
@@ -309,8 +309,8 @@ def resnest101(x, weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
 
-def resnest200(x, weights = "imagenet", indices = None):
-    out = ResNet(x, [3, 24, 36, 3], include_top = False, radix = 2, group_size = 1, block_width = 64, stem_width = 64, deep_stem = True, avg_down = True, avd = True, avd_first = False)
+def resnest200(x, dropout_rate = 0., weights = "imagenet", indices = None):
+    out = ResNet(x, [3, 24, 36, 3], include_top = False, radix = 2, group_size = 1, block_width = 64, stem_width = 64, deep_stem = True, avg_down = True, avd = True, avd_first = False, dropout_rate = dropout_rate)
     model = tf.keras.Model(x, out)
     
     if weights == "imagenet":
@@ -327,8 +327,8 @@ def resnest200(x, weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
 
-def resnest269(x, weights = "imagenet", indices = None):
-    out = ResNet(x, [3, 30, 48, 8], include_top = False, radix = 2, group_size = 1, block_width = 64, stem_width = 64, deep_stem = True, avg_down = True, avd = True, avd_first = False)
+def resnest269(x, dropout_rate = 0., weights = "imagenet", indices = None):
+    out = ResNet(x, [3, 30, 48, 8], include_top = False, radix = 2, group_size = 1, block_width = 64, stem_width = 64, deep_stem = True, avg_down = True, avd = True, avd_first = False, dropout_rate = dropout_rate)
     model = tf.keras.Model(x, out)
     
     if weights == "imagenet":
