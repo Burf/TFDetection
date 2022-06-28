@@ -60,7 +60,7 @@ def logits_accuracy(score_true, logit_true, logit_pred, missing_value = 0.):
     dtype = logit_pred.dtype
     logit_true = tf.cond(tf.equal(n_true_class, 1), true_fn = lambda: logit_true[..., 0], false_fn = lambda: tf.cast(tf.argmax(logit_true, axis = -1), logit_true.dtype))
     logit_pred = tf.argmax(logit_pred, axis = -1)
-    logit_true = tf.cast(logit_true, dtype)
+    logit_true = tf.cast(logit_true, logit_pred.dtype)
     
     accuracy = tf.reduce_mean(tf.cast(tf.equal(logit_true, logit_pred), dtype))
     accuracy = tf.where(tf.math.is_nan(accuracy), missing_value, accuracy)

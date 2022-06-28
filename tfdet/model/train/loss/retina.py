@@ -19,7 +19,7 @@ def classnet_accuracy(y_true, y_pred, missing_value = 0.):
     dtype = y_pred.dtype
     y_true = tf.cond(tf.equal(n_true_class, 1), true_fn = lambda: y_true[..., 0], false_fn = lambda: tf.cast(tf.argmax(y_true, axis = -1), y_true.dtype))
     y_pred = tf.argmax(y_pred, axis = -1)
-    y_true = tf.cast(y_true, dtype)
+    y_true = tf.cast(y_true, y_pred.dtype)
     
     accuracy = tf.reduce_mean(tf.cast(tf.equal(y_true, y_pred), dtype))
     accuracy = tf.where(tf.math.is_nan(accuracy), missing_value, accuracy)
