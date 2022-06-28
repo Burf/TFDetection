@@ -53,10 +53,15 @@ def yolo_head(feature, n_class = 80, image_shape = [608, 608],
         feature = [feature]
     feature = list(feature)
     
+    n_anchor = len(size)
+    if isinstance(size, list) and isinstance(size[0], list) and isinstance(size[0][0], list):
+        n_anchor = len(size[0][0])
+    elif auto_size and (len(size) % len(feature)) == 0:
+        n_anchor = len(size) // len(feature)
+    
+    out = feature[-1]
     result = []
     if tiny:
-        #feature = darknet19(x, csp = csp, normalize = normalize, activation = activation, weights = None)
-        out = feature[-1]
         out = darknet_conv_block(out, 256, 1, normalize = normalize, activation = post_activation)
         score, logits, regress = yolo_classifier(out, n_class, 512, n_anchor = n_anchor, feature_share = feature_share, normalize = normalize, activation = post_activation)
         result.append([score, logits, regress])
@@ -70,8 +75,6 @@ def yolo_head(feature, n_class = 80, image_shape = [608, 608],
         result.append([score, logits, regress])
         result = result[::-1]
     else:
-        #feature = darknet53(x, csp = csp, normalize = normalize, activation = activation, weights = None)
-        out = feature[-1]
         if csp:
             n_feature = [256, 128]
             for index, _n_feature in enumerate(n_feature):
@@ -105,12 +108,6 @@ def yolo_head(feature, n_class = 80, image_shape = [608, 608],
             result = result[::-1]
     result = list(zip(*result))
     score, logits, regress = [tf.keras.layers.Concatenate(axis = 1)(r) for r in result]
-    
-    n_anchor = len(size)
-    if isinstance(size, list) and isinstance(size[0], list) and isinstance(size[0][0], list):
-        n_anchor = len(size[0][0])
-    elif auto_size and (len(size) % len(feature)) == 0:
-        n_anchor = len(size) // len(feature)
     anchors = generate_yolo_anchors(feature, image_shape, size, normalize = True, auto_size = auto_size, dtype = logits.dtype)
     
     #valid_flags = tf.logical_and(tf.less_equal(anchors[..., 2], 1),
