@@ -293,13 +293,14 @@ def classifier2proposal(cls_logit, cls_regress, proposal, valid = True, mean = [
     logit_indices = tf.argmax(cls_logit, axis = -1, output_type = tf.int32)
     indices = tf.stack([tf.range(tf.shape(cls_logit)[0]), logit_indices], axis = -1)
     delta = tf.gather_nd(cls_regress, indices)
+    proposal = tf.stop_gradient(proposal)
+    delta = tf.stop_gradient(delta)
 
     proposal = delta2bbox(proposal, delta, mean, std, clip_ratio) # Transform delta to bbox
     proposal = tf.clip_by_value(proposal, 0, 1) # Clipping to valid area
     if valid:
         pad_count = tf.maximum(sampling_count - tf.shape(valid_indices)[0], 0)
         proposal = tf.pad(proposal, [[0, pad_count], [0, 0]])
-    proposal = tf.stop_gradient(proposal)
     return proposal
 
 class Classifier2Proposal(tf.keras.layers.Layer):
@@ -314,6 +315,7 @@ class Classifier2Proposal(tf.keras.layers.Layer):
     def call(self, inputs):
         cls_logits, cls_regress, proposals = inputs[:3]
         out = map_fn(classifier2proposal, cls_logits, cls_regress, proposals, dtype = proposals.dtype, batch_size = self.batch_size, valid = self.valid, mean = self.mean, std = self.std, clip_ratio = self.clip_ratio)
+        out = tf.stop_gradient(out)
         return out
     
     def get_config(self):
@@ -425,10 +427,14 @@ def rpn_head(feature, image_shape = [1024, 1024],
         image_shape = image_shape[-3:-1]
     if not isinstance(feature, list):
         feature = [feature]
+    if np.ndim(scale) == 0:
+        scale = [scale]
+    if np.ndim(ratio) == 0:
+        ratio = [ratio]
     feature = list(feature)
     
     n_anchor = len(scale) * len(ratio)
-    if isinstance(scale, list) and isinstance(scale[0], list):
+    if np.ndim(scale) == 2:
         n_anchor = len(scale[0]) * len(ratio)
     elif auto_scale and (len(scale) % len(feature)) == 0:
         n_anchor = (len(scale) // len(feature)) * len(ratio)

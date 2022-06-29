@@ -9,22 +9,22 @@ def generate_anchors(feature, image_shape = [1024, 1024], scale = [0.03125, 0.06
     """
     if tf.is_tensor(feature) or not isinstance(feature, list) or isinstance(feature[0], int):
         feature = [feature]
-    if not isinstance(scale, list):
+    if np.ndim(scale) == 0:
         scale = [scale]
-    if not isinstance(ratio, list):
+    if np.ndim(ratio) == 0:
         ratio = [ratio]
 
-    if not isinstance(scale[0], list):
+    if np.ndim(scale[0]) == 0:
         if auto_scale and (len(scale) % len(feature)) == 0:
             scale = tf.split(scale, len(feature))
         else:
             scale = [scale] * len(feature)
-    if not isinstance(ratio[0], list):
+    if np.ndim(ratio[0]) == 0:
         ratio = [ratio] * len(feature)
 
     out = []
     for x, scale, ratio in zip(feature, scale, ratio):
-        if not isinstance(scale, list) and not (tf.is_tensor(scale) and tf.keras.backend.ndim(scale) != 0):
+        if np.ndim(scale) == 0 and not (tf.is_tensor(scale) and tf.keras.backend.ndim(scale) != 0):
             scale = [scale]
         scale = [scale, scale]
         
@@ -37,11 +37,12 @@ def generate_anchors(feature, image_shape = [1024, 1024], scale = [0.03125, 0.06
         stride = [1, 1]
         if 1 < tf.reduce_max(scale[0]):
             if normalize:
-                shape = image_shape
-                ndim = (tf.keras.backend.ndim(shape) if tf.is_tensor(shape) else np.ndim(shape)) - np.ndim(scale)
-                for _ in range(ndim):
-                    shape = tf.expand_dims(shape, axis = -1)
-                scale = tf.divide(tf.cast(scale, dtype), tf.cast(shape, dtype))
+                #shape = image_shape
+                #ndim = (tf.keras.backend.ndim(shape) if tf.is_tensor(shape) else np.ndim(shape)) - np.ndim(scale)
+                #for _ in range(ndim):
+                #    shape = tf.expand_dims(shape, axis = -1)
+                #scale = tf.divide(tf.cast(scale, dtype), tf.cast(shape, dtype))
+                scale = tf.divide(tf.cast(scale, dtype), tf.cast(tf.expand_dims(image_shape, axis = -1), dtype))
             else:
                 stride = image_shape
         
@@ -85,12 +86,12 @@ def generate_yolo_anchors(feature, image_shape = [608, 608], size = [[0.01645, 0
     """
     if tf.is_tensor(feature) or not isinstance(feature, list) or isinstance(feature[0], int):
         feature = [feature]
-    if not isinstance(size, list): #only one val > s
+    if np.ndim(size) == 0: #only one val > s
         size = [[size, size]]
-    elif not isinstance(size[0], list): #only one size > [w, h]
+    elif np.ndim(size[0]) == 0: #only one size > [w, h]
         size = [size]
 
-    if not isinstance(size[0][0], list):
+    if np.ndim(size[0][0]) == 0:
         if auto_size and (len(size) % len(feature)) == 0:
             size = tf.split(size, len(feature))
         else:
@@ -98,7 +99,7 @@ def generate_yolo_anchors(feature, image_shape = [608, 608], size = [[0.01645, 0
 
     out = []
     for x, size in zip(feature, size):
-        if not isinstance(size, list) and not (tf.is_tensor(size) and tf.keras.backend.ndim(size) != 0):
+        if np.ndim(size) == 0 and not (tf.is_tensor(size) and tf.keras.backend.ndim(size) != 0):
             size = [size]
         
         feature_shape = x
@@ -110,11 +111,12 @@ def generate_yolo_anchors(feature, image_shape = [608, 608], size = [[0.01645, 0
         stride = [1, 1]
         if 1 < tf.reduce_max(size):
             if normalize:
-                shape = image_shape
-                ndim = (tf.keras.backend.ndim(shape) if tf.is_tensor(shape) else np.ndim(shape)) - np.ndim(size)
-                for _ in range(ndim):
-                    shape = tf.expand_dims(shape, axis = -1)
-                size = tf.divide(tf.cast(size, dtype), tf.cast(shape, dtype))
+                #shape = image_shape
+                #ndim = (tf.keras.backend.ndim(shape) if tf.is_tensor(shape) else np.ndim(shape)) - np.ndim(size)
+                #for _ in range(ndim):
+                #    shape = tf.expand_dims(shape, axis = -1)
+                #size = tf.divide(tf.cast(size, dtype), tf.cast(shape, dtype))
+                size = tf.divide(tf.cast(size, dtype), tf.cast(tf.expand_dims(image_shape, axis = -1), dtype))
             else:
                 stride = image_shape
         
@@ -149,7 +151,7 @@ def generate_yolo_anchors(feature, image_shape = [608, 608], size = [[0.01645, 0
 def generate_points(feature, image_shape = [1024, 1024], stride = None, normalize = True, flatten = True, concat = True, dtype = tf.float32):
     if tf.is_tensor(feature) or not isinstance(feature, list) or isinstance(feature[0], int):
         feature = [feature]
-    if not isinstance(stride, list):
+    if np.ndim(stride) == 0:
         stride = [stride] * len(feature)
     
     out = []

@@ -5,7 +5,7 @@ def overlap_bbox(bbox_true, bbox_pred, mode = "normal"):
     bbox_true = [[x1, y1, x2, y2], ...] #(N, bbox)
     bbox_pred = [[x1, y1, x2, y2], ...] #(M, bbox)
     
-    overlaps = pred & true iou matrix #(M, N)
+    overlaps = true & pred iou matrix #(N, M)
     """
     if mode not in ("normal", "foreground", "general", "complete", "distance"):
         raise ValueError("unknown mode '{0}'".format(mode))

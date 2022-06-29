@@ -2,7 +2,7 @@ import tensorflow as tf
 
 from ..bbox import overlap_bbox, scale_bbox, isin
 
-def center_region(bbox_true, bbox_pred, positive_scale = 0.2, negative_scale = 0.5, threshold = 0.01, mode = "normal"):
+def center_region(bbox_true, bbox_pred, positive_scale = 0.2, negative_scale = 0.5, threshold = 0.01, min_threshold = 0.0001, mode = "normal"):
     #https://arxiv.org/abs/1901.03278
     pos_bbox_true = scale_bbox(bbox_true, positive_scale)
     neg_bbox_true = scale_bbox(bbox_true, negative_scale)
@@ -16,7 +16,7 @@ def center_region(bbox_true, bbox_pred, positive_scale = 0.2, negative_scale = 0
     
     max_iou = tf.reduce_max(overlaps, axis = -1)
     match = tf.reduce_min(neg_overlaps, axis = -1)
-    match = tf.where(tf.logical_and(threshold <= max_iou, 0 < max_iou), 1, match)
+    match = tf.where(max(threshold, min_threshold) <= max_iou, 1, match)
     
     positive_indices = tf.where(match == 1)[:, 0]
     negative_indices = tf.where(match == -1)[:, 0]

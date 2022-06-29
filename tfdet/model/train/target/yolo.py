@@ -3,8 +3,8 @@ import tensorflow as tf
 from tfdet.core.assign import max_iou
 from tfdet.core.bbox import yolo2bbox
 
-def yolo_assign(bbox_true, bbox_pred, positive_threshold = 0.5, negative_threshold = 0.5, mode = "normal"):
-    return max_iou(bbox_true, bbox_pred, positive_threshold = positive_threshold, negative_threshold = negative_threshold, mode = mode)
+def yolo_assign(bbox_true, bbox_pred, positive_threshold = 0.5, negative_threshold = 0.5, min_threshold = 0.0001, match_low_quality = True, mode = "normal"):
+    return max_iou(bbox_true, bbox_pred, positive_threshold = positive_threshold, negative_threshold = negative_threshold, min_threshold = min_threshold, match_low_quality = match_low_quality, mode = mode)
 
 def yolo_target(y_true, bbox_true, score_pred, logit_pred, bbox_pred, anchors, assign = yolo_assign, sampling_count = 256, positive_ratio = 0.5, clip_ratio = 16 / 1000):
     """

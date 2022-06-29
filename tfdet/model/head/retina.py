@@ -125,10 +125,14 @@ def retina_head(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 2
         image_shape = image_shape[-3:-1]
     if not isinstance(feature, list):
         feature = [feature]
+    if np.ndim(scale) == 0:
+        scale = [scale]
+    if np.ndim(ratio) == 0:
+        ratio = [ratio]
     feature = list(feature)
     
     n_anchor = len(scale) * len(ratio)
-    if isinstance(scale, list) and isinstance(scale[0], list):
+    if np.ndim(scale) == 2:
         n_anchor = len(scale[0]) * len(ratio)
     elif auto_scale and (len(scale) % len(feature)) == 0:
         n_anchor = (len(scale) // len(feature)) * len(ratio)

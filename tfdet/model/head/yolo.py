@@ -51,10 +51,14 @@ def yolo_head(feature, n_class = 80, image_shape = [608, 608],
         image_shape = image_shape[-3:-1]
     if not isinstance(feature, list):
         feature = [feature]
+    if np.ndim(size) == 0:
+        size = [[size, size]]
+    elif np.ndim(size[0]) == 0:
+        size = [size]
     feature = list(feature)
     
     n_anchor = len(size)
-    if isinstance(size, list) and isinstance(size[0], list) and isinstance(size[0][0], list):
+    if np.ndim(size) == 3:
         n_anchor = len(size[0][0])
     elif auto_size and (len(size) % len(feature)) == 0:
         n_anchor = len(size) // len(feature)

@@ -6,8 +6,8 @@ from tfdet.core.util import map_fn
 from .loss.yolo import score_accuracy, score_loss, logits_accuracy, logits_loss, regress_loss
 from .target import yolo_target
 
-def yolo_assign(bbox_true, bbox_pred, positive_threshold = 0.5, negative_threshold = 0.5, mode = "normal"):
-    return max_iou(bbox_true, bbox_pred, positive_threshold = positive_threshold, negative_threshold = negative_threshold, mode = mode)
+def yolo_assign(bbox_true, bbox_pred, positive_threshold = 0.5, negative_threshold = 0.5, min_threshold = 0.0001, match_low_quality = True, mode = "normal"):
+    return max_iou(bbox_true, bbox_pred, positive_threshold = positive_threshold, negative_threshold = negative_threshold, min_threshold = min_threshold, match_low_quality = match_low_quality, mode = mode)
 
 def train_model(input, score, logits, regress, anchors,
                 assign = yolo_assign, sampling_count = 256, positive_ratio = 0.5,

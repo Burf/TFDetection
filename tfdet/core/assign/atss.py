@@ -3,7 +3,7 @@ import tensorflow as tf
 from ..bbox import overlap_bbox, isin
 from ..util import euclidean_matrix
 
-def atss(bbox_true, bbox_pred, k = 9, threshold = 0.01, mode = "normal"):
+def atss(bbox_true, bbox_pred, k = 9, threshold = 0.01, min_threshold = 0.0001, mode = "normal"):
     #https://arxiv.org/abs/1912.02424
     k = tf.minimum(k, tf.shape(bbox_pred)[0])
     overlaps = overlap_bbox(bbox_true, bbox_pred, mode = mode) #(T, P)
@@ -25,7 +25,7 @@ def atss(bbox_true, bbox_pred, k = 9, threshold = 0.01, mode = "normal"):
     overlaps = tf.transpose(overlaps) #(P, T)
     
     max_iou = tf.reduce_max(overlaps, axis = -1)
-    match = tf.where(tf.logical_and(threshold <= max_iou, 0 < max_iou), 1, -1)
+    match = tf.where(max(threshold, min_threshold) <= max_iou, 1, -1)
     
     positive_indices = tf.where(match == 1)[:, 0]
     negative_indices = tf.where(match == -1)[:, 0]

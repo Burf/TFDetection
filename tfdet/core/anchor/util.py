@@ -26,10 +26,11 @@ def generate_kmeans_scale(bbox_true, k = 5, decimal = 4, method = np.median, mod
     n_bbox = len(wh)
     last_nearest = np.zeros((n_bbox,))
 
+    k = min(n_bbox, k)
     cluster = wh[np.random.choice(n_bbox, k, replace = False)]
     while True:
-        overlaps = overlap_bbox(cluster, wh, mode = mode) #(n_bbox, k)
-        cur_nearest = np.argmin(1 - overlaps, axis = 0)
+        overlaps = np.transpose(overlap_bbox(cluster, wh, mode = mode)) #(n_bbox, k)
+        cur_nearest = np.argmin(1 - overlaps, axis = 1)
         if np.all(last_nearest == cur_nearest):
             break
         for index in range(k):
