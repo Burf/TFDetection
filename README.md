@@ -1,5 +1,5 @@
 # TFDetection
-TFDetection is a detection toolbox based on Tensorflow2.
+TFDetection(tfdet) is a detection toolbox based on Tensorflow2 and Keras.
 
 
 ## Overview of Components
