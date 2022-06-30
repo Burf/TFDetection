@@ -11,11 +11,9 @@ def draw_bbox(images, bboxes, logits = None, mask = None, label = None, threshol
             logits = [logits]
         if mask is not None:
             mask = [mask]
-    images = np.array(images)
-    bboxes = np.array(bboxes)
     for batch_index in range(len(images)):
-        image = images[batch_index]
-        bbox = bboxes[batch_index]
+        image = np.array(images[batch_index])
+        bbox = np.array(bboxes[batch_index])
         h, w = np.shape(image)[:2]
         size = int(max(h, w) / 500)
         font_size = max(h, w) / 1250
@@ -24,9 +22,9 @@ def draw_bbox(images, bboxes, logits = None, mask = None, label = None, threshol
         
         valid_indices = np.where(0 < np.max(bbox, axis = -1))
         bbox = bbox[valid_indices]
-        _mask = mask[batch_index][valid_indices] if mask is not None else None
+        _mask = np.array(mask[batch_index])[valid_indices] if mask is not None else None
         if logits is not None:
-            logit = np.array(logits[batch_index][valid_indices])
+            logit = np.array(logits[batch_index])[valid_indices]
             if np.shape(logit)[-1] != 1:
                 logit_index = np.argmax(logit, axis = -1)
                 score = np.max(logit, axis = -1)
@@ -60,7 +58,7 @@ def draw_bbox(images, bboxes, logits = None, mask = None, label = None, threshol
                 cv2.putText(image, msg, font_pos, cv2.FONT_HERSHEY_SIMPLEX, font_size, logits_color, size)
 
             if mask is not None:
-                m = np.array(_mask[index])
+                m = _mask[index]
                 m = cv2.resize(m, (min(rect[2] + 1, w) - rect[0], min(rect[3] + 1, h) - rect[1]), interpolation = method)
                 m = np.where(threshold <= m, 1., 0.)
                 m = np.tile(np.expand_dims(m, axis = -1), 3) * bbox_color
