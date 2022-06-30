@@ -1,5 +1,5 @@
 from .fcos import fcos_head
-from .rcnn import rpn_head, Rpn2Proposal, faster_rcnn_head, mask_rcnn_head, cascade_rcnn_head, hybrid_task_cascade_rcnn_head
+from .rcnn import rpn_head, bbox_head, mask_head, semantic_head, Rpn2Proposal, Classifier2Proposal
 from .retina import retina_head
 from .yolo import yolo_v3_head, yolo_tiny_v3_head, yolo_v4_head, yolo_tiny_v4_head
 
