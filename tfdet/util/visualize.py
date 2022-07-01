@@ -69,4 +69,4 @@ def draw_bbox(images, bboxes, logits = None, mask = None, label = None, threshol
         result = result[0]
     else:
         result = np.array(result)
-    return images
+    return result
