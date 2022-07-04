@@ -50,7 +50,10 @@ def rcnn(feature, neck = neck, rpn_head = rpn_head, bbox_head = bbox_head, mask_
         sampling_y_true = y_true = tf.keras.layers.Input(shape = (None, None), name = "y_true", dtype = rpn_score.dtype) #(batch_size, padded_num_true, 1 or n_class)
         sampling_bbox_true = bbox_true = tf.keras.layers.Input(shape = (None, 4), name = "bbox_true", dtype = rpn_regress.dtype) #(batch_size, padded_num_true, 4)
         sampling_mask_true = mask_true = tf.keras.layers.Input(shape = (None, None, None), name = "mask_true", dtype = rpn_score.dtype) if mask_head is not None or semantic_head is not None else None #(batch_size, padded_num_true, h, w)
-
+        
+        sampling_func = lambda args, **kwarg: map_fn(sampling_target, *args, dtype = (sampling_y_true.dtype, sampling_bbox_true.dtype, sampling_bbox_true.dtype), batch_size = batch_size, **kwargs)
+        sampling_mask_func = lambda args, **kwarg: map_fn(sampling_target, *args, dtype = (sampling_y_true.dtype, sampling_bbox_true.dtype, sampling_mask_true.dtype, sampling_bbox_true.dtype), batch_size = batch_size, **kwargs)
+        
         sampling_tag = {"sampling_assign":sampling_assign, "sampling_count":sampling_count, "positive_ratio":sampling_positive_ratio, "y_true":y_true, "bbox_true":bbox_true, "mask_true":mask_true, "sampling_y_true":[], "sampling_bbox_true":[], "sampling_mask_true":[]}
     
     n_stage = (3 if cascade else 1) + (1 if mask_head is not None and mask_info_flow else 0)
@@ -62,18 +65,12 @@ def rcnn(feature, neck = neck, rpn_head = rpn_head, bbox_head = bbox_head, mask_
     for stage in range(n_stage):
         _proposals = proposals[-1]
         if sampling_tag is not None and not (mask_head is not None and mask_info_flow and (stage + 1) == n_stage):
-            if mask_head is not None and not (mask_info_flow and stage == 0):
-                args = [sampling_y_true, sampling_bbox_true, _proposals, sampling_mask_true]
-            else:
-                args = [sampling_y_true, sampling_bbox_true, _proposals]
-            dtype = tuple([arg.dtype for arg in args])
             kwargs = {"assign":sampling_assign[stage], "sampling_count":sampling_count, "positive_ratio":sampling_positive_ratio}
-            out = tf.keras.layers.Lambda(lambda args, **kwarg: map_fn(sampling_target, *args, dtype = dtype, batch_size = batch_size, **kwargs), arguments = kwargs, name = "sampling_target_{0}".format(stage + 1))(args)
             if mask_head is not None and not (mask_info_flow and stage == 0):
-                sampling_y_true, sampling_bbox_true, sampling_mask_true, _proposals = out
+                sampling_y_true, sampling_bbox_true, sampling_mask_true, _proposals = tf.keras.layers.Lambda(sampling_mask_func, arguments = kwargs, name = "sampling_target_{0}".format(stage + 1))([sampling_y_true, sampling_bbox_true, _proposals, sampling_mask_true])
                 sampling_tag["sampling_mask_true"].append(sampling_mask_true)
             else:
-                sampling_y_true, sampling_bbox_true, _proposals = out
+                sampling_y_true, sampling_bbox_true, _proposals = tf.keras.layers.Lambda(sampling_func, arguments = kwargs, name = "sampling_target_{0}".format(stage + 1))([sampling_y_true, sampling_bbox_true, _proposals])
                 sampling_tag["sampling_mask_true"].append(None)
             sampling_tag["sampling_y_true"].append(sampling_y_true)
             sampling_tag["sampling_bbox_true"].append(sampling_bbox_true)
