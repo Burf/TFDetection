@@ -117,7 +117,7 @@ class BoxNet(tf.keras.layers.Layer):
         return config
 
 def retina_head(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256, n_depth = 4,
-                scale = [0.03125, 0.0625, 0.125, 0.25, 0.5], ratio = [0.5, 1, 2], auto_scale = True,
+                scale = [32, 64, 128, 256, 512], ratio = [0.5, 1, 2], octave = 3,
                 convolution = conv, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu):
     if tf.is_tensor(image_shape) and 2 < tf.keras.backend.ndim(image_shape) or (not tf.is_tensor(image_shape) and 2 < np.ndim(image_shape)):
         image_shape = tf.shape(image_shape) if tf.keras.backend.int_shape(image_shape)[-3] is None else tf.keras.backend.int_shape(image_shape)
@@ -126,19 +126,21 @@ def retina_head(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 2
     if not isinstance(feature, list):
         feature = [feature]
     if np.ndim(scale) == 0:
-        scale = [scale]
+        scale = [[scale]]
+    elif np.ndim(scale) == 1:
+        scale = np.expand_dims(scale, axis = -1)
     if np.ndim(ratio) == 0:
         ratio = [ratio]
     feature = list(feature)
     
+    if np.ndim(scale) == 2 and np.shape(scale)[-1] == 1:
+        scale = np.multiply(scale, [[2 ** (o / octave) for o in range(octave)]])
     n_anchor = len(scale) * len(ratio)
-    if np.ndim(scale) == 2:
+    if (len(feature) % len(scale)) == 0:
         n_anchor = len(scale[0]) * len(ratio)
-    elif auto_scale and (len(scale) % len(feature)) == 0:
-        n_anchor = (len(scale) // len(feature)) * len(ratio)
     logits = ClassNet(n_anchor, n_class, n_feature, n_depth, convolution = convolution, normalize = normalize, activation = activation, name = "class_net")(feature)
     regress = BoxNet(n_anchor, n_feature, n_depth, convolution = convolution, normalize = normalize, activation = activation, name = "box_net")(feature)
-    anchors = generate_anchors(feature, image_shape, scale, ratio, normalize = True, auto_scale = auto_scale, dtype = logits.dtype)
+    anchors = generate_anchors(feature, image_shape, scale, ratio, normalize = True, auto_scale = True, dtype = logits.dtype)
 
     #valid_flags = tf.logical_and(tf.less_equal(anchors[..., 2], 1),
     #                             tf.logical_and(tf.less_equal(anchors[..., 3], 1),

@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 
-def generate_anchors(feature, image_shape = [1024, 1024], scale = [0.03125, 0.0625, 0.125, 0.25, 0.5], ratio = [0.5, 1, 2], normalize = True, auto_scale = True, flatten = True, concat = True, dtype = tf.float32):
+def generate_anchors(feature, image_shape = [1024, 1024], scale = [32, 64, 128, 256, 512], ratio = [0.5, 1, 2], normalize = True, auto_scale = True, flatten = True, concat = True, dtype = tf.float32):
     """
     feature = feature or [features] or shape or [shapes]
     scale = anchor_size scale
@@ -9,23 +9,34 @@ def generate_anchors(feature, image_shape = [1024, 1024], scale = [0.03125, 0.06
     """
     if tf.is_tensor(feature) or not isinstance(feature, list) or isinstance(feature[0], int):
         feature = [feature]
+    
+    if tf.is_tensor(image_shape) and 2 < tf.keras.backend.ndim(image_shape) or (not tf.is_tensor(image_shape) and 2 < np.ndim(image_shape)):
+        image_shape = tf.shape(image_shape) if tf.keras.backend.int_shape(image_shape)[-3] is None else tf.keras.backend.int_shape(image_shape)
+    if 2 < np.shape(image_shape)[0]:
+        image_shape = image_shape[-3:-1]
+        
+    scale = np.squeeze(scale)
     if np.ndim(scale) == 0:
-        scale = [scale]
-    if np.ndim(ratio) == 0:
-        ratio = [ratio]
-
-    if np.ndim(scale[0]) == 0:
-        if auto_scale and (len(scale) % len(feature)) == 0:
-            scale = tf.split(scale, len(feature))
-        else:
-            scale = [scale] * len(feature)
-    if np.ndim(ratio[0]) == 0:
-        ratio = [ratio] * len(feature)
+        scale = [[scale]]
+    elif np.ndim(scale) == 1:
+        scale = np.expand_dims(scale, axis = -1)
+    
+    if np.shape(scale)[-1] == 1:
+        scale = np.squeeze(scale, axis = -1)
+    if auto_scale:
+        if np.ndim(scale) != 2:
+            if (len(scale) % len(feature)) != 0:
+                scale = [scale] * len(feature)
+            else:
+                scale = np.expand_dims(scale, axis = -1)
+    
+    if np.ndim(ratio) != 2:
+        ratio = [([ratio] if np.ndim(ratio) == 0 else ratio)] * len(feature)
 
     out = []
     for x, scale, ratio in zip(feature, scale, ratio):
-        if np.ndim(scale) == 0 and not (tf.is_tensor(scale) and tf.keras.backend.ndim(scale) != 0):
-            scale = [scale]
+        #if np.ndim(scale) == 0 and not (tf.is_tensor(scale) and tf.keras.backend.ndim(scale) != 0):
+        #    scale = [scale]
         scale = [scale, scale]
         
         feature_shape = x
@@ -76,9 +87,9 @@ def generate_anchors(feature, image_shape = [1024, 1024], scale = [0.03125, 0.06
         out = tf.concat(out, axis = 0)
     return out
     
-def generate_yolo_anchors(feature, image_shape = [608, 608], size = [[0.01645, 0.02138], [0.02632, 0.04934], [0.05428, 0.03783],
-                                                                     [0.04934, 0.10033], [0.10197, 0.07401], [0.09704, 0.19572],
-                                                                     [0.19079, 0.14803], [0.25658, 0.32566], [0.61349, 0.53618]], 
+def generate_yolo_anchors(feature, image_shape = [608, 608], size = [[ 10, 13], [ 16,  30], [ 33,  23],
+                                                                     [ 30, 61], [ 62,  45], [ 59, 119],
+                                                                     [116, 90], [156, 198], [373, 326]],
                           normalize = True, auto_size = True, flatten = True, concat = True, dtype = tf.float32):
     """
     feature = feature or [features] or shape or [shapes]
@@ -86,21 +97,28 @@ def generate_yolo_anchors(feature, image_shape = [608, 608], size = [[0.01645, 0
     """
     if tf.is_tensor(feature) or not isinstance(feature, list) or isinstance(feature[0], int):
         feature = [feature]
-    if np.ndim(size) == 0: #only one val > s
+    
+    if tf.is_tensor(image_shape) and 2 < tf.keras.backend.ndim(image_shape) or (not tf.is_tensor(image_shape) and 2 < np.ndim(image_shape)):
+        image_shape = tf.shape(image_shape) if tf.keras.backend.int_shape(image_shape)[-3] is None else tf.keras.backend.int_shape(image_shape)
+    if 2 < np.shape(image_shape)[0]:
+        image_shape = image_shape[-3:-1]
+    
+    size = np.squeeze(size)
+    if np.ndim(size) == 0:
         size = [[size, size]]
-    elif np.ndim(size[0]) == 0: #only one size > [w, h]
-        size = [size]
+    elif np.ndim(size) == 1:
+        size = np.expand_dims(size, axis = -1)
 
-    if np.ndim(size[0][0]) == 0:
-        if auto_size and (len(size) % len(feature)) == 0:
-            size = tf.split(size, len(feature))
-        else:
-            size = [size] * len(feature)
+    if np.shape(size)[-1] == 1:
+        size = np.tile(size, [1, 2])
+    if auto_size and (len(size) % len(feature)) != 0:
+        size = np.tile(size, [len(feature), 1])
+    size = np.split(size, len(feature))
 
     out = []
     for x, size in zip(feature, size):
-        if np.ndim(size) == 0 and not (tf.is_tensor(size) and tf.keras.backend.ndim(size) != 0):
-            size = [size]
+        #if np.ndim(size) == 0 and not (tf.is_tensor(size) and tf.keras.backend.ndim(size) != 0):
+        #    size = [size]
         
         feature_shape = x
         if tf.is_tensor(x) and 2 < tf.keras.backend.ndim(x) or (not tf.is_tensor(x) and 2 < np.ndim(x)):
@@ -116,7 +134,7 @@ def generate_yolo_anchors(feature, image_shape = [608, 608], size = [[0.01645, 0
                 #for _ in range(ndim):
                 #    shape = tf.expand_dims(shape, axis = -1)
                 #size = tf.divide(tf.cast(size, dtype), tf.cast(shape, dtype))
-                size = tf.divide(tf.cast(size, dtype), tf.cast(tf.expand_dims(image_shape, axis = -1), dtype))
+                size = tf.divide(tf.cast(size, dtype), tf.cast(tf.expand_dims(image_shape, axis = 0), dtype))
             else:
                 stride = image_shape
         
@@ -153,6 +171,11 @@ def generate_points(feature, image_shape = [1024, 1024], stride = None, normaliz
         feature = [feature]
     if np.ndim(stride) == 0:
         stride = [stride] * len(feature)
+    
+    if tf.is_tensor(image_shape) and 2 < tf.keras.backend.ndim(image_shape) or (not tf.is_tensor(image_shape) and 2 < np.ndim(image_shape)):
+        image_shape = tf.shape(image_shape) if tf.keras.backend.int_shape(image_shape)[-3] is None else tf.keras.backend.int_shape(image_shape)
+    if 2 < np.shape(image_shape)[0]:
+        image_shape = image_shape[-3:-1]
     
     out = []
     for x, stride in zip(feature, stride):

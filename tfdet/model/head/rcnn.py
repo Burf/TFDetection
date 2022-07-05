@@ -418,7 +418,7 @@ def roi2level(bbox, n_level, input_shape = (224, 224)):
     return roi_level
 
 def rpn_head(feature, image_shape = [1024, 1024],
-             scale = [0.03125, 0.0625, 0.125, 0.25, 0.5], ratio = [0.5, 1, 2], auto_scale = True,
+             scale = [32, 64, 128, 256, 512], ratio = [0.5, 1, 2], octave = 1,
              n_feature = 256, use_bias = True, feature_share = True,
              convolution = conv, normalize = None, activation = tf.keras.activations.relu):
     if tf.is_tensor(image_shape) and 2 < tf.keras.backend.ndim(image_shape) or (not tf.is_tensor(image_shape) and 2 < np.ndim(image_shape)):
@@ -428,18 +428,20 @@ def rpn_head(feature, image_shape = [1024, 1024],
     if not isinstance(feature, list):
         feature = [feature]
     if np.ndim(scale) == 0:
-        scale = [scale]
+        scale = [[scale]]
+    elif np.ndim(scale) == 1:
+        scale = np.expand_dims(scale, axis = -1)
     if np.ndim(ratio) == 0:
         ratio = [ratio]
     feature = list(feature)
     
+    if np.ndim(scale) == 2 and np.shape(scale)[-1] == 1:
+        scale = np.multiply(scale, [[2 ** (o / octave) for o in range(octave)]])
     n_anchor = len(scale) * len(ratio)
-    if np.ndim(scale) == 2:
+    if (len(feature) % len(scale)) == 0:
         n_anchor = len(scale[0]) * len(ratio)
-    elif auto_scale and (len(scale) % len(feature)) == 0:
-        n_anchor = (len(scale) // len(feature)) * len(ratio)
     score, regress = RegionProposalNetwork(n_anchor, n_feature = n_feature, use_bias = use_bias, feature_share = feature_share, convolution = convolution, normalize = normalize, activation = activation, name = "region_proposal_network")(feature)
-    anchors = generate_anchors(feature, image_shape, scale, ratio, normalize = True, auto_scale = auto_scale, dtype = score.dtype)
+    anchors = generate_anchors(feature, image_shape, scale, ratio, normalize = True, auto_scale = True, dtype = score.dtype)
 
     #valid_flags = tf.logical_and(tf.less_equal(anchors[..., 2], 1),
     #                             tf.logical_and(tf.less_equal(anchors[..., 3], 1),

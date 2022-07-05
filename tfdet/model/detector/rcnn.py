@@ -67,10 +67,15 @@ def rcnn(feature, neck = neck, rpn_head = rpn_head, bbox_head = bbox_head, mask_
         if sampling_tag is not None and not (mask_head is not None and mask_info_flow and (stage + 1) == n_stage):
             kwargs = {"assign":sampling_assign[stage], "sampling_count":sampling_count, "positive_ratio":sampling_positive_ratio}
             if mask_head is not None and not (mask_info_flow and stage == 0):
-                sampling_y_true, sampling_bbox_true, sampling_mask_true, _proposals = tf.keras.layers.Lambda(sampling_mask_func, arguments = kwargs, name = "sampling_target_{0}".format(stage + 1))([sampling_y_true, sampling_bbox_true, _proposals, sampling_mask_true])
+                out = tf.keras.layers.Lambda(sampling_mask_func, arguments = kwargs, name = "sampling_target_{0}".format(stage + 1))([sampling_y_true, sampling_bbox_true, _proposals, sampling_mask_true])
+            else:
+                out = tf.keras.layers.Lambda(sampling_func, arguments = kwargs, name = "sampling_target_{0}".format(stage + 1))([sampling_y_true, sampling_bbox_true, _proposals])
+
+            if mask_head is not None and not (mask_info_flow and stage == 0):
+                sampling_y_true, sampling_bbox_true, sampling_mask_true, _proposals = out
                 sampling_tag["sampling_mask_true"].append(sampling_mask_true)
             else:
-                sampling_y_true, sampling_bbox_true, _proposals = tf.keras.layers.Lambda(sampling_func, arguments = kwargs, name = "sampling_target_{0}".format(stage + 1))([sampling_y_true, sampling_bbox_true, _proposals])
+                sampling_y_true, sampling_bbox_true, _proposals = out
                 sampling_tag["sampling_mask_true"].append(None)
             sampling_tag["sampling_y_true"].append(sampling_y_true)
             sampling_tag["sampling_bbox_true"].append(sampling_bbox_true)
@@ -101,7 +106,7 @@ def rcnn(feature, neck = neck, rpn_head = rpn_head, bbox_head = bbox_head, mask_
     return result
 
 def faster_rcnn(feature, n_class = 21, image_shape = [1024, 1024], 
-                scale = [0.03125, 0.0625, 0.125, 0.25, 0.5], ratio = [0.5, 1, 2], auto_scale = True,
+                scale = [32, 64, 128, 256, 512], ratio = [0.5, 1, 2], octave = 1,
                 rpn_n_feature = 256, rpn_use_bias = True, rpn_feature_share = True,
                 cls_n_feature = 1024,
                 proposal_count = 1000, iou_threshold = 0.7, soft_nms = False, performance_count = 5000,
@@ -115,7 +120,7 @@ def faster_rcnn(feature, n_class = 21, image_shape = [1024, 1024],
     for speed training(with roi sampling) > sampling_count = 256 (Recommended value for training to apply prior to roi sampling)> return rcnn_layers(rpn, cls, ...) + sampling_tag(sampling_tag is a argument for rcnn_train_model)
     """
     _rpn_head = functools.partial(rpn_head, image_shape = image_shape,
-                                  scale = scale, ratio = ratio, auto_scale = auto_scale,
+                                  scale = scale, ratio = ratio, octave = octave,
                                   n_feature = rpn_n_feature, use_bias = rpn_use_bias, feature_share = rpn_feature_share,
                                   convolution = rpn_convolution, normalize = rpn_normalize, activation = rpn_activation)
     _bbox_head = functools.partial(bbox_head, n_class = n_class, image_shape = image_shape, n_feature = cls_n_feature,
@@ -127,7 +132,7 @@ def faster_rcnn(feature, n_class = 21, image_shape = [1024, 1024],
                 sampling_assign = sampling_assign, sampling_count = sampling_count, sampling_positive_ratio = sampling_positive_ratio)
 
 def mask_rcnn(feature, n_class = 21, image_shape = [1024, 1024], 
-              scale = [0.03125, 0.0625, 0.125, 0.25, 0.5], ratio = [0.5, 1, 2], auto_scale = True,
+              scale = [32, 64, 128, 256, 512], ratio = [0.5, 1, 2], octave = 1,
               rpn_n_feature = 256, rpn_use_bias = True, rpn_feature_share = True,
               cls_n_feature = 1024, mask_n_feature = 256, mask_n_depth = 4, 
               proposal_count = 1000, iou_threshold = 0.7, soft_nms = False, performance_count = 5000,
@@ -142,7 +147,7 @@ def mask_rcnn(feature, n_class = 21, image_shape = [1024, 1024],
     for speed training(with roi sampling) > sampling_count = 256 (Recommended value for training to apply prior to roi sampling)> return rcnn_layers(rpn, cls, ...) + sampling_tag(sampling_tag is a argument for rcnn_train_model)
     """
     _rpn_head = functools.partial(rpn_head, image_shape = image_shape,
-                                  scale = scale, ratio = ratio, auto_scale = auto_scale,
+                                  scale = scale, ratio = ratio, octave = octave,
                                   n_feature = rpn_n_feature, use_bias = rpn_use_bias, feature_share = rpn_feature_share,
                                   convolution = rpn_convolution, normalize = rpn_normalize, activation = rpn_activation)
     _bbox_head = functools.partial(bbox_head, n_class = n_class, image_shape = image_shape, n_feature = cls_n_feature, 
@@ -157,7 +162,7 @@ def mask_rcnn(feature, n_class = 21, image_shape = [1024, 1024],
                 sampling_assign = sampling_assign, sampling_count = sampling_count, sampling_positive_ratio = sampling_positive_ratio)
 
 def cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], mask = False,
-                 scale = [0.03125, 0.0625, 0.125, 0.25, 0.5], ratio = [0.5, 1, 2], auto_scale = True,
+                 scale = [32, 64, 128, 256, 512], ratio = [0.5, 1, 2], octave = 1,
                  rpn_n_feature = 256, rpn_use_bias = True, rpn_feature_share = True,
                  cls_n_feature = 1024, mask_n_feature = 256, mask_n_depth = 4, 
                  proposal_count = 1000, iou_threshold = 0.7, soft_nms = False, performance_count = 5000,
@@ -172,7 +177,7 @@ def cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], mask = False
     for speed training(with roi sampling) > sampling_count = 256 (Recommended value for training to apply prior to roi sampling)> return rcnn_layers(rpn, cls, ...) + sampling_tag(sampling_tag is a argument for rcnn_train_model)
     """
     _rpn_head = functools.partial(rpn_head, image_shape = image_shape,
-                                  scale = scale, ratio = ratio, auto_scale = auto_scale,
+                                  scale = scale, ratio = ratio, octave = octave,
                                   n_feature = rpn_n_feature, use_bias = rpn_use_bias, feature_share = rpn_feature_share,
                                   convolution = rpn_convolution, normalize = rpn_normalize, activation = rpn_activation)
     _bbox_head = functools.partial(bbox_head, n_class = n_class, image_shape = image_shape, n_feature = cls_n_feature, 
@@ -190,7 +195,7 @@ def cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], mask = False
                 sampling_assign = sampling_assign, sampling_count = sampling_count, sampling_positive_ratio = sampling_positive_ratio)
     
 def hybrid_task_cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], mask = True, mask_info_flow = True, semantic_feature = True,
-                             scale = [0.03125, 0.0625, 0.125, 0.25, 0.5], ratio = [0.5, 1, 2], auto_scale = True,
+                             scale = [32, 64, 128, 256, 512], ratio = [0.5, 1, 2], octave = 1,
                              rpn_n_feature = 256, rpn_use_bias = True, rpn_feature_share = True,
                              cls_n_feature = 1024, mask_n_feature = 256, mask_n_depth = 4, semantic_level = 1, semantic_n_feature = 256, semantic_n_depth = 4, 
                              proposal_count = 1000, iou_threshold = 0.7, soft_nms = False, performance_count = 5000,
@@ -206,7 +211,7 @@ def hybrid_task_cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], 
     for speed training(with roi sampling) > sampling_count = 256 (Recommended value for training to apply prior to roi sampling)> return rcnn_layers(rpn, cls, ...) + sampling_tag(sampling_tag is a argument for rcnn_train_model)
     """
     _rpn_head = functools.partial(rpn_head, image_shape = image_shape,
-                                  scale = scale, ratio = ratio, auto_scale = auto_scale,
+                                  scale = scale, ratio = ratio, octave = octave,
                                   n_feature = rpn_n_feature, use_bias = rpn_use_bias, feature_share = rpn_feature_share,
                                   convolution = rpn_convolution, normalize = rpn_normalize, activation = rpn_activation)
     _bbox_head = functools.partial(bbox_head, n_class = n_class, image_shape = image_shape, n_feature = cls_n_feature, 
