@@ -24,7 +24,7 @@ def assign3(bbox_true, bbox_pred, positive_threshold = 0.7, negative_threshold =
     return max_iou(bbox_true, bbox_pred, positive_threshold = positive_threshold, negative_threshold = negative_threshold, min_threshold = min_threshold, match_low_quality = match_low_quality, mode = mode)
 
 def rcnn(feature, neck = neck, rpn_head = rpn_head, bbox_head = bbox_head, mask_head = None, semantic_head = None,
-         cascade = False, mask_info_flow = False,
+         cascade = False, interleaved = False, mask_info_flow = False,
          proposal_count = 1000, iou_threshold = 0.7, soft_nms = False, performance_count = 5000,
          mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, batch_size = 1,
          sampling_assign = [assign, assign2, assign3], sampling_count = None, sampling_positive_ratio = 0.25):
@@ -56,7 +56,7 @@ def rcnn(feature, neck = neck, rpn_head = rpn_head, bbox_head = bbox_head, mask_
         
         sampling_tag = {"sampling_assign":sampling_assign, "sampling_count":sampling_count, "positive_ratio":sampling_positive_ratio, "y_true":y_true, "bbox_true":bbox_true, "mask_true":mask_true, "sampling_y_true":[], "sampling_bbox_true":[], "sampling_mask_true":[]}
     
-    n_stage = (3 if cascade else 1) + (1 if mask_head is not None and mask_info_flow else 0)
+    n_stage = (3 if cascade else 1) + int(mask_head is not None and interleaved)
     feature = feature[:feature_count]
     mask_feature = semantic_regress = semantic_feature = None
     if semantic_head is not None:
@@ -64,14 +64,14 @@ def rcnn(feature, neck = neck, rpn_head = rpn_head, bbox_head = bbox_head, mask_
     cls_logits, cls_regress, proposals, mask_regress = [], [], [proposals], []
     for stage in range(n_stage):
         _proposals = proposals[-1]
-        if sampling_tag is not None and not (mask_head is not None and mask_info_flow and (stage + 1) == n_stage):
+        if sampling_tag is not None and not (mask_head is not None and interleaved and (stage + 1) == n_stage):
             kwargs = {"assign":sampling_assign[stage], "sampling_count":sampling_count, "positive_ratio":sampling_positive_ratio}
-            if mask_head is not None and not (mask_info_flow and stage == 0):
+            if mask_head is not None and not (interleaved and stage == 0):
                 out = tf.keras.layers.Lambda(sampling_mask_func, arguments = kwargs, name = "sampling_target_{0}".format(stage + 1))([sampling_y_true, sampling_bbox_true, _proposals, sampling_mask_true])
             else:
                 out = tf.keras.layers.Lambda(sampling_func, arguments = kwargs, name = "sampling_target_{0}".format(stage + 1))([sampling_y_true, sampling_bbox_true, _proposals])
 
-            if mask_head is not None and not (mask_info_flow and stage == 0):
+            if mask_head is not None and not (interleaved and stage == 0):
                 sampling_y_true, sampling_bbox_true, sampling_mask_true, _proposals = out
                 sampling_tag["sampling_mask_true"].append(sampling_mask_true)
             else:
@@ -81,18 +81,16 @@ def rcnn(feature, neck = neck, rpn_head = rpn_head, bbox_head = bbox_head, mask_
             sampling_tag["sampling_bbox_true"].append(sampling_bbox_true)
             proposals[-1] = _proposals
         
-        if not (mask_head is not None and mask_info_flow and (stage + 1) == n_stage):
+        if not (mask_head is not None and interleaved and (stage + 1) == n_stage):
             _cls_logits, _cls_regress = bbox_head(feature, _proposals, semantic_feature = semantic_feature)
             cls_logits.append(_cls_logits)
             cls_regress.append(_cls_regress)
         
         if mask_head is not None:
-            if mask_info_flow:
-                if 0 < stage:
-                    _mask_regress, mask_feature = mask_head(feature, _proposals, mask_feature = mask_feature, semantic_feature = semantic_feature)
-                    mask_regress.append(_mask_regress)
-            else:
-                _mask_regress, _ = mask_head(feature, _proposals, semantic_feature = semantic_feature)
+            if not interleaved or (interleaved and 0 < stage):
+                _mask_regress, mask_feature = mask_head(feature, _proposals, mask_feature = mask_feature, semantic_feature = semantic_feature)
+                if not mask_info_flow:
+                    mask_feature = None
                 mask_regress.append(_mask_regress)
         
         if (stage + 1) < n_stage:
@@ -127,11 +125,12 @@ def faster_rcnn(feature, n_class = 21, image_shape = [1024, 1024],
                                    pool_size = pool_size, method = method,
                                    convolution = cls_convolution, normalize = cls_normalize, activation = cls_activation)
     return rcnn(feature, neck = neck, rpn_head = _rpn_head, bbox_head = _bbox_head,
+                cascade = False, interleaved = False, mask_info_flow = False,
                 proposal_count = proposal_count, iou_threshold = iou_threshold, soft_nms = soft_nms, performance_count = performance_count,
                 mean = mean, std = std, clip_ratio = clip_ratio, batch_size = batch_size,
                 sampling_assign = sampling_assign, sampling_count = sampling_count, sampling_positive_ratio = sampling_positive_ratio)
 
-def mask_rcnn(feature, n_class = 21, image_shape = [1024, 1024], 
+def mask_rcnn(feature, n_class = 21, image_shape = [1024, 1024], interleaved = False,
               scale = [32, 64, 128, 256, 512], ratio = [0.5, 1, 2], octave = 1,
               rpn_n_feature = 256, rpn_use_bias = True, rpn_feature_share = True,
               cls_n_feature = 1024, mask_n_feature = 256, mask_n_depth = 4, 
@@ -157,6 +156,7 @@ def mask_rcnn(feature, n_class = 21, image_shape = [1024, 1024],
                                    pool_size = pool_size, method = method,
                                    convolution = mask_convolution, normalize = mask_normalize, activation = mask_activation)
     return rcnn(feature, neck = neck, rpn_head = _rpn_head, bbox_head = _bbox_head, mask_head = _mask_head,
+                cascade = False, interleaved = interleaved, mask_info_flow = False,
                 proposal_count = proposal_count, iou_threshold = iou_threshold, soft_nms = soft_nms, performance_count = performance_count,
                 mean = mean, std = std, clip_ratio = clip_ratio, batch_size = batch_size,
                 sampling_assign = sampling_assign, sampling_count = sampling_count, sampling_positive_ratio = sampling_positive_ratio)
@@ -189,12 +189,12 @@ def cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], mask = False
                                        pool_size = pool_size, method = method,
                                        convolution = mask_convolution, normalize = mask_normalize, activation = mask_activation)
     return rcnn(feature, neck = neck, rpn_head = _rpn_head, bbox_head = _bbox_head, mask_head = _mask_head,
-                cascade = True,
+                cascade = True, interleaved = False, mask_info_flow = False,
                 proposal_count = proposal_count, iou_threshold = iou_threshold, soft_nms = soft_nms, performance_count = performance_count,
                 mean = mean, std = std, clip_ratio = clip_ratio, batch_size = batch_size,
                 sampling_assign = sampling_assign, sampling_count = sampling_count, sampling_positive_ratio = sampling_positive_ratio)
     
-def hybrid_task_cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], mask = True, mask_info_flow = True, semantic_feature = True,
+def hybrid_task_cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], mask = True, interleaved = True, mask_info_flow = True, semantic_feature = True,
                              scale = [32, 64, 128, 256, 512], ratio = [0.5, 1, 2], octave = 1,
                              rpn_n_feature = 256, rpn_use_bias = True, rpn_feature_share = True,
                              cls_n_feature = 1024, mask_n_feature = 256, mask_n_depth = 4, semantic_level = 1, semantic_n_feature = 256, semantic_n_depth = 4, 
@@ -225,7 +225,7 @@ def hybrid_task_cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], 
     if semantic_feature:
         _semantic_head = functools.partial(semantic_head, n_class = n_class, level = semantic_level, n_feature = semantic_n_feature, n_depth = semantic_n_depth, method = method, logits_activation = semantic_logits_activation, convolution = semantic_convolution, normalize = semantic_normalize, activation = semantic_activation)
     return rcnn(feature, neck = neck, rpn_head = _rpn_head, bbox_head = _bbox_head, mask_head = _mask_head, semantic_head = _semantic_head,
-                cascade = True, mask_info_flow = mask_info_flow,
+                cascade = True, interleaved = interleaved, mask_info_flow = mask_info_flow,
                 proposal_count = proposal_count, iou_threshold = iou_threshold, soft_nms = soft_nms, performance_count = performance_count,
                 mean = mean, std = std, clip_ratio = clip_ratio, batch_size = batch_size,
                 sampling_assign = sampling_assign, sampling_count = sampling_count, sampling_positive_ratio = sampling_positive_ratio)

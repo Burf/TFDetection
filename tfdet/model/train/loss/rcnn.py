@@ -132,15 +132,27 @@ def mask_loss(y_true, mask_true, mask_pred, missing_value = 0.):
     loss = tf.where(tf.math.is_nan(loss), missing_value, loss)
     return loss
 
-def semantic_loss(mask_true, semantic_pred):
+def semantic_loss(y_true, mask_true, semantic_pred, method = "bilinear", weight = None, missing_value = 0.):
     """
+    y_true = targeted y_true #(batch_size, padded_num_true, 1 or num_class)
     mask_true = mask_true #(batch_size, padded_num_true, h, w)
-    semantic_pred = semantic_regress #(batch_size, sampling_count, h, w)
+    semantic_pred = semantic_regress #(batch_size, h, w, n_class)
     """
-    semantic_true = tf.reduce_max(mask_true, axis = 1)
-    if tf.keras.backend.ndim(semantic_true) == 3:
-        semantic_true = tf.expand_dims(semantic_true, axis = -1)
-    semantic_true = tf.image.resize(semantic_true, tf.shape(semantic_pred)[-3:-1], method = "bilinear")
-    loss = tf.keras.losses.sparse_categorical_crossentropy(semantic_true, semantic_pred)
+    y_true = tf.cond(tf.equal(tf.shape(y_true)[-1], 1), true_fn = lambda: tf.one_hot(tf.cast(y_true, tf.int32), tf.shape(semantic_pred)[-1])[..., 0, :], false_fn = lambda: y_true)
+    y_true = tf.expand_dims(tf.expand_dims(y_true, axis = -2), axis = -2)
+    mask_true = tf.expand_dims(mask_true, axis = -1)
+    semantic_true = tf.multiply(tf.cast(y_true, mask_true.dtype), mask_true)
+    semantic_true = tf.reduce_max(semantic_true, axis = -4)
+    semantic_true = tf.image.resize(semantic_true, tf.shape(semantic_pred)[-3:-1], method = method)
+    
+    semantic_pred = semantic_pred / (tf.reduce_sum(semantic_pred, axis = -1, keepdims = True) + tf.keras.backend.epsilon())
+    semantic_pred = tf.clip_by_value(semantic_pred, tf.keras.backend.epsilon(), 1. - tf.keras.backend.epsilon())
+    
+    loss = -tf.cast(semantic_true, semantic_pred.dtype) * tf.math.log(semantic_pred)
+    if weight is not None:
+        loss *= weight
+
+    loss = tf.reduce_sum(loss, axis = -1)
     loss = tf.reduce_mean(loss)
+    loss = tf.where(tf.math.is_nan(loss), missing_value, loss)
     return loss

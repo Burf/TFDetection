@@ -82,7 +82,7 @@ def train_model(input, rpn_score = None, rpn_regress = None, anchors = None, cls
         mask_assign = cls_assign
         mask_stage_weight = stage_weight = [stage_weight] * len(cls_logits) if isinstance(stage_weight, float) or isinstance(stage_weight, int) else stage_weight
         
-        #len(proposals) > 1 = faster_rcnn or mask_rcnn 2 = mask_rcnn + mask_info_flow, 3 = cascade_rcnn, 4 = cascade_rcnn + mask + mask_info_flow(hybrid_task_cascade_rcnn)
+        #len(proposals) > 1 = faster_rcnn or mask_rcnn 2 = mask_rcnn + interleaved, 3 = cascade_rcnn, 4 = cascade_rcnn + mask + interleaved(hybrid_task_cascade_rcnn)
         #len(cls_logits) > 1 = faster_rcnn or mask_rcnn + @, 3 = cascade_rcnn + @
         if len(proposals) in [2, 4]:
             cls_logits, cls_regress, mask_regress = cls_logits + [None], cls_regress + [None], [None] + mask_regress
@@ -115,7 +115,7 @@ def train_model(input, rpn_score = None, rpn_regress = None, anchors = None, cls
                     cls_y_true, cls_bbox_true, cls_mask_true, cls_y_pred, cls_bbox_pred, cls_mask_pred = tf.keras.layers.Lambda(cls_mask_func, arguments = kwargs, name = "cls_target{0}".format(i + 1) if 1 < len(proposals) else "cls_target")([cls_y_true, cls_bbox_true, _cls_logits, _cls_regress, _proposals, cls_mask_true, _mask_regress])
                 else:
                     cls_y_true, cls_bbox_true, cls_y_pred, cls_bbox_pred = tf.keras.layers.Lambda(cls_func, arguments = kwargs, name = "cls_target{0}".format(i + 1) if 1 < len(proposals) else "cls_target")([cls_y_true, cls_bbox_true, _cls_logits, _cls_regress, _proposals])
-            elif _mask_regress is not None: #last mask for mask info flow
+            elif _mask_regress is not None: #last mask for interleaved
                 kwargs = {"assign":mask_assign[i], "sampling_count":sampling_count, "positive_ratio":cls_positive_ratio, "mean":mean, "std":std, "method":method}
                 cls_mask_true, cls_mask_pred = tf.keras.layers.Lambda(mask_func, arguments = kwargs, name = "cls_target{0}".format(i + 1) if 1 < len(proposals) else "cls_target")([cls_y_true, cls_bbox_true, cls_mask_true, _mask_regress, _proposals])
             
@@ -134,7 +134,7 @@ def train_model(input, rpn_score = None, rpn_regress = None, anchors = None, cls
                 loss["cls_mask_loss{0}".format(mask_index) if 2 < len(proposals) else "cls_mask_loss"] = cls_mask_loss * mask_stage_weight[i]
 
         if semantic_regress is not None:
-            _semantic_loss = tf.keras.layers.Lambda(lambda args: semantic_loss(*args), name = "semantic_loss")([mask_true, semantic_regress])
+            _semantic_loss = tf.keras.layers.Lambda(lambda args: semantic_loss(*args, method = method, weight = class_weight, missing_value = missing_value), name = "semantic_loss")([y_true, mask_true, semantic_regress])
             loss["semantic_loss"] = _semantic_loss * semantic_weight
     
     metric = {k:tf.expand_dims(v, axis = -1) for k, v in metric.items()}
