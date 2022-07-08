@@ -143,6 +143,7 @@ def semantic_loss(y_true, mask_true, semantic_pred, method = "bilinear", weight 
     y_true = tf.cond(tf.equal(tf.shape(y_true)[-1], 1), true_fn = lambda: tf.one_hot(tf.cast(y_true, tf.int32), semantic_shape[-1])[..., 0, :], false_fn = lambda: y_true)
     semantic_true = tf.reshape(mask_true, [mask_shape[0] * mask_shape[1], mask_shape[2], mask_shape[3], 1])
     semantic_true = tf.image.resize(semantic_true, semantic_shape[-3:-1], method = method)
+    semantic_true = tf.clip_by_value(tf.round(semantic_true), 0., 1.)
     semantic_true = tf.reshape(semantic_true, [mask_shape[0], mask_shape[1], semantic_shape[-3], semantic_shape[-2], 1])
     semantic_true = tf.multiply(tf.cast(tf.expand_dims(tf.expand_dims(y_true, axis = -2), axis = -2), semantic_true.dtype), semantic_true)
     semantic_true = tf.reduce_max(semantic_true, axis = -4)
