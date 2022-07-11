@@ -12,7 +12,7 @@ def classnet_accuracy(y_true, y_pred, missing_value = 0.):
     y_true = tf.reshape(y_true, (-1, n_true_class))
     y_pred = tf.reshape(y_pred, (-1, n_pred_class))
     
-    pred_indices = tf.where(tf.reduce_max(tf.cast(0 < y_pred, tf.int32), axis = -1))
+    pred_indices = tf.where(0 < tf.reduce_max(y_pred, axis = -1))
     y_true = tf.gather_nd(y_true, pred_indices)
     y_pred = tf.gather_nd(y_pred, pred_indices)
     
@@ -35,7 +35,7 @@ def classnet_loss(y_true, y_pred, focal = True, alpha = .25, gamma = 1.5, weight
     y_true = tf.reshape(y_true, (-1, n_true_class))
     y_pred = tf.reshape(y_pred, (-1, n_pred_class))
     
-    pred_indices = tf.where(tf.reduce_max(tf.cast(0 < y_pred, tf.int32), axis = -1))
+    pred_indices = tf.where(0 < tf.reduce_max(y_pred, axis = -1))
     y_true = tf.gather_nd(y_true, pred_indices)
     y_pred = tf.gather_nd(y_pred, pred_indices)
     

@@ -48,7 +48,7 @@ def logits_accuracy(y_true, y_pred, missing_value = 0.):
     y_true = tf.reshape(y_true, (-1, n_true_class))
     y_pred = tf.reshape(y_pred, (-1, n_pred_class))
     
-    pred_indices = tf.where(tf.reduce_max(tf.cast(0 < y_pred, tf.int32), axis = -1))
+    pred_indices = tf.where(0 < tf.reduce_max(y_pred, axis = -1))
     y_true = tf.gather_nd(y_true, pred_indices)
     y_pred = tf.gather_nd(y_pred, pred_indices)
     
@@ -71,7 +71,7 @@ def logits_loss(y_true, y_pred, focal = True, alpha = 1., gamma = 2., weight = N
     y_true = tf.reshape(y_true, (-1, n_true_class))
     y_pred = tf.reshape(y_pred, (-1, n_pred_class))
     
-    pred_indices = tf.where(tf.reduce_max(tf.cast(0 < y_pred, tf.int32), axis = -1))
+    pred_indices = tf.where(0 < tf.reduce_max(y_pred, axis = -1))
     y_true = tf.gather_nd(y_true, pred_indices)
     y_pred = tf.gather_nd(y_pred, pred_indices)
     
@@ -116,13 +116,14 @@ def mask_loss(y_true, mask_true, mask_pred, missing_value = 0.):
     mask_true = targeted true mask #(batch_size, sampling_count, h, w)
     mask_pred = targeted pred mask #(batch_size, sampling_count, h, w)
     """
-    y_true = tf.cond(tf.equal(tf.shape(y_true)[-1], 1), true_fn = lambda: y_true, false_fn = lambda: tf.expand_dims(tf.cast(tf.argmax(y_true, -1), y_true.dtype), axis = -1))
-    y_true = tf.reshape(y_true, (-1,))
     true_shape = tf.shape(mask_true)
     mask_true = tf.reshape(mask_true, (-1, true_shape[-2], true_shape[-1]))
     pred_shape = tf.shape(mask_pred)
     mask_pred = tf.reshape(mask_pred, (-1, pred_shape[-2], pred_shape[-1]))
     
+    #true_indices = tf.where(0 < tf.reduce_max(mask_true, axis = [-1, -2]))
+    y_true = tf.cond(tf.equal(tf.shape(y_true)[-1], 1), true_fn = lambda: y_true, false_fn = lambda: tf.expand_dims(tf.cast(tf.argmax(y_true, -1), y_true.dtype), axis = -1))
+    y_true = tf.reshape(y_true, (-1,))
     true_indices = tf.where(0 < y_true)
     mask_true = tf.gather_nd(mask_true, true_indices)
     mask_pred = tf.gather_nd(mask_pred, true_indices)

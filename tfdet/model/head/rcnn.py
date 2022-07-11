@@ -285,7 +285,7 @@ class RoiMask(tf.keras.layers.Layer):
 def classifier2proposal(cls_logit, cls_regress, proposal, valid = True, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000):
     if valid:
         sampling_count = tf.shape(proposal)[0]
-        valid_indices = tf.where(tf.reduce_max(tf.cast(0 < proposal, tf.int32), axis = -1))
+        valid_indices = tf.where(0 < tf.reduce_max(proposal, axis = -1))
         cls_logit = tf.gather_nd(cls_logit, valid_indices)
         cls_regress = tf.gather_nd(cls_regress, valid_indices)
         proposal = tf.gather_nd(proposal, valid_indices)

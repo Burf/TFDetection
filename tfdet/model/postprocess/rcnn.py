@@ -14,7 +14,7 @@ def filter_detection(cls_logit, cls_regress, proposal, mask_regress = None, prop
     proposal = [[x1, y1, x2, y2], ...] #(proposal_count, bbox)
     mask = targeted mask #(proposal_count, h, w)
     """
-    valid_indices = tf.where(tf.reduce_max(tf.cast(0 < proposal, tf.int32), axis = -1))
+    valid_indices = tf.where(0 < tf.reduce_max(proposal, axis = -1))
     cls_logit = tf.gather_nd(cls_logit, valid_indices)
     cls_regress = tf.gather_nd(cls_regress, valid_indices)
     proposal = tf.gather_nd(proposal, valid_indices)

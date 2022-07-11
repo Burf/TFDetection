@@ -53,10 +53,9 @@ def rcnn(feature, neck = neck, rpn_head = rpn_head, bbox_head = bbox_head, mask_
         
         sampling_func = lambda args, **kwarg: map_fn(sampling_target, *args, dtype = (sampling_y_true.dtype, sampling_bbox_true.dtype, sampling_bbox_true.dtype), batch_size = batch_size, **kwargs)
         sampling_mask_func = lambda args, **kwarg: map_fn(sampling_target, *args, dtype = (sampling_y_true.dtype, sampling_bbox_true.dtype, sampling_mask_true.dtype, sampling_bbox_true.dtype), batch_size = batch_size, **kwargs)
-        
         sampling_tag = {"sampling_assign":sampling_assign, "sampling_count":sampling_count, "positive_ratio":sampling_positive_ratio, "y_true":y_true, "bbox_true":bbox_true, "mask_true":mask_true, "sampling_y_true":[], "sampling_bbox_true":[], "sampling_mask_true":[]}
     
-    n_stage = (3 if cascade else 1) + int(mask_head is not None and interleaved)
+    n_stage = 3 if cascade else 1
     feature = feature[:feature_count]
     mask_feature = semantic_regress = semantic_feature = None
     if semantic_head is not None:
@@ -64,38 +63,30 @@ def rcnn(feature, neck = neck, rpn_head = rpn_head, bbox_head = bbox_head, mask_
     cls_logits, cls_regress, proposals, mask_regress = [], [], [proposals], []
     for stage in range(n_stage):
         _proposals = proposals[-1]
-        if sampling_tag is not None and not (mask_head is not None and interleaved and (stage + 1) == n_stage):
-            kwargs = {"assign":sampling_assign[stage], "sampling_count":sampling_count, "positive_ratio":sampling_positive_ratio}
-            if mask_head is not None and not (interleaved and stage == 0):
-                out = tf.keras.layers.Lambda(sampling_mask_func, arguments = kwargs, name = "sampling_target_{0}".format(stage + 1))([sampling_y_true, sampling_bbox_true, _proposals, sampling_mask_true])
+        if sampling_tag is not None:
+            kwargs = {"assign":sampling_assign[stage if stage < len(sampling_assign) else stage - 1], "sampling_count":sampling_count, "positive_ratio":sampling_positive_ratio}
+            if mask_head:
+                sampling_y_true, sampling_bbox_true, sampling_mask_true, _proposals = tf.keras.layers.Lambda(sampling_mask_func, arguments = kwargs, name = "sampling_target_{0}".format(stage + 1))([sampling_y_true, sampling_bbox_true, _proposals, sampling_mask_true])
             else:
-                out = tf.keras.layers.Lambda(sampling_func, arguments = kwargs, name = "sampling_target_{0}".format(stage + 1))([sampling_y_true, sampling_bbox_true, _proposals])
-
-            if mask_head is not None and not (interleaved and stage == 0):
-                sampling_y_true, sampling_bbox_true, sampling_mask_true, _proposals = out
-                sampling_tag["sampling_mask_true"].append(sampling_mask_true)
-            else:
-                sampling_y_true, sampling_bbox_true, _proposals = out
-                sampling_tag["sampling_mask_true"].append(None)
+                sampling_y_true, sampling_bbox_true, _proposals = tf.keras.layers.Lambda(sampling_func, arguments = kwargs, name = "sampling_target_{0}".format(stage + 1))([sampling_y_true, sampling_bbox_true, _proposals])
             sampling_tag["sampling_y_true"].append(sampling_y_true)
             sampling_tag["sampling_bbox_true"].append(sampling_bbox_true)
+            sampling_tag["sampling_mask_true"].append(sampling_mask_true)
             proposals[-1] = _proposals
         
-        if not (mask_head is not None and interleaved and (stage + 1) == n_stage):
-            _cls_logits, _cls_regress = bbox_head(feature, _proposals, semantic_feature = semantic_feature)
-            cls_logits.append(_cls_logits)
-            cls_regress.append(_cls_regress)
+        _cls_logits, _cls_regress = bbox_head(feature, _proposals, semantic_feature = semantic_feature)
+        cls_logits.append(_cls_logits)
+        cls_regress.append(_cls_regress)
         
+        if (stage + 1) < (n_stage + int(mask_head is not None and interleaved)):
+            out = Classifier2Proposal(True, batch_size, mean, std, clip_ratio, name = "proposals_{0}".format(stage + 2))([cls_logits[-1], cls_regress[-1], proposals[-1]])
+            if interleaved:
+                _proposals = out
+            proposals.append(out)
+            
         if mask_head is not None:
-            if not interleaved or (interleaved and 0 < stage):
-                _mask_regress, mask_feature = mask_head(feature, _proposals, mask_feature = mask_feature, semantic_feature = semantic_feature)
-                if not mask_info_flow:
-                    mask_feature = None
-                mask_regress.append(_mask_regress)
-        
-        if (stage + 1) < n_stage:
-            _proposals = Classifier2Proposal(True, batch_size, mean, std, clip_ratio, name = "proposals_{0}".format(stage + 2))([cls_logits[-1], cls_regress[-1], proposals[-1]])
-            proposals.append(_proposals)
+            _mask_regress, mask_feature = mask_head(feature, _proposals, mask_feature = mask_feature if mask_info_flow else None, semantic_feature = semantic_feature)
+            mask_regress.append(_mask_regress)
     
     if len(mask_regress) == 0:
         mask_regress = None
@@ -161,7 +152,7 @@ def mask_rcnn(feature, n_class = 21, image_shape = [1024, 1024], interleaved = F
                 mean = mean, std = std, clip_ratio = clip_ratio, batch_size = batch_size,
                 sampling_assign = sampling_assign, sampling_count = sampling_count, sampling_positive_ratio = sampling_positive_ratio)
 
-def cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], mask = False,
+def cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], mask = False, interleaved = False, mask_info_flow = False,
                  scale = [32, 64, 128, 256, 512], ratio = [0.5, 1, 2], octave = 1,
                  rpn_n_feature = 256, rpn_use_bias = True, rpn_feature_share = True,
                  cls_n_feature = 1024, mask_n_feature = 256, mask_n_depth = 4, 
@@ -189,7 +180,7 @@ def cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], mask = False
                                        pool_size = pool_size, method = method,
                                        convolution = mask_convolution, normalize = mask_normalize, activation = mask_activation)
     return rcnn(feature, neck = neck, rpn_head = _rpn_head, bbox_head = _bbox_head, mask_head = _mask_head,
-                cascade = True, interleaved = False, mask_info_flow = False,
+                cascade = True, interleaved = interleaved, mask_info_flow = mask_info_flow,
                 proposal_count = proposal_count, iou_threshold = iou_threshold, soft_nms = soft_nms, performance_count = performance_count,
                 mean = mean, std = std, clip_ratio = clip_ratio, batch_size = batch_size,
                 sampling_assign = sampling_assign, sampling_count = sampling_count, sampling_positive_ratio = sampling_positive_ratio)

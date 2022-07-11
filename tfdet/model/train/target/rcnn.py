@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from tfdet.core.assign import max_iou
-from tfdet.core.bbox import bbox2delta
+from tfdet.core.bbox import bbox2delta, delta2bbox
 
 def rpn_assign(bbox_true, bbox_pred, positive_threshold = 0.7, negative_threshold = 0.3, min_threshold = 0.3, match_low_quality = True, mode = "normal"):
     return max_iou(bbox_true, bbox_pred, positive_threshold = positive_threshold, negative_threshold = negative_threshold, min_threshold = min_threshold, match_low_quality = match_low_quality, mode = mode)
@@ -21,7 +21,7 @@ def rpn_target(bbox_true, rpn_score, rpn_regress, anchors, assign = rpn_assign, 
     y_pred = -1 : negative / 0 : neutral / 1 : positive #(sampling_count, 1)
     bbox_pred = [[x1, y1, x2, y2], ...] #(sampling_count, delta)
     """
-    valid_indices = tf.where(tf.reduce_max(tf.cast(0 < bbox_true, tf.int32), axis = -1))
+    valid_indices = tf.where(0 < tf.reduce_max(bbox_true, axis = -1))
     bbox_true = tf.gather_nd(bbox_true, valid_indices)
     valid_flags = tf.logical_and(tf.less_equal(anchors[..., 2], 1),
                              tf.logical_and(tf.less_equal(anchors[..., 3], 1),
@@ -78,10 +78,10 @@ def sampling_target(y_true, bbox_true, proposal, mask_true = None, assign = cls_
     proposal = [[x1, y1, x2, y2], ...] #(sampling_count, bbox)
     """
     pred_count = tf.shape(proposal)[0]
-    valid_true_indices = tf.where(tf.reduce_max(tf.cast(0 < bbox_true, tf.int32), axis = -1))
+    valid_true_indices = tf.where(0 < tf.reduce_max(bbox_true, axis = -1))
     y_true = tf.gather_nd(y_true, valid_true_indices)
     bbox_true = tf.gather_nd(bbox_true, valid_true_indices)
-    valid_pred_indices = tf.where(tf.reduce_max(tf.cast(0 < proposal, tf.int32), axis = -1))
+    valid_pred_indices = tf.where(0 < tf.reduce_max(proposal, axis = -1))
     proposal = tf.gather_nd(proposal, valid_pred_indices)
     if mask_true is not None:
         mask_true = tf.gather_nd(mask_true, valid_true_indices)
@@ -119,14 +119,14 @@ def sampling_target(y_true, bbox_true, proposal, mask_true = None, assign = cls_
         result = y_true, bbox_true, mask_true, proposal
     return result
 
-def sampling_postprocess(y_true, bbox_true, cls_logits, cls_regress, proposal, mask_true = None, mask_regress = None, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], method = "bilinear"):
+def sampling_postprocess(y_true, bbox_true, cls_logits, cls_regress, proposal, mask_true = None, mask_regress = None, interleaved = False, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], method = "bilinear"):
     if mask_true is not None:
         if tf.keras.backend.ndim(mask_true) == 3:
             mask_true = tf.expand_dims(mask_true, axis = -1)
 
     sampling_count = tf.shape(proposal)[0]
-    positive_indices = tf.where(tf.reduce_max(tf.cast(0 < bbox_true, tf.int32), axis = -1))
-    pred_indices = tf.where(tf.reduce_max(tf.cast(0 < proposal, tf.int32), axis = -1))
+    positive_indices = tf.where(0 < tf.reduce_max(bbox_true, axis = -1))
+    pred_indices = tf.where(0 < tf.reduce_max(proposal, axis = -1))
     y_true = tf.gather_nd(y_true, positive_indices)
     bbox_true = tf.gather_nd(bbox_true, positive_indices)
     y_pred = tf.gather_nd(cls_logits, pred_indices)
@@ -144,6 +144,9 @@ def sampling_postprocess(y_true, bbox_true, cls_logits, cls_regress, proposal, m
         indices = tf.stack([tf.range(tf.shape(label)[0]), tf.cast(label[:, 0], tf.int32)], axis = -1)
         bbox_pred = tf.gather_nd(bbox_pred, indices)
         if mask_true is not None and mask_regress is not None:
+            if interleaved:
+                proposal = delta2bbox(proposal, bbox_pred, mean, std)
+                proposal = tf.clip_by_value(proposal, 0, 1)
             x1, y1, x2, y2 = tf.split(proposal, 4, axis = -1)
             mask_bbox = tf.concat([y1, x1, y2, x2], axis = -1)
             mask_shape = tf.shape(mask_pred)
@@ -172,7 +175,7 @@ def sampling_postprocess(y_true, bbox_true, cls_logits, cls_regress, proposal, m
         result = y_true, bbox_true, mask_true, y_pred, bbox_pred, mask_pred
     return result
 
-def cls_target(y_true, bbox_true, cls_logit, cls_regress, proposal, mask_true = None, mask_regress = None, assign = cls_assign, sampling_count = 256, positive_ratio = 0.25, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], method = "bilinear"):
+def cls_target(y_true, bbox_true, cls_logit, cls_regress, proposal, mask_true = None, mask_regress = None, assign = cls_assign, sampling_count = 256, positive_ratio = 0.25, interleaved = False, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], method = "bilinear"):
     """
     y_true = label #(padded_num_true, 1 or num_class)
     bbox_true = [[x1, y1, x2, y2], ...] #(padded_num_true, bbox)
@@ -194,10 +197,10 @@ def cls_target(y_true, bbox_true, cls_logit, cls_regress, proposal, mask_true = 
             mask_true = tf.expand_dims(mask_true, axis = -1)
     
     pred_count = tf.shape(proposal)[0]
-    valid_true_indices = tf.where(tf.reduce_max(tf.cast(0 < bbox_true, tf.int32), axis = -1))
+    valid_true_indices = tf.where(0 < tf.reduce_max(bbox_true, axis = -1))
     y_true = tf.gather_nd(y_true, valid_true_indices)
     bbox_true = tf.gather_nd(bbox_true, valid_true_indices)
-    valid_pred_indices = tf.where(tf.reduce_max(tf.cast(0 < proposal, tf.int32), axis = -1))
+    valid_pred_indices = tf.where(0 < tf.reduce_max(proposal, axis = -1))
     cls_logit = tf.gather_nd(cls_logit, valid_pred_indices)
     cls_regress = tf.gather_nd(cls_regress, valid_pred_indices)
     proposal = tf.gather_nd(proposal, valid_pred_indices)
@@ -236,6 +239,9 @@ def cls_target(y_true, bbox_true, cls_logit, cls_regress, proposal, mask_true = 
         indices = tf.stack([tf.range(tf.shape(label)[0]), tf.cast(label[:, 0], tf.int32)], axis = -1)
         bbox_pred = tf.gather_nd(bbox_pred, indices)
         if mask_true is not None and mask_regress is not None:
+            if interleaved:
+                proposal = delta2bbox(proposal, bbox_pred, mean, std)
+                proposal = tf.clip_by_value(proposal, 0, 1)
             x1, y1, x2, y2 = tf.split(proposal, 4, axis = -1)
             mask_bbox = tf.concat([y1, x1, y2, x2], axis = -1)
             mask_shape = tf.shape(mask_pred)
@@ -262,69 +268,3 @@ def cls_target(y_true, bbox_true, cls_logit, cls_regress, proposal, mask_true = 
         mask_pred = tf.pad(mask_pred, [[0, negative_count + pad_count], [0, 0], [0, 0]])
         result = y_true, bbox_true, mask_true, y_pred, bbox_pred, mask_pred
     return result
-
-def mask_target(y_true, bbox_true, mask_true, mask_regress, proposal, assign = cls_assign, sampling_count = 256, positive_ratio = 0.25, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], method = "bilinear"):
-    """
-    y_true = label #(padded_num_true, 1 or num_class)
-    bbox_true = [[x1, y1, x2, y2], ...] #(padded_num_true, bbox)
-    mask_true = mask #(padded_num_true, h, w)
-    mask_regress = mask regress #(num_proposals, h, w, num_class)
-    proposal = [[x1, y1, x2, y2], ...] #(num_proposals, bbox)
-
-    mask_true = targeted mask true #(sampling_count, h, w)
-    mask_pred = targeted mask regress #(sampling_count, h, w)
-    """
-    if tf.keras.backend.ndim(mask_true) == 3:
-        mask_true = tf.expand_dims(mask_true, axis = -1)
-    
-    pred_count = tf.shape(proposal)[0]
-    valid_true_indices = tf.where(tf.reduce_max(tf.cast(0 < bbox_true, tf.int32), axis = -1))
-    y_true = tf.gather_nd(y_true, valid_true_indices)
-    bbox_true = tf.gather_nd(bbox_true, valid_true_indices)
-    valid_pred_indices = tf.where(tf.reduce_max(tf.cast(0 < proposal, tf.int32), axis = -1))
-    proposal = tf.gather_nd(proposal, valid_pred_indices)
-    mask_true = tf.gather_nd(mask_true, valid_true_indices)
-    mask_regress = tf.gather_nd(mask_regress, valid_pred_indices)
-
-    true_indices, positive_indices, negative_indices = assign(bbox_true, proposal)
-    
-    if isinstance(sampling_count, int) and 0 < sampling_count:
-        positive_count = tf.cast(sampling_count * positive_ratio, tf.int32)
-        indices = tf.range(tf.shape(positive_indices)[0])
-        indices = tf.random.shuffle(indices)[:positive_count]
-        positive_indices = tf.gather(positive_indices, indices)
-        true_indices = tf.gather(true_indices, indices)
-        positive_count = tf.cast(tf.shape(positive_indices)[0], mask_regress.dtype)
-        negative_count = tf.cast(1 / positive_ratio * positive_count - positive_count, tf.int32)
-        negative_indices = tf.random.shuffle(negative_indices)[:negative_count]
-    else:
-        sampling_count = pred_count
-    pred_indices = tf.concat([positive_indices, negative_indices], axis = 0)
-    
-    y_true = tf.gather(y_true, true_indices)
-    proposal = tf.gather(proposal, positive_indices)
-    mask_true = tf.gather(mask_true, true_indices)
-    mask_pred = tf.gather(mask_regress, positive_indices)
-
-    n_class = tf.shape(y_true)[-1]
-    if tf.keras.backend.int_shape(true_indices)[0] != 0:
-        label = tf.cond(tf.equal(n_class, 1), true_fn = lambda: y_true, false_fn = lambda: tf.expand_dims(tf.cast(tf.argmax(y_true, axis = -1), y_true.dtype), axis = -1))    
-        indices = tf.stack([tf.range(tf.shape(label)[0]), tf.cast(label[:, 0], tf.int32)], axis = -1)
-        if mask_true is not None and mask_regress is not None:
-            x1, y1, x2, y2 = tf.split(proposal, 4, axis = -1)
-            mask_bbox = tf.concat([y1, x1, y2, x2], axis = -1)
-            mask_shape = tf.shape(mask_pred)
-            mask_true = tf.image.crop_and_resize(image = tf.cast(mask_true, mask_pred.dtype), boxes = mask_bbox, box_indices = tf.range(0, tf.cast(positive_count, tf.int32)), crop_size = mask_shape[1:3], method = method)
-            mask_true = mask_true[..., 0]
-            mask_true = tf.clip_by_value(tf.round(mask_true), 0., 1.)
-            mask_pred = tf.transpose(mask_pred, [0, 3, 1, 2])
-            mask_pred = tf.gather_nd(mask_pred, indices)
-    else:
-        mask_pred = mask_pred[..., 0]
-        mask_true = tf.zeros_like(mask_pred, dtype = mask_pred.dtype)
-    
-    negative_count = tf.shape(negative_indices)[0]
-    pad_count = tf.maximum(sampling_count - tf.shape(pred_indices)[0], 0)
-    mask_true = tf.pad(mask_true, [[0, negative_count + pad_count], [0, 0], [0, 0]])
-    mask_pred = tf.pad(mask_pred, [[0, negative_count + pad_count], [0, 0], [0, 0]])
-    return mask_true, mask_pred
