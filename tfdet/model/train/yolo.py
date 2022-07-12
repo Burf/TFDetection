@@ -6,11 +6,8 @@ from tfdet.core.util import map_fn
 from .loss.yolo import score_accuracy, score_loss, logits_accuracy, logits_loss, regress_loss
 from .target import yolo_target
 
-def yolo_assign(bbox_true, bbox_pred, positive_threshold = 0.5, negative_threshold = 0.4, min_threshold = 0.0001, match_low_quality = True, mode = "normal"):
-    return max_iou(bbox_true, bbox_pred, positive_threshold = positive_threshold, negative_threshold = negative_threshold, min_threshold = min_threshold, match_low_quality = match_low_quality, mode = mode)
-
 def train_model(input, score, logits, regress, anchors,
-                assign = yolo_assign, sampling_count = 256, positive_ratio = 0.5,
+                assign = max_iou, sampling_count = 256, positive_ratio = 0.5,
                 batch_size = 1, clip_ratio = 16 / 1000, regularize = True, weight_decay = 1e-4, mode = "general", focal = True, alpha = .25, gamma = 1.5, class_weight = None, threshold = 0.5, missing_value = 0.):
     y_true = tf.keras.layers.Input(shape = (None, None), name = "y_true", dtype = score.dtype)
     bbox_true = tf.keras.layers.Input(shape = (None, 4), name = "bbox_true", dtype = regress.dtype)
