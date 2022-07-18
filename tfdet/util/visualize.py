@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-def draw_bbox(images, bboxes, logits = None, mask = None, label = None, threshold = 0.5, mix_ratio = 0.5, method = cv2.INTER_LINEAR, probability = True, prefix = "", postfix = "", color = None):
+def draw_bbox(images, bboxes, logits = None, mask = None, label = None, threshold = 0.5, mix_ratio = 0.5, method = cv2.INTER_LINEAR, probability = True, prefix = "", postfix = "", color = None, size_ratio = 1.):
     batch = True
     if np.ndim(images) not in [1, 4]:
         batch = False
@@ -17,8 +17,8 @@ def draw_bbox(images, bboxes, logits = None, mask = None, label = None, threshol
         image = np.array(images[batch_index])
         bbox = np.array(bboxes[batch_index])
         h, w = np.shape(image)[:2]
-        size = int(max(h, w) / 500)
-        font_size = max(h, w) / 1250
+        size = int(max(h, w) / 500 * size_ratio)
+        font_size = max(h, w) / 1250 * size_ratio
         normalize_flag = np.max(image) <= 1
         logits_color = (1, 1, 1) if normalize_flag else (255, 255, 255)
         
