@@ -37,7 +37,7 @@ def draw_bbox(images, bboxes, logits = None, mask = None, label = None, threshol
         for index, rect in enumerate(bbox):
             bbox_color = color
             if color is None:
-                bbox_color = np.random.random(size = 3) if normalize_flag else np.random.randint(0, 256, size = 3)
+                bbox_color = np.random.random(size = 3) if normalize_flag else np.random.randint(0, 256, size = 3).astype(int)
             bbox_color = tuple(bbox_color)
             if np.max(rect) <= 1:
                 rect = np.round(np.multiply(rect, [w, h, w, h]))
