@@ -11,6 +11,8 @@ def draw_bbox(images, bboxes, logits = None, mask = None, label = None, threshol
             logits = [logits]
         if mask is not None:
             mask = [mask]
+
+    result = []
     for batch_index in range(len(images)):
         image = np.array(images[batch_index])
         bbox = np.array(bboxes[batch_index])
@@ -32,7 +34,6 @@ def draw_bbox(images, bboxes, logits = None, mask = None, label = None, threshol
                 logit_index = logit[..., 0].astype(int)
                 score = np.ones_like(logit_index, dtype = np.float32)
         
-        result = []
         for index, rect in enumerate(bbox):
             bbox_color = color
             if color is None:
