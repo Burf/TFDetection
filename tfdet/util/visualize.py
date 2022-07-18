@@ -38,7 +38,6 @@ def draw_bbox(images, bboxes, logits = None, mask = None, label = None, threshol
             bbox_color = color
             if color is None:
                 bbox_color = np.random.random(size = 3) if normalize_flag else np.random.randint(0, 256, size = 3).astype(float)
-            bbox_color = tuple(bbox_color)
             if np.max(rect) <= 1:
                 rect = np.round(np.multiply(rect, [w, h, w, h]))
             rect = tuple(rect.astype(int))
@@ -53,6 +52,7 @@ def draw_bbox(images, bboxes, logits = None, mask = None, label = None, threshol
                 text_size = cv2.getTextSize(msg, cv2.FONT_HERSHEY_SIMPLEX, font_size, size)[0]
                 font_pos = (rect[0], max(rect[1], text_size[1]))
             
+            bbox_color = tuple(bbox_color) if np.ndim(bbox_color) == 1 else bbox_color
             cv2.rectangle(image, rect[:2], rect[-2:], bbox_color, size)
             if logits is not None:
                 cv2.rectangle(image, (font_pos[0], font_pos[1] - text_size[1]), (font_pos[0] + text_size[0], font_pos[1]), bbox_color, -1)
