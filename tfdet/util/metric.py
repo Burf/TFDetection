@@ -15,6 +15,7 @@ def mean_average_precision(y_true, bbox_true, y_pred, bbox_pred, threshold = 0.5
     n_class = tf.keras.backend.int_shape(y_pred)[-1]
     cls_indices = tf.range(n_class)
     r_threshold = tf.linspace(0., 1., r)
+    y_true = tf.cond(tf.equal(tf.shape(y_true)[-1], 1), true_fn = lambda: y_true, false_fn = lambda: tf.expand_dims(tf.cast(tf.argmax(y_true, -1), y_true.dtype), axis = -1))
     
     def metric(tp, fp, fn, batch_index):
         _y_true, _bbox_true, _y_pred, _bbox_pred = [tensor[batch_index] for tensor in [y_true, bbox_true, y_pred, bbox_pred]]
