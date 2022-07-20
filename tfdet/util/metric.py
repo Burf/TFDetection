@@ -6,7 +6,7 @@ from ..core.util import map_fn
 
 def mean_average_precision(y_true, bbox_true, y_pred, bbox_pred, threshold = 0.5, r = 11, interpolate = True, mode = "normal", batch_size = 10, reduce = True, return_precision_n_recall = False, dtype = tf.float32):
     """
-    y_true = label #(batch_size, padded_num_true, 1)
+    y_true = label #(batch_size, padded_num_true, 1 or n_class)
     bbox_true = [[x1, y1, x2, y2], ...] #(batch_size, padded_num_true, bbox)
     y_pred = classifier logit   #(batch_size, num_proposals, num_class)
     bbox_pred = classifier regress #(batch_size, num_proposals, delta)
