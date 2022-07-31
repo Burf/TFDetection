@@ -14,6 +14,6 @@ setuptools.setup(name = "tfdet",
                  long_description = readme(),
                  long_description_content_type = "text/markdown",
                  license = "Apache License 2.0",
-                 install_requires = ["tensorflow>=2.4", "keras", "opencv-python"],
+                 install_requires = ["tensorflow>=2.4", "keras", "opencv-python", "albumentations"],
                  packages = setuptools.find_packages(),
                  zip_safe = False)

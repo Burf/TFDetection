@@ -136,10 +136,11 @@ TFDetection(tfdet) is a detection toolbox based on Tensorflow2 and Keras.
 
 ## Requirements
 
-- Python 3
+- Python 3.8▲
 - tensorflow 2.4▲ (If you installed tensorflow latest, more backbone is available.)
 - keras
 - opencv-python
+- albumentations
 
 
 ## Contributor
