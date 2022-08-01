@@ -130,7 +130,7 @@ def mosaic(x_true, y_true = None, bbox_true = None, mask_true = None, image_shap
     #    h, w = h * 2, w * 2
     image = np.full([h, w, c], pad_val, dtype = x_true[0].dtype)
     center = [np.random.uniform(alpha, 1 - alpha), np.random.uniform(alpha, 1 - alpha)]
-    center = np.round(np.random.uniform(np.multiply(center, -1), np.add([w, h], center))).astype(int)
+    center = np.random.uniform(np.multiply(center, -1), np.add([w, h], center)).astype(int)
     pad = []
     masks = None
     for i in range(4):
