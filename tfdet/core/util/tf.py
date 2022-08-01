@@ -49,7 +49,7 @@ def pipeline(dataset, map = None, batch_size = 0, epoch = 1, shuffle = False, pr
     if isinstance(cache, str):
         dataset = dataset.cache(cache)
     if shuffle:
-        dataset = dataset.shuffle(buffer_size = shuffle_size if shuffle_size is not None else batch_size * 10)
+        dataset = dataset.shuffle(buffer_size = shuffle_size if shuffle_size is not None else max(batch_size, 1) * 10)
     if isinstance(batch_size, int) and 0 < batch_size:
         dataset = dataset.batch(batch_size)
     if isinstance(epoch, int) and 1 < epoch:
@@ -58,5 +58,5 @@ def pipeline(dataset, map = None, batch_size = 0, epoch = 1, shuffle = False, pr
         if callable(m):
             dataset = dataset.map(m, num_parallel_calls = num_parallel_calls if num_parallel_calls is not None else tf.data.experimental.AUTOTUNE)
     if prefetch:
-        dataset = dataset.prefetch(prefetch_size if prefetch_size is not None else (batch_size * 2) + 1)
+        dataset = dataset.prefetch(prefetch_size if prefetch_size is not None else (max(batch_size, 1) * 2) + 1)
     return dataset
