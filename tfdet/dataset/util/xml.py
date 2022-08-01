@@ -1,3 +1,4 @@
+import os
 import xml.etree.ElementTree
 
 def xml2dict(data, attrib_prf = "@", unknown_text = "#text"):
