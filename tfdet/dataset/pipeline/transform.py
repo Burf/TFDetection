@@ -29,9 +29,12 @@ def preprocess(x_true, y_true = None, bbox_true = None, mask_true = None,
     mask_true(semantic mask_true) = (H, W, 1 or n_class)
     """
     if bbox_true is not None:
+        h, w = np.shape(x_true)[:2]
         if bbox_normalize and np.any(np.greater(bbox_true, 1)):
-            h, w = np.shape(x_true)[:2]
             bbox_true = np.divide(bbox_true, [w, h, w, h])
+        if np.any(np.greater(bbox_true, 1)):
+            bbox_true = np.clip(bbox_true, 0., [w, h, w, h])
+        else:
             bbox_true = np.clip(bbox_true, 0., 1.)
         if 0 < min_area:
             area = (bbox_true[..., 3] - bbox_true[..., 1]) * (bbox_true[..., 2] - bbox_true[..., 0])
