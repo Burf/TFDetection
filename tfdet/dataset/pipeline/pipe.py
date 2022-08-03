@@ -7,9 +7,9 @@ import tensorflow as tf
 from tfdet.core.util import pipeline, py_func
 from .transform import load, preprocess, resize, pad, random_crop, mosaic, cut_mix, albumentations
 from .formatting import key_map, collect
-from ..util import load_pascal_voc
+from ..util import load_image, load_pascal_voc
 
-def load_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, bgr2rgb = True, anno_func = load_pascal_voc,
+def load_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, load_func = load_image, anno_func = load_pascal_voc,
               batch_size = 0, epoch = 1, shuffle = False, prefetch = False, num_parallel_calls = None, cache = None, shuffle_size = None, prefetch_size = None):
     if isinstance(x_true, dict):
         args = load(**{k:v[0] for k, v in x_true.items()})
@@ -19,7 +19,7 @@ def load_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, bgr2rgb
     dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
     args = [arg for arg in [x_true, y_true, bbox_true, mask_true] if arg is not None]
     args = args[0] if len(args) == 1 else tuple(args)
-    func = functools.partial(py_func, load, Tout = dtype, bgr2rgb = bgr2rgb, anno_func = anno_func)
+    func = functools.partial(py_func, load, Tout = dtype, load_func = load_func, anno_func = anno_func)
     pipe = pipeline(args, map = func, batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
     return pipe
 

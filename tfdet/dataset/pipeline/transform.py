@@ -6,10 +6,12 @@ from tfdet.core.bbox import random_bbox
 from tfdet.core.util import to_categorical
 from ..util import load_image, load_pascal_voc
 
-def load(x_true, y_true = None, bbox_true = None, mask_true = None, bgr2rgb = True, anno_func = load_pascal_voc):
-    x_true = load_image(x_true, bgr2rgb = bgr2rgb)
+def load(x_true, y_true = None, bbox_true = None, mask_true = None, load_func = load_image, anno_func = load_pascal_voc):
+    if callable(load_func):
+        x_true = load_func(x_true)
     if y_true is not None:
-        y_true = anno_func(y_true, bbox_true)
+        if callable(anno_func):
+            y_true = anno_func(y_true, bbox_true)
         if isinstance(y_true, tuple):
             y_true, bbox_true = y_true
     result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
