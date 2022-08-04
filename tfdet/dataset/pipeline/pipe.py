@@ -5,7 +5,7 @@ import cv2
 import tensorflow as tf
 
 from tfdet.core.util import pipeline, py_func
-from .transform import load, preprocess, resize, pad, random_crop, mosaic, cut_mix, albumentations
+from .transform import load, preprocess, resize, pad, crop, random_crop, mosaic, cut_mix, albumentations
 from .formatting import key_map, collect
 from ..util import load_image, load_pascal_voc
 
@@ -54,13 +54,26 @@ def resize_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, image
     pipe = pipeline(pre_pipe, map = func, batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
     return pipe
 
-def pad_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape = None, max_pad_size = 100, pad_val = 0, background = "bg",
+def pad_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape = None, max_pad_size = 100, pad_val = 0, background = "bg", mode = "right",
              batch_size = 0, epoch = 1, shuffle = False, prefetch = False, num_parallel_calls = None, cache = None, shuffle_size = None, prefetch_size = None):
     args = [arg for arg in [x_true, y_true, bbox_true, mask_true] if arg is not None]
     args = args[0] if len(args) == 1 else tuple(args)
     pre_pipe = pipeline(args)
     dtype = tuple(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else pre_pipe.element_spec
-    func = functools.partial(py_func, pad, Tout = dtype, image_shape = image_shape, max_pad_size = max_pad_size, pad_val = pad_val, background = background)
+    func = functools.partial(py_func, pad, Tout = dtype, image_shape = image_shape, max_pad_size = max_pad_size, pad_val = pad_val, background = background, mode = mode)
+    pipe = pipeline(pre_pipe, map = func, batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
+    return pipe
+    
+def crop_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, bbox = None, min_area = 0., min_visibility = 0.,
+              batch_size = 0, epoch = 1, shuffle = False, prefetch = False, num_parallel_calls = None, cache = None, shuffle_size = None, prefetch_size = None):
+    """
+    bbox = [x1, y1, x2, y2]
+    """
+    args = [arg for arg in [x_true, y_true, bbox_true, mask_true] if arg is not None]
+    args = args[0] if len(args) == 1 else tuple(args)
+    pre_pipe = pipeline(args)
+    dtype = tuple(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else pre_pipe.element_spec
+    func = functools.partial(py_func, crop, Tout = dtype, bbox = bbox, min_area = min_area, min_visibility = min_visibility)
     pipe = pipeline(pre_pipe, map = func, batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
     return pipe
 

@@ -82,7 +82,7 @@ def resize(x_true, y_true = None, bbox_true = None, mask_true = None, image_shap
     result = result[0] if len(result) == 1 else tuple(result)
     return result
 
-def pad(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape = None, max_pad_size = 100, pad_val = 0, background = "bg"):
+def pad(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape = None, max_pad_size = 100, pad_val = 0, background = "bg", mode = "right"):
     """
     x_true = (H, W, C)
     y_true(without bbox_true) = (1 or n_class,)
@@ -90,24 +90,51 @@ def pad(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape =
     bbox_true = (P, 4)
     mask_true(with bbox_true & instance mask_true) = (P, H, W, 1)
     """
+    if mode not in ("left", "right", "both", "random"):
+        raise ValueError("unknown mode '{0}'".format(mode))
+    
     h, w = np.shape(x_true)[:2]
     new_h, new_w = image_shape[:2] if image_shape is not None else [h, w]
-    x_true = np.pad(x_true, [[0, max(new_h - h, 0)], [0, max(new_w - w, 0)], [0, 0]])
+    l = r = [0, 0]
+    p = [max(new_h - h, 0), max(new_w - w, 0)]
+    if mode == "left":
+        l = p
+    elif mode == "right":
+        r = p
+    elif mode == "both":
+        l = np.divide(p, 2).astype(int)
+        r = np.subtract(p, l)
+    elif mode == "random":
+        l = np.random.randint(0, np.add(p, 1))
+        r = np.subtract(p, l)        
+    x_true = np.pad(x_true, [[l[0], r[0]], [l[1], r[1]], [0, 0]])
     if y_true is not None and 1 < np.ndim(y_true):
         val = background if 0 < len(y_true) and isinstance(y_true[0][0], str) else 0
-        y_true = y_true[:max_pad_size]
-        y_true = np.pad(y_true, [[0, max_pad_size - len(y_true)], [0, 0]], constant_values = val)
+        #y_true = y_true[:max_pad_size]
+        y_true = np.pad(y_true, [[0, max(max_pad_size - len(y_true), 0)], [0, 0]], constant_values = val)
     if bbox_true is not None:
-        bbox_true = bbox_true[:max_pad_size]
-        bbox_true =  np.pad(bbox_true, [[0, max_pad_size - len(bbox_true)], [0, 0]])
+        #bbox_true = bbox_true[:max_pad_size]
+        bbox_true =  np.pad(bbox_true, [[0, max(max_pad_size - len(bbox_true), 0)], [0, 0]])
     if mask_true is not None:
         if 3 < np.ndim(mask_true):
-            mask_true = mask_true[:max_pad_size]
-            mask_true = np.pad(mask_true, [[0, max_pad_size - len(mask_true)], [0, max(new_h - h, 0)], [0, max(new_w - w, 0)], [0, 0]])
+            #mask_true = mask_true[:max_pad_size]
+            mask_true = np.pad(mask_true, [[0, max(max_pad_size - len(mask_true), 0)], [l[0], r[0]], [l[1], r[1]], [0, 0]])
         else:
-            mask_true = np.pad(mask_true, [[0, max(new_h - h, 0)], [0, max(new_w - w, 0)], [0, 0]])
+            mask_true = np.pad(mask_true, [[l[0], r[0]], [l[1], r[1]], [0, 0]])
     result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
     result = result[0] if len(result) == 1 else tuple(result)
+    return result
+
+def crop(x_true, y_true = None, bbox_true = None, mask_true = None, bbox = None, min_area = 0., min_visibility = 0.):
+    """
+    bbox = [x1, y1, x2, y2]
+    """
+    if bbox is not None:
+        result = albumentations(x_true, y_true, bbox_true, mask_true, min_area = min_area, min_visibility = min_visibility,
+                                transform = [A.Crop(*bbox, always_apply = True)])
+    else:
+        result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
+        result = result[0] if len(result) == 1 else tuple(result)
     return result
 
 def random_crop(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape = None, min_area = 0., min_visibility = 0.):
