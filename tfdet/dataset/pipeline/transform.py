@@ -195,7 +195,7 @@ def mosaic(x_true, y_true = None, bbox_true = None, mask_true = None, image_shap
                         masks = np.zeros([h, w, np.shape(mask_true[i])[-1]], dtype = mask_true[i].dtype)
                     masks[..., y1a:y2a, x1a:x2a, :] = mask_true[i][..., y1b:y2b, x1b:x2b, :]
                 elif 3 < np.ndim(mask_true[i]): #instance_mask
-                    mask = np.array(masks[i])
+                    mask = np.array(mask_true[i])
                     if i == 0:
                         masks = []
                     new_mask = np.zeros([len(mask), h, w, 1], dtype = mask.dtype)
@@ -234,11 +234,12 @@ def mosaic(x_true, y_true = None, bbox_true = None, mask_true = None, image_shap
                 labels.append(np.array(y_true[i])[flag])
             if isinstance(masks, list):
                 masks[i] = masks[i][flag]
-        bbox_true = np.concatenate(bboxes, axis = 0)
+        
+        bbox_true = np.concatenate(bboxes, axis = 0) if 0 < len(bboxes) else np.zeros((0, 4), dtype = np.array(bbox_true).dtype)
         if y_true is not None:
-            y_true = np.concatenate(labels, axis = 0)
+            y_true = np.concatenate(labels, axis = 0) if 0 < len(labels) else np.zeros((0, np.shape(y_true)[-1]), dtype = np.array(y_true).dtype)
     if isinstance(masks, list):
-        masks = np.concatenate(masks, axis = 0)
+        masks = np.concatenate(masks, axis = 0) if 0 < len(masks) else np.zeros((0, h, w, 1), dtype = np.array(mask_true).dtype)
     x_true, mask_true = image, masks
     result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
     result = result[0] if len(result) == 1 else tuple(result)
