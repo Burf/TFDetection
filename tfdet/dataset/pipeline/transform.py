@@ -113,6 +113,11 @@ def pad(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape =
         #y_true = y_true[:max_pad_size]
         y_true = np.pad(y_true, [[0, max(max_pad_size - len(y_true), 0)], [0, 0]], constant_values = val)
     if bbox_true is not None:
+        if np.any(np.greater(bbox_true, 1)):
+            bbox_true = np.add(bbox_true, np.tile(l[::-1], 2))
+        else:
+            bbox_true = np.multiply(bbox_true, np.tile(np.divide([w, h], [new_w, new_h]), 2))
+            bbox_true = np.add(bbox_true, np.tile(np.divide(l[::-1], [new_w, new_h]), 2))
         #bbox_true = bbox_true[:max_pad_size]
         bbox_true =  np.pad(bbox_true, [[0, max(max_pad_size - len(bbox_true), 0)], [0, 0]])
     if mask_true is not None:
