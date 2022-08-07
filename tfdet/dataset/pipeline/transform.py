@@ -360,7 +360,7 @@ def albumentations(x_true, y_true = None, bbox_true = None, mask_true = None,
             args["masks" if 3 < np.ndim(mask_true) else "mask"] = mask_true
         
         aug_result = method(**args)
-        indices = aug_result["class_labels"] if class_labels is not None else (np.arange(len(y_true)))
+        indices = aug_result["class_labels"] if class_labels is not None else (np.arange(len(y_true)) if y_true is not None else [])
         x_true = aug_result["image"]
         ori_bbox_true = bbox_true
         if y_true is not None:
