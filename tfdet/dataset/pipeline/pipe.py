@@ -2,6 +2,7 @@ import functools
 
 import albumentations as A
 import cv2
+import numpy as np
 import tensorflow as tf
 
 from tfdet.core.util import pipeline, py_func
@@ -31,7 +32,7 @@ def custom_pipe(function, x_true, y_true = None, bbox_true = None, mask_true = N
                     sample_result = function(*sample_args, **kwargs)
                 dtype = [tf.convert_to_tensor(r).dtype for r in (sample_result if isinstance(sample_result, tuple) else (sample_result,))]
                 dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
-        else:
+        elif np.ndim(dtype) == 0:
             if isinstance(x_true, tf.data.Dataset):
                 if isinstance(x_true.element_spec, tuple) or isinstance(x_true.element_spec, dict):
                     dtype = [dtype] * len(x_true.element_spec)
@@ -42,105 +43,83 @@ def custom_pipe(function, x_true, y_true = None, bbox_true = None, mask_true = N
     pipe = pipeline(pre_pipe, map = func, batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
     return pipe
 
-def load_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, load_func = load_image, anno_func = load_pascal_voc,
+def load_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, 
+              load_func = load_image, anno_func = load_pascal_voc,
               batch_size = 0, epoch = 1, shuffle = False, prefetch = False, num_parallel_calls = None, cache = None, shuffle_size = None, prefetch_size = None):
-    if isinstance(x_true, dict):
-        args = load(**{k:v[0] for k, v in x_true.items()})
-    else:
-        args = load(*[v[0] for v in [x_true, y_true, bbox_true, mask_true] if v is not None])
-    dtype = [tf.convert_to_tensor(arg).dtype for arg in (args if isinstance(args, tuple) else (args,))]
-    dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
-    args = [arg for arg in [x_true, y_true, bbox_true, mask_true] if arg is not None]
-    args = args[0] if len(args) == 1 else tuple(args)
-    func = functools.partial(py_func, load, Tout = dtype, load_func = load_func, anno_func = anno_func)
-    pipe = pipeline(args, map = func, batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
+    pipe = custom_pipe(load, x_true, y_true, bbox_true, mask_true, dtype = None, tf_func = False,
+                       load_func = load_func, anno_func = anno_func,
+                       batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
     return pipe
 
-def preprocess_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, dtype = tf.float32,
+def preprocess_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, 
+                    dtype = tf.float32,
                     rescale = 1., mean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375],
                     label = None, one_hot = True, label_smoothing = 0.1,
                     bbox_normalize = True, min_area = 0.,
                     batch_size = 0, epoch = 1, shuffle = False, prefetch = False, num_parallel_calls = None, cache = None, shuffle_size = None, prefetch_size = None):
-    if isinstance(x_true, tf.data.Dataset):
-        args = x_true
-        if isinstance(args.element_spec, tuple) or isinstance(args.element_spec, dict):
-            dtype = [dtype] * len(args.element_spec)
-    else:
-        args = [arg for arg in [x_true, y_true, bbox_true, mask_true] if arg is not None]
-        dtype = [dtype] * len(x_true if isinstance(x_true, dict) else args)
-        args = args[0] if len(args) == 1 else tuple(args)
-        dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
-    func = functools.partial(py_func, preprocess, Tout = dtype,
-                             rescale = rescale, mean = mean, std = std,
-                             label = label, one_hot = one_hot, label_smoothing = label_smoothing,
-                             bbox_normalize = bbox_normalize, min_area = min_area)
-    pipe = pipeline(args, map = func, batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
-    return pipe
-
-def resize_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape = None,
-                batch_size = 0, epoch = 1, shuffle = False, prefetch = False, num_parallel_calls = None, cache = None, shuffle_size = None, prefetch_size = None):
-    args = [arg for arg in [x_true, y_true, bbox_true, mask_true] if arg is not None]
-    args = args[0] if len(args) == 1 else tuple(args)
-    pre_pipe = pipeline(args)
-    dtype = tuple(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else pre_pipe.element_spec
-    func = functools.partial(py_func, resize, Tout = dtype, image_shape = image_shape)
-    pipe = pipeline(pre_pipe, map = func, batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
-    return pipe
-
-def pad_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape = None, max_pad_size = 100, pad_val = 0, background = "bg", mode = "right",
-             batch_size = 0, epoch = 1, shuffle = False, prefetch = False, num_parallel_calls = None, cache = None, shuffle_size = None, prefetch_size = None):
-    args = [arg for arg in [x_true, y_true, bbox_true, mask_true] if arg is not None]
-    args = args[0] if len(args) == 1 else tuple(args)
-    pre_pipe = pipeline(args)
-    dtype = tuple(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else pre_pipe.element_spec
-    func = functools.partial(py_func, pad, Tout = dtype, image_shape = image_shape, max_pad_size = max_pad_size, pad_val = pad_val, background = background, mode = mode)
-    pipe = pipeline(pre_pipe, map = func, batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
+    pipe = custom_pipe(preprocess, x_true, y_true, bbox_true, mask_true, dtype = dtype, tf_func = False,
+                       rescale = rescale, mean = mean, std = std,
+                       label = label, one_hot = one_hot, label_smoothing = label_smoothing,
+                       bbox_normalize = bbox_normalize, min_area = min_area,
+                       batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
     return pipe
     
-def crop_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, bbox = None, min_area = 0., min_visibility = 0.,
+def resize_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, 
+                image_shape = None,
+                batch_size = 0, epoch = 1, shuffle = False, prefetch = False, num_parallel_calls = None, cache = None, shuffle_size = None, prefetch_size = None):
+    pipe = custom_pipe(resize, x_true, y_true, bbox_true, mask_true, dtype = None, tf_func = False,
+                       image_shape = image_shape,
+                       batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
+    return pipe
+
+def pad_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, 
+             image_shape = None, max_pad_size = 100, pad_val = 0, background = "bg", mode = "right",
+             batch_size = 0, epoch = 1, shuffle = False, prefetch = False, num_parallel_calls = None, cache = None, shuffle_size = None, prefetch_size = None):
+    pipe = custom_pipe(pad, x_true, y_true, bbox_true, mask_true, dtype = None, tf_func = False,
+                       image_shape = image_shape, max_pad_size = max_pad_size, pad_val = pad_val, background = background, mode = mode,
+                       batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
+    return pipe
+
+def crop_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, 
+              bbox = None, min_area = 0., min_visibility = 0.,
               batch_size = 0, epoch = 1, shuffle = False, prefetch = False, num_parallel_calls = None, cache = None, shuffle_size = None, prefetch_size = None):
     """
     bbox = [x1, y1, x2, y2]
     """
-    args = [arg for arg in [x_true, y_true, bbox_true, mask_true] if arg is not None]
-    args = args[0] if len(args) == 1 else tuple(args)
-    pre_pipe = pipeline(args)
-    dtype = tuple(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else pre_pipe.element_spec
-    func = functools.partial(py_func, crop, Tout = dtype, bbox = bbox, min_area = min_area, min_visibility = min_visibility)
-    pipe = pipeline(pre_pipe, map = func, batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
+    pipe = custom_pipe(crop, x_true, y_true, bbox_true, mask_true, dtype = None, tf_func = False,
+                       bbox = bbox, min_area = min_area, min_visibility = min_visibility,
+                       batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
     return pipe
 
-def random_crop_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape = None, min_area = 0., min_visibility = 0.,
+def random_crop_pipe(x_true, y_true = None, bbox_true = None, mask_true = None,
+                     image_shape = None, min_area = 0., min_visibility = 0.,
                      batch_size = 0, epoch = 1, shuffle = False, prefetch = False, num_parallel_calls = None, cache = None, shuffle_size = None, prefetch_size = None):
-    args = [arg for arg in [x_true, y_true, bbox_true, mask_true] if arg is not None]
-    args = args[0] if len(args) == 1 else tuple(args)
-    pre_pipe = pipeline(args)
-    dtype = tuple(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else pre_pipe.element_spec
-    func = functools.partial(py_func, random_crop, Tout = dtype, image_shape = image_shape, min_area = min_area, min_visibility = min_visibility)
-    pipe = pipeline(pre_pipe, map = func, batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
+    pipe = custom_pipe(random_crop, x_true, y_true, bbox_true, mask_true, dtype = None, tf_func = False,
+                       image_shape = image_shape, min_area = min_area, min_visibility = min_visibility,
+                       batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
     return pipe
-
-def mosaic_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape = None, alpha = 0.2, pad_val = 0, min_area = 0., min_visibility = 0., e = 1e-12, pre_batch_size = 4, pre_shuffle = False, pre_shuffle_size = None,
+    
+def mosaic_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, 
+                image_shape = None, alpha = 0.2, pad_val = 0, min_area = 0., min_visibility = 0., e = 1e-12, 
+                pre_batch_size = 4, pre_shuffle = False, pre_shuffle_size = None, pre_prefetch = False, pre_prefetch_size = None,
                 batch_size = 0, epoch = 1, shuffle = False, prefetch = False, num_parallel_calls = None, cache = None, shuffle_size = None, prefetch_size = None):
-    args = [arg for arg in [x_true, y_true, bbox_true, mask_true] if arg is not None]
-    args = args[0] if len(args) == 1 else tuple(args)
-    batch_pipe = pipeline(args, batch_size = pre_batch_size, shuffle = pre_shuffle, num_parallel_calls = num_parallel_calls, shuffle_size = pre_shuffle_size)
-    dtype = tuple(batch_pipe.element_spec.values()) if isinstance(batch_pipe.element_spec, dict) else batch_pipe.element_spec
-    func = functools.partial(py_func, mosaic, Tout = dtype, image_shape = image_shape, alpha = alpha, pad_val = pad_val, min_area = min_area, min_visibility = min_visibility, e = e)
-    pipe = pipeline(batch_pipe, map = func, batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
+    pipe = custom_pipe(mosaic, x_true, y_true, bbox_true, mask_true, dtype = None, tf_func = False,
+                       image_shape = image_shape, alpha = alpha, pad_val = pad_val, min_area = min_area, min_visibility = min_visibility, e = e,
+                       pre_batch_size = pre_batch_size, pre_shuffle = pre_shuffle, pre_shuffle_size = pre_shuffle_size, pre_prefetch = pre_prefetch, pre_prefetch_size = pre_prefetch_size,
+                       batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
     return pipe
-
-def cut_mix_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, alpha = 0.2, min_area = 0., min_visibility = 0., e = 1e-12, pre_batch_size = 2, pre_shuffle = False, pre_shuffle_size = None,
+    
+def cut_mix_pipe(x_true, y_true = None, bbox_true = None, mask_true = None,
+                 alpha = 0.2, min_area = 0., min_visibility = 0., e = 1e-12, 
+                 pre_batch_size = 2, pre_shuffle = False, pre_shuffle_size = None, pre_prefetch = False, pre_prefetch_size = None,
                  batch_size = 0, epoch = 1, shuffle = False, prefetch = False, num_parallel_calls = None, cache = None, shuffle_size = None, prefetch_size = None):
-    args = [arg for arg in [x_true, y_true, bbox_true, mask_true] if arg is not None]
-    args = args[0] if len(args) == 1 else tuple(args)
-    batch_pipe = pipeline(args, batch_size = pre_batch_size, shuffle = pre_shuffle, num_parallel_calls = num_parallel_calls, shuffle_size = pre_shuffle_size)
-    dtype = tuple(batch_pipe.element_spec.values()) if isinstance(batch_pipe.element_spec, dict) else batch_pipe.element_spec
-    func = functools.partial(py_func, cut_mix, Tout = dtype, alpha = alpha, min_area = min_area, min_visibility = min_visibility, e = e)
-    pipe = pipeline(batch_pipe, map = func, batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
+    pipe = custom_pipe(cut_mix, x_true, y_true, bbox_true, mask_true, dtype = None, tf_func = False,
+                       alpha = alpha, min_area = min_area, min_visibility = min_visibility, e = e,
+                       pre_batch_size = pre_batch_size, pre_shuffle = pre_shuffle, pre_shuffle_size = pre_shuffle_size, pre_prefetch = pre_prefetch, pre_prefetch_size = pre_prefetch_size,
+                       batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
     return pipe
 
-def albumentations_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, min_area = 0., min_visibility = 0.,
+def albumentations_pipe(x_true, y_true = None, bbox_true = None, mask_true = None,
                         transform = [A.Blur(p = 0.01),
                                      A.MedianBlur(p = 0.01),
                                      A.ToGray(p = 0.01),
@@ -155,27 +134,25 @@ def albumentations_pipe(x_true, y_true = None, bbox_true = None, mask_true = Non
                                      #A.RandomResizedCrop(p = 0.01, height = 512, width = 512, scale = [0.5, 1.]),
                                      A.ImageCompression(p = 0.01, quality_lower = 75),
                                     ],
+                        min_area = 0., min_visibility = 0.,
                         batch_size = 0, epoch = 1, shuffle = False, prefetch = False, num_parallel_calls = None, cache = None, shuffle_size = None, prefetch_size = None):
-    args = [arg for arg in [x_true, y_true, bbox_true, mask_true] if arg is not None]
-    args = args[0] if len(args) == 1 else tuple(args)
-    pre_pipe = pipeline(args)
-    dtype = tuple(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else pre_pipe.element_spec
-    func = functools.partial(py_func, albumentations, Tout = dtype, min_area = min_area, min_visibility = min_visibility, transform = transform)
-    pipe = pipeline(pre_pipe, map = func, batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
+    pipe = custom_pipe(albumentations, x_true, y_true, bbox_true, mask_true, dtype = None, tf_func = False,
+                       transform = transform, min_area = min_area, min_visibility = min_visibility,
+                       batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
     return pipe
     
-def key_map_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, map = {"x_true":"x_true", "y_true":"y_true", "bbox_true":"bbox_true", "mask_true":"mask_true"},
+def key_map_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, 
+                 map = {"x_true":"x_true", "y_true":"y_true", "bbox_true":"bbox_true", "mask_true":"mask_true"},
                  batch_size = 0, epoch = 1, shuffle = False, prefetch = False, num_parallel_calls = None, cache = None, shuffle_size = None, prefetch_size = None):
-    args = [arg for arg in [x_true, y_true, bbox_true, mask_true] if arg is not None]
-    args = args[0] if len(args) == 1 else tuple(args)
-    func = functools.partial(key_map, map = map)
-    pipe = pipeline(args, map = func, batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
+    pipe = custom_pipe(key_map, x_true, y_true, bbox_true, mask_true, dtype = None, tf_func = True,
+                       map = map,
+                       batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
     return pipe
 
-def collect_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, keys = ["x_true", "y_true", "bbox_true", "mask_true"],
+def collect_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, 
+                 keys = ["x_true", "y_true", "bbox_true", "mask_true"],
                  batch_size = 0, epoch = 1, shuffle = False, prefetch = False, num_parallel_calls = None, cache = None, shuffle_size = None, prefetch_size = None):
-    args = [arg for arg in [x_true, y_true, bbox_true, mask_true] if arg is not None]
-    args = args[0] if len(args) == 1 else tuple(args)
-    func = functools.partial(collect, keys = keys)
-    pipe = pipeline(args, map = func, batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
+    pipe = custom_pipe(collect, x_true, y_true, bbox_true, mask_true, dtype = None, tf_func = True,
+                       keys = keys,
+                       batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
     return pipe

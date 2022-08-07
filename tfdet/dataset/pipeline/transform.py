@@ -315,7 +315,7 @@ def cut_mix(x_true, y_true = None, bbox_true = None, mask_true = None, alpha = 0
     result = result[0] if len(result) == 1 else tuple(result)
     return result
 
-def albumentations(x_true, y_true = None, bbox_true = None, mask_true = None, min_area = 0., min_visibility = 0.,
+def albumentations(x_true, y_true = None, bbox_true = None, mask_true = None,
                    transform = [A.Blur(p = 0.01),
                                 A.MedianBlur(p = 0.01),
                                 A.ToGray(p = 0.01),
@@ -329,12 +329,13 @@ def albumentations(x_true, y_true = None, bbox_true = None, mask_true = None, mi
                                 A.ShiftScaleRotate(p = 0.01, rotate_limit = 30, shift_limit = 0.0625, scale_limit = 0.1, interpolation = cv2.INTER_LINEAR, border_mode = cv2.BORDER_CONSTANT),
                                 #A.RandomResizedCrop(p = 0.01, height = 512, width = 512, scale = [0.5, 1.]),
                                 A.ImageCompression(p = 0.01, quality_lower = 75),
-                               ]):
+                               ],
+                   min_area = 0., min_visibility = 0.):
     if 0 < len(transform):
         method = A.Compose(transform, bbox_params = {"format":"albumentations", "label_fields":["class_labels"], "min_area":min_area, "min_visibility":min_visibility})
         
         h, w = np.shape(x_true)[:2]
-        class_labels = y_true
+        class_labels = None
         if bbox_true is not None:
             bbox_true = np.array(bbox_true)
             indices = np.where(np.max(0 < bbox_true, axis = -1, keepdims = True) != 0)[0]
@@ -345,29 +346,39 @@ def albumentations(x_true, y_true = None, bbox_true = None, mask_true = None, mi
             area = (bbox_true[..., 3] - bbox_true[..., 1]) * (bbox_true[..., 2] - bbox_true[..., 0])
             indices2 = np.where(0 < area)[0]
             bbox_true = bbox_true[indices2]
-            class_labels = np.ones_like(bbox_true[..., :1]) if class_labels is None else np.array(class_labels)[indices[indices2]]
+            if y_true is not None:
+                y_true = np.array(y_true)[indices[indices2]]
+            class_labels = np.arange(len(bbox_true))
         if mask_true is not None and 3 < np.ndim(mask_true):
             if bbox_true is not None:
                 mask_true = np.array(mask_true)[indices[indices2]]
             mask_true = [m for m in mask_true]
-            
-        args = {"image":x_true}
-        args["class_labels"] = class_labels if class_labels is not None else [1]
+        
+        args = {"image":x_true, "class_labels":class_labels if class_labels is not None else [0]}
         args["bboxes"] = bbox_true if bbox_true is not None else [[0, 0, 1, 1]]
         if mask_true is not None:
             args["masks" if 3 < np.ndim(mask_true) else "mask"] = mask_true
         
         aug_result = method(**args)
+        indices = aug_result["class_labels"] if class_labels is not None else (np.arange(len(y_true)))
         x_true = aug_result["image"]
+        ori_bbox_true = bbox_true
         if y_true is not None:
-            y_true = np.array(aug_result["class_labels"])
+            y_true = np.array(y_true)[indices]
         if bbox_true is not None:
-            new_bbox_true = np.clip(aug_result["bboxes"], 0, 1)
-            bbox_true = new_bbox_true if bbox_norm else np.round(np.multiply(new_bbox_true, np.tile(np.shape(x_true)[:2][::-1], 2))).astype(int)
+            new_bbox_true = aug_result["bboxes"]
+            if len(new_bbox_true) == 0:
+                bbox_true = np.zeros((0, 4), dtype = bbox_true.dtype)
+            else:
+                bbox_true = np.clip(new_bbox_true, 0, 1)
+                bbox_true = bbox_true if bbox_norm else np.round(np.multiply(new_bbox_true, np.tile(np.shape(x_true)[:2][::-1], 2))).astype(int)
         if mask_true is not None:
-            mask_true = aug_result["masks" if 3 < np.ndim(mask_true) else "mask"]
+            mask_true = np.array(aug_result["masks" if 3 < np.ndim(mask_true) else "mask"])
             if 3 < np.ndim(mask_true):
-                mask_true = np.array(mask_true)
+                if bbox_true is not None:
+                    mask_true = mask_true[indices]
+                else:
+                    mask_true = mask_true[0 < np.max(mask_true, axis = (-3, -2, -1))]
         
     result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
     result = result[0] if len(result) == 1 else tuple(result)
