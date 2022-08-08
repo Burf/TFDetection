@@ -18,8 +18,8 @@ def generate_hist_scale(bbox_true, count = 5, decimal = 4):
 def generate_uniform_scale(min = 0.03125, max = 0.5, count = 5):
     return [min + (max - min) / (count - 1) * index for index in range(count)]
 
-def generate_kmeans_scale(bbox_true, k = 5, decimal = 4, method = np.median, mode = "normal"):
-    bbox_true = np.reshape(bbox_true, [-1, 4])
+def generate_kmeans_scale(bbox_true, k = 5, decimal = 4, method = np.median, missing_value = 0., mode = "normal"):
+    bbox_true = np.reshape(bbox_true, [-1, 4]).astype(np.float32)
     bbox_true = bbox_true[np.max(0 < bbox_true, axis = -1)]
     wh = bbox_true - np.tile(bbox_true[..., :2], 2) #x1, y1, x2, y2 -> 0, 0, w, h
     
@@ -34,6 +34,7 @@ def generate_kmeans_scale(bbox_true, k = 5, decimal = 4, method = np.median, mod
         if np.all(last_nearest == cur_nearest):
             break
         for index in range(k):
-            cluster[index] = method(wh[cur_nearest == index], axis = 0)
+            target_wh = wh[cur_nearest == index]
+            cluster[index] = method(target_wh, axis = 0) if 0 < len(target_wh) else missing_value
         last_nearest = cur_nearest
     return np.sort(np.round(cluster[..., 2:], decimal), axis = 0)
