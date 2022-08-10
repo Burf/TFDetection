@@ -27,8 +27,8 @@ def mean_average_precision(y_true, bbox_true, y_pred, bbox_pred, threshold = 0.5
         _bbox_pred = tf.gather_nd(_bbox_pred, valid_pred_indices)
         
         label = tf.argmax(_y_pred, axis = -1, output_type = tf.int32)
-        indices = tf.stack([tf.range(tf.shape(_y_pred)[0]), label], axis = -1)
-        score = tf.gather_nd(_y_pred, indices)
+        score = tf.reduce_max(_y_pred, axis = -1)
+        tile_score = tf.tile(tf.expand_dims(score, axis = 0), [r, 1])
         overlaps = threshold <= tf.transpose(overlap_bbox(_bbox_true, _bbox_pred, mode)) #(P, T)
         
         def cls_body(tp, fp, fn, cls_id):
@@ -45,31 +45,28 @@ def mean_average_precision(y_true, bbox_true, y_pred, bbox_pred, threshold = 0.5
                     cls_indices = tf.stack([tf.ones(r, dtype = tf.int32) * cls_id, tf.range(11)], axis = -1)
                     return tp, fp, tf.tensor_scatter_nd_update(fn, cls_indices, fn[cls_id] + true_count)
             else:
-                if true_count != 0:
-                    mask = tf.gather(overlaps, true_indices, axis = 1)
+                tile_pred_flag = tf.tile(tf.expand_dims(pred_flag, axis = 0), [r, 1])
+                r_flag = tf.logical_and(tile_pred_flag, tf.greater_equal(tile_score, tf.expand_dims(r_threshold, axis = -1)))
+                r_count = tf.reduce_sum(tf.cast(r_flag, dtype), axis = -1)
                 
-                def r_body(cls_tp, cls_fp, cls_fn, r_index):
-                    _pred_flag = tf.logical_and(pred_flag, tf.greater_equal(score, r_threshold[r_index]))
-                    _pred_count = tf.reduce_sum(tf.cast(_pred_flag, dtype))
-                    if true_count == 0:
-                        return cls_tp, tf.tensor_scatter_nd_update(cls_fp, [[r_index]], [cls_fp[r_index] + _pred_count]), cls_fn
-                    else:
-                        _mask = tf.gather_nd(mask, tf.where(_pred_flag))
-                        tp_count = tf.reduce_sum(tf.cast(tf.reduce_any(_mask, axis = 0), dtype))
+                if true_count == 0:
+                    cls_indices = tf.stack([tf.ones(r, dtype = tf.int32) * cls_id, tf.range(11)], axis = -1)
+                    return tp, tf.tensor_scatter_nd_update(fp, cls_indices, fp[cls_id] + r_count), fn
+                else:
+                    mask = tf.gather(overlaps, true_indices, axis = 1)
+                    def r_body(cls_tp, cls_fp, cls_fn, r_index):
+                        tp_count = tf.reduce_sum(tf.cast(tf.reduce_any(tf.gather_nd(mask, tf.where(r_flag[r_index])), axis = 0), dtype))
                         return tf.tensor_scatter_nd_update(cls_tp, [[r_index]], [cls_tp[r_index] + tp_count]),\
-                               tf.tensor_scatter_nd_update(cls_fp, [[r_index]], [cls_fp[r_index] + (_pred_count - tp_count)]),\
+                               tf.tensor_scatter_nd_update(cls_fp, [[r_index]], [cls_fp[r_index] + (r_count[r_index] - tp_count)]),\
                                tf.tensor_scatter_nd_update(cls_fn, [[r_index]], [cls_fn[r_index] + (true_count - tp_count)])
 
-                cls_tp, cls_fp, cls_fn = tf.while_loop(lambda index, cls_tp, cls_fp, cls_fn: index < r,
-                                                       lambda index, cls_tp, cls_fp, cls_fn: (index + 1, *r_body(cls_tp, cls_fp, cls_fn, index)),
-                                                       (0, tp[cls_id], fp[cls_id], fn[cls_id]),
-                                                       parallel_iterations = 1)[1:]
-                
-                cls_indices = tf.stack([tf.ones(r, dtype = tf.int32) * cls_id, tf.range(11)], axis = -1)
-                tp = tf.tensor_scatter_nd_update(tp, cls_indices, cls_tp)
-                fp = tf.tensor_scatter_nd_update(fp, cls_indices, cls_fp)
-                fn = tf.tensor_scatter_nd_update(fn, cls_indices, cls_fn)
-                return tp, fp, fn
+                    cls_tp, cls_fp, cls_fn = tf.while_loop(lambda index, cls_tp, cls_fp, cls_fn: index < r,
+                                                           lambda index, cls_tp, cls_fp, cls_fn: (index + 1, *r_body(cls_tp, cls_fp, cls_fn, index)),
+                                                           (0, tp[cls_id], fp[cls_id], fn[cls_id]),
+                                                           parallel_iterations = 1)[1:]
+
+                    cls_indices = tf.stack([tf.ones(r, dtype = tf.int32) * cls_id, tf.range(11)], axis = -1)
+                    return tf.tensor_scatter_nd_update(tp, cls_indices, cls_tp), tf.tensor_scatter_nd_update(fp, cls_indices, cls_fp), tf.tensor_scatter_nd_update(fn, cls_indices, cls_fn)
         
         tp, fp, fn = tf.while_loop(lambda index, tp, fp, fn: index < n_class,
                                    lambda index, tp, fp, fn: (index + 1, *cls_body(tp, fp, fn, cls_indices[index])),
@@ -87,8 +84,8 @@ def mean_average_precision(y_true, bbox_true, y_pred, bbox_pred, threshold = 0.5
     
     tp_fp = tp + fp
     tp_fn = tp + fn
-    precision = tf.cast(tf.where(tf.equal(tp_fp, 0.), tf.where(tf.equal(tp_fn, 0.), 1., 0.), tp / tp_fp), dtype)
-    recall = tf.cast(tf.where(tf.equal(tp_fn, 0.), 1., tp / tp_fn), dtype)
+    precision = tf.cast(tf.where(tf.equal(tp_fp, 0.), tf.where(tf.equal(tp_fn, 0.), 1., 0.), tp / tf.where(tf.equal(tp_fp, 0.), 1, tp_fp)), dtype)
+    recall = tf.cast(tf.where(tf.equal(tp_fn, 0.), 1., tp / tf.where(tf.equal(tp_fn, 0.), 1, tp_fn)), dtype)
     if interpolate:
         def interpolation(precision, r_index):
             new_precision = tf.reduce_max(precision[..., :r_index + 1], axis = 1)
