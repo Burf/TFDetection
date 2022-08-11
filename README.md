@@ -123,7 +123,7 @@ TFDetection(tfdet) is a detection toolbox based on Tensorflow2 and Keras.
           </ul>
         </ul>
         <ul>
-          <li><a href = "https://github.com/Burf/TFDetection/blob/main/tfdet/util/metric.py"><b>Metric</b></a></li>
+          <li><a href = "https://github.com/Burf/TFDetection/blob/main/tfdet/core/metric/__init__.py"><b>Metric</b></a></li>
           <ul>
             <li>Mean Average Precision</li>
           </ul>

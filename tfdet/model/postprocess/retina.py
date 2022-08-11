@@ -3,7 +3,8 @@ import tensorflow as tf
 from tfdet.core.bbox import delta2bbox, offset2bbox
 from tfdet.core.util import map_fn
 
-def filter_detection(logit, regress, anchors, centerness = None, proposal_count = 100, iou_threshold = 0.3, score_threshold = 0.7, nms = True, soft_nms = False, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000):
+def filter_detection(logit, regress, anchors, centerness = None, proposal_count = 100, iou_threshold = 0.5, score_threshold = 0.05, nms = True, soft_nms = False, performance_count = 5000, 
+                     mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000):
     """
     logit = classifier logit #(num_anchors, num_class)
     regress = classifier regress #(num_anchors, delta)
@@ -21,6 +22,14 @@ def filter_detection(logit, regress, anchors, centerness = None, proposal_count 
     anchors = tf.gather_nd(anchors, indices)
     if centerness is not None:
         centerness = tf.gather_nd(centerness, indices)
+        
+    performance_count = tf.minimum(performance_count, tf.shape(logit)[0])
+    top_indices = tf.nn.top_k(tf.reduce_max(logit, axis = -1), performance_count, sorted = True).indices
+    logit = tf.gather(logit, top_indices)
+    regress = tf.gather(regress, top_indices)
+    anchors = tf.gather(anchors, top_indices)
+    if centerness is not None:
+        centerness = tf.gather(centerness, top_indices)
         
     if tf.keras.backend.int_shape(anchors)[-1] == 4: #anchors
         regress = delta2bbox(anchors, regress, mean, std, clip_ratio)
@@ -71,7 +80,8 @@ def filter_detection(logit, regress, anchors, centerness = None, proposal_count 
     return logit, proposal
 
 class FilterDetection(tf.keras.layers.Layer):
-    def __init__(self, proposal_count = 100, iou_threshold = 0.3, score_threshold = 0.7, nms = True, soft_nms = False, batch_size = 1, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, **kwargs):
+    def __init__(self, proposal_count = 100, iou_threshold = 0.5, score_threshold = 0.05, nms = True, soft_nms = False, performance_count = 5000, 
+                 batch_size = 1, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, **kwargs):
         super(FilterDetection, self).__init__(**kwargs)
         self.proposal_count = proposal_count
         self.iou_threshold = iou_threshold

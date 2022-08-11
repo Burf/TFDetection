@@ -1,0 +1,106 @@
+import tensorflow as tf
+import numpy as np
+
+from ..bbox import overlap_bbox
+from ..util import map_fn
+
+def mean_average_precision(y_true, bbox_true, y_pred, bbox_pred, threshold = 0.5, r = 11, interpolate = True, mode = "normal", batch_size = 10, reduce = True, return_precision_n_recall = False, dtype = tf.float32):
+    """
+    y_true = label #(batch_size, padded_num_true, 1 or n_class)
+    bbox_true = [[x1, y1, x2, y2], ...] #(batch_size, padded_num_true, bbox)
+    y_pred = classifier logit   #(batch_size, num_proposals, num_class)
+    bbox_pred = classifier regress #(batch_size, num_proposals, delta)
+    """
+    n_batch = tf.shape(y_true)[0]
+    n_class = tf.keras.backend.int_shape(y_pred)[-1]
+    cls_indices = tf.range(n_class)
+    r_threshold = tf.linspace(0., 1., r)
+    y_true = tf.cond(tf.equal(tf.shape(y_true)[-1], 1), true_fn = lambda: y_true, false_fn = lambda: tf.expand_dims(tf.cast(tf.argmax(y_true, -1), y_true.dtype), axis = -1))
+    
+    def metric(tp, fp, fn, batch_index):
+        _y_true, _bbox_true, _y_pred, _bbox_pred = [tensor[batch_index] for tensor in [y_true, bbox_true, y_pred, bbox_pred]]
+        valid_true_indices = tf.where(tf.reduce_max(tf.cast(0 < _bbox_true, tf.int32), axis = -1))
+        _y_true = tf.cast(tf.gather_nd(_y_true, valid_true_indices), tf.int32)
+        _bbox_true = tf.gather_nd(_bbox_true, valid_true_indices)
+        valid_pred_indices = tf.where(tf.reduce_max(tf.cast(0 < _bbox_pred, tf.int32), axis = -1))
+        _y_pred = tf.gather_nd(_y_pred, valid_pred_indices)
+        _bbox_pred = tf.gather_nd(_bbox_pred, valid_pred_indices)
+        
+        label = tf.argmax(_y_pred, axis = -1, output_type = tf.int32)
+        score = tf.reduce_max(_y_pred, axis = -1)
+        tile_score = tf.tile(tf.expand_dims(score, axis = 0), [r, 1])
+        overlaps = threshold <= tf.transpose(overlap_bbox(_bbox_true, _bbox_pred, mode)) #(P, T)
+        
+        def cls_body(tp, fp, fn, cls_id):
+            true_indices = tf.where(tf.equal(_y_true, cls_id))[..., 0]
+            true_count = tf.cast(tf.shape(true_indices)[0], dtype)
+            pred_flag = tf.equal(label, cls_id)
+            pred_count = tf.reduce_sum(tf.cast(pred_flag, dtype))
+            
+            mask = None
+            if pred_count == 0:
+                if true_count == 0:
+                    return tp, fp, fn
+                else:
+                    cls_indices = tf.stack([tf.ones(r, dtype = tf.int32) * cls_id, tf.range(11)], axis = -1)
+                    return tp, fp, tf.tensor_scatter_nd_update(fn, cls_indices, fn[cls_id] + true_count)
+            else:
+                tile_pred_flag = tf.tile(tf.expand_dims(pred_flag, axis = 0), [r, 1])
+                r_flag = tf.logical_and(tile_pred_flag, tf.greater_equal(tile_score, tf.expand_dims(r_threshold, axis = -1)))
+                r_count = tf.reduce_sum(tf.cast(r_flag, dtype), axis = -1)
+                
+                if true_count == 0:
+                    cls_indices = tf.stack([tf.ones(r, dtype = tf.int32) * cls_id, tf.range(11)], axis = -1)
+                    return tp, tf.tensor_scatter_nd_update(fp, cls_indices, fp[cls_id] + r_count), fn
+                else:
+                    mask = tf.gather(overlaps, true_indices, axis = 1)
+                    def r_body(cls_tp, cls_fp, cls_fn, r_index):
+                        tp_count = tf.reduce_sum(tf.cast(tf.reduce_any(tf.gather_nd(mask, tf.where(r_flag[r_index])), axis = 0), dtype))
+                        return tf.tensor_scatter_nd_update(cls_tp, [[r_index]], [cls_tp[r_index] + tp_count]),\
+                               tf.tensor_scatter_nd_update(cls_fp, [[r_index]], [cls_fp[r_index] + (r_count[r_index] - tp_count)]),\
+                               tf.tensor_scatter_nd_update(cls_fn, [[r_index]], [cls_fn[r_index] + (true_count - tp_count)])
+
+                    cls_tp, cls_fp, cls_fn = tf.while_loop(lambda index, cls_tp, cls_fp, cls_fn: index < r,
+                                                           lambda index, cls_tp, cls_fp, cls_fn: (index + 1, *r_body(cls_tp, cls_fp, cls_fn, index)),
+                                                           (0, tp[cls_id], fp[cls_id], fn[cls_id]),
+                                                           parallel_iterations = 1)[1:]
+
+                    cls_indices = tf.stack([tf.ones(r, dtype = tf.int32) * cls_id, tf.range(11)], axis = -1)
+                    return tf.tensor_scatter_nd_update(tp, cls_indices, cls_tp), tf.tensor_scatter_nd_update(fp, cls_indices, cls_fp), tf.tensor_scatter_nd_update(fn, cls_indices, cls_fn)
+        
+        tp, fp, fn = tf.while_loop(lambda index, tp, fp, fn: index < n_class,
+                                   lambda index, tp, fp, fn: (index + 1, *cls_body(tp, fp, fn, cls_indices[index])),
+                                   (0, tp, fp, fn),
+                                   parallel_iterations = 1)[1:]
+        return tp, fp, fn
+    
+    tp = tf.zeros((n_class, r), dtype = dtype)
+    fp = tf.zeros((n_class, r), dtype = dtype)
+    fn = tf.zeros((n_class, r), dtype = dtype)
+    tp, fp, fn = tf.while_loop(lambda index, tp, fp, fn: index < n_batch,
+                               lambda index, tp, fp, fn: (index + 1, *metric(tp, fp, fn, index)),
+                               (0, tp, fp, fn),
+                               parallel_iterations = batch_size)[1:]
+    
+    tp_fp = tp + fp
+    tp_fn = tp + fn
+    precision = tf.cast(tf.where(tf.equal(tp_fp, 0.), tf.where(tf.equal(tp_fn, 0.), 1., 0.), tp / tf.where(tf.equal(tp_fp, 0.), 1, tp_fp)), dtype)
+    recall = tf.cast(tf.where(tf.equal(tp_fn, 0.), 1., tp / tf.where(tf.equal(tp_fn, 0.), 1, tp_fn)), dtype)
+    if interpolate:
+        def interpolation(precision, r_index):
+            new_precision = tf.reduce_max(precision[..., :r_index + 1], axis = 1)
+            r_indices = tf.stack([cls_indices, tf.ones(n_class, dtype = tf.int32) * r_index], axis = -1)
+            return tf.tensor_scatter_nd_update(precision, r_indices, new_precision)
+        
+        precision = tf.while_loop(lambda index, precision: index < r,
+                                  lambda index, precision: (index + 1, interpolation(precision, index)),
+                                  (1, precision),
+                                  parallel_iterations = batch_size)[1]
+    
+    if return_precision_n_recall:
+        return precision, recall
+    
+    average_precision = tf.reduce_sum(precision[..., ::-1] * (recall[..., ::-1] - tf.concat([tf.zeros((n_class, 1), dtype = dtype), recall[..., 1:][..., ::-1]], axis = -1)), axis = -1)
+    if reduce:
+        average_precision = tf.reduce_mean(average_precision)
+    return average_precision

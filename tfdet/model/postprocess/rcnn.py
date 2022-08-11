@@ -3,7 +3,8 @@ import tensorflow as tf
 from tfdet.core.bbox import delta2bbox
 from tfdet.core.util import map_fn
 
-def filter_detection(cls_logit, cls_regress, proposal, mask_regress = None, proposal_count = 100, iou_threshold = 0.3, score_threshold = 0.7, soft_nms = False, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000):
+def filter_detection(cls_logit, cls_regress, proposal, mask_regress = None, proposal_count = 100, iou_threshold = 0.5, score_threshold = 0.05, soft_nms = False, performance_count = 5000, 
+                     mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000):
     """
     cls_logit = classifier logit #(num_proposals, num_class)
     cls_regress = classifier regress #(num_proposals, num_class, delta)
@@ -20,6 +21,14 @@ def filter_detection(cls_logit, cls_regress, proposal, mask_regress = None, prop
     proposal = tf.gather_nd(proposal, valid_indices)
     if mask_regress is not None:
         mask_regress = tf.gather_nd(mask_regress, valid_indices)
+        
+    performance_count = tf.minimum(performance_count, tf.shape(cls_logit)[0])
+    top_indices = tf.nn.top_k(tf.reduce_max(cls_logit, axis = -1), performance_count, sorted = True).indices
+    cls_logit = tf.gather(cls_logit, top_indices)
+    cls_regress = tf.gather(cls_regress, top_indices)
+    proposal = tf.gather(proposal, top_indices)
+    if mask_regress is not None:
+        mask_regress = tf.gather(mask_regress, top_indices)
     
     n_class = tf.keras.backend.int_shape(cls_logit)[-1]
     logit_indices = tf.argmax(cls_logit, axis = -1, output_type = tf.int32)
@@ -98,7 +107,8 @@ def filter_detection(cls_logit, cls_regress, proposal, mask_regress = None, prop
     return result
 
 class FilterDetection(tf.keras.layers.Layer):
-    def __init__(self, proposal_count = 100, iou_threshold = 0.3, score_threshold = 0.7, soft_nms = False, ensemble = True, batch_size = 1, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, **kwargs):
+    def __init__(self, proposal_count = 100, iou_threshold = 0.5, score_threshold = 0.05, soft_nms = False, ensemble = True, performance_count = 5000, 
+                 batch_size = 1, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, **kwargs):
         super(FilterDetection, self).__init__(**kwargs)
         self.proposal_count = proposal_count
         self.iou_threshold = iou_threshold
@@ -121,6 +131,18 @@ class FilterDetection(tf.keras.layers.Layer):
             cls_logits, cls_regress = tf.reduce_mean(cls_logits, axis = 0) if self.ensemble else cls_logits[-1], cls_regress[-1]
             if mask_regress is not None:
                 mask_regress = tf.reduce_mean(mask_regress, axis = 0) if self.ensemble else mask_regress[-1]
+        elif tf.keras.backend.int_shape(cls_logits)[-1] == 1: #rpn_score, rpn_regress, anchors
+            cls_logits = tf.concat([1 - cls_logits, cls_logits], axis = -1)
+            valid_flags = tf.logical_and(tf.less_equal(proposals[..., 2], 1),
+                                         tf.logical_and(tf.less_equal(proposals[..., 3], 1),
+                                                        tf.logical_and(tf.greater_equal(proposals[..., 0], 0),
+                                                                       tf.greater_equal(proposals[..., 1], 0))))
+            #valid_indices = tf.range(tf.shape(proposals)[0])[valid_flags]
+            valid_indices = tf.where(valid_flags)[:, 0]
+            cls_logits = tf.gather(cls_logits, valid_indices, axis = 1)
+            cls_regress = tf.gather(cls_regress, valid_indices, axis = 1)
+            proposals = tf.gather(proposals, valid_indices)
+            proposals = tf.tile(tf.expand_dims(proposals, axis = 0), [tf.shape(cls_logits)[0], 1, 1])
         dtype = (cls_logits.dtype, cls_regress.dtype)
         if mask_regress is not None:
             dtype += (mask_regress.dtype,)

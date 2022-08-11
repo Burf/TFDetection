@@ -3,7 +3,8 @@ import tensorflow as tf
 from tfdet.core.bbox import yolo2bbox
 from tfdet.core.util import map_fn
 
-def filter_detection(score, logit, regress, anchors, proposal_count = 100, iou_threshold = 0.3, score_threshold = 0.7, soft_nms = False, clip_ratio = 16 / 1000):
+def filter_detection(score, logit, regress, anchors, proposal_count = 100, iou_threshold = 0.5, score_threshold = 0.05, soft_nms = False, performance_count = 5000, 
+                     clip_ratio = 16 / 1000):
     n_class = tf.keras.backend.int_shape(logit)[-1]
     logit = score * logit
     score = tf.reduce_max(logit, axis = -1, keepdims = True)
@@ -12,6 +13,12 @@ def filter_detection(score, logit, regress, anchors, proposal_count = 100, iou_t
     logit = tf.gather(logit, valid_indices)
     regress = tf.gather(regress, valid_indices)
     anchors = tf.gather(anchors, valid_indices)
+    
+    performance_count = tf.minimum(performance_count, tf.shape(logit)[0])
+    top_indices = tf.nn.top_k(tf.reduce_max(logit, axis = -1), performance_count, sorted = True).indices
+    logit = tf.gather(logit, top_indices)
+    regress = tf.gather(regress, top_indices)
+    anchors = tf.gather(anchors, top_indices)
     
     regress = yolo2bbox(anchors, regress, clip_ratio)
     regress = tf.clip_by_value(regress, 0, 1)
@@ -49,7 +56,8 @@ def filter_detection(score, logit, regress, anchors, proposal_count = 100, iou_t
     return logit, proposal
 
 class FilterDetection(tf.keras.layers.Layer):
-    def __init__(self, proposal_count = 100, iou_threshold = 0.3, score_threshold = 0.7, soft_nms = False, batch_size = 1, clip_ratio = 16 / 1000, **kwargs):
+    def __init__(self, proposal_count = 100, iou_threshold = 0.5, score_threshold = 0.05, soft_nms = False, performance_count = 5000, 
+                 batch_size = 1, clip_ratio = 16 / 1000, **kwargs):
         super(FilterDetection, self).__init__(**kwargs)
         self.proposal_count = proposal_count
         self.iou_threshold = iou_threshold

@@ -5,6 +5,7 @@ from tfdet.core.loss import regularize as regularize_loss
 from tfdet.core.util import map_fn
 from .loss.rcnn import score_accuracy, score_loss, logits_accuracy, logits_loss, regress_loss, mask_loss, semantic_loss
 from .target import rpn_target, sampling_postprocess, cls_target
+from ..postprocess.rcnn import FilterDetection
 
 def rpn_assign(bbox_true, bbox_pred, positive_threshold = 0.7, negative_threshold = 0.3, min_threshold = 0.3, match_low_quality = True, mode = "normal"):
     return max_iou(bbox_true, bbox_pred, positive_threshold = positive_threshold, negative_threshold = negative_threshold, min_threshold = min_threshold, match_low_quality = match_low_quality, mode = mode)
@@ -22,7 +23,9 @@ def train_model(input, rpn_score = None, rpn_regress = None, anchors = None, cls
                 sampling_tag = None, sampling_count = 256,
                 rpn_assign = rpn_assign, rpn_positive_ratio = 0.5,
                 cls_assign = [cls_assign, cls_assign2, cls_assign3], cls_positive_ratio = 0.25,
-                batch_size = 1, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], method = "bilinear", regularize = True, weight_decay = 1e-4, focal = True, alpha = 1., gamma = 2., sigma = 1, class_weight = None, stage_weight = [1.0, 0.5, 0.25], semantic_weight = 0.2, threshold = 0.5, missing_value = 0.):
+                proposal_count = 100, iou_threshold = 0.5, score_threshold = 0.05, soft_nms = False, ensemble = True, performance_count = 5000,
+                batch_size = 1, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, method = "bilinear",
+                regularize = True, weight_decay = 1e-4, focal = True, alpha = 1., gamma = 2., sigma = 1, class_weight = None, stage_weight = [1.0, 0.5, 0.25], semantic_weight = 0.2, threshold = 0.5, missing_value = 0.):
     """
     y_true > #(batch_size, padded_num_true, 1 or n_class)
     bbox_true > #(batch_size, padded_num_true, 4)
@@ -44,6 +47,13 @@ def train_model(input, rpn_score = None, rpn_regress = None, anchors = None, cls
         if not isinstance(mask_regress, list) and tf.keras.backend.ndim(mask_regress) == 4:
             semantic_regress = mask_regress
             mask_regress = None
+            
+    if cls_logits is not None and cls_regress is not None and proposals is not None:
+        args = [cls_logits, cls_regress, proposals]
+        if mask_regress is not None:
+            args += [mask_regress]
+    else:
+        args = [rpn_score, rpn_regress, anchors]
         
     y_true = bbox_true = mask_true = sampling_y_true = sampling_bbox_true = sampling_mask_true = None
     if isinstance(sampling_tag, dict):
@@ -135,7 +145,9 @@ def train_model(input, rpn_score = None, rpn_regress = None, anchors = None, cls
     loss = {k:tf.expand_dims(v, axis = -1) for k, v in loss.items()}
 
     input = [input] + [l for l in [y_true, bbox_true, mask_true] if l is not None]
-    model = tf.keras.Model(input, tf.reduce_sum(list(loss.values()), keepdims = True, name = "loss"))
+    output = FilterDetection(proposal_count = proposal_count, iou_threshold = iou_threshold, score_threshold = score_threshold, soft_nms = soft_nms, ensemble = ensemble, performance_count = performance_count,
+                             batch_size = batch_size, mean = mean, std = std, clip_ratio = clip_ratio)(args)
+    model = tf.keras.Model(input, list(output))
 
     for k, v in list(metric.items()) + list(loss.items()):
         model.add_metric(v, name = k, aggregation = "mean")
@@ -144,6 +156,5 @@ def train_model(input, rpn_score = None, rpn_regress = None, anchors = None, cls
         model.add_loss(v)
 
     if regularize:
-        reg_loss = regularize_loss(model, weight_decay)
-        model.add_loss(lambda: tf.reduce_sum(reg_loss, keepdims = True, name = "regularize_loss"))
+        model.add_loss(lambda: tf.reduce_sum(regularize_loss(model, weight_decay), keepdims = True, name = "regularize_loss"))
     return model
