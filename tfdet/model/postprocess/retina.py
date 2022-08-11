@@ -88,6 +88,7 @@ class FilterDetection(tf.keras.layers.Layer):
         self.score_threshold = score_threshold
         self.nms = nms
         self.soft_nms = soft_nms
+        self.performance_count = performance_count
         self.batch_size = batch_size
         self.mean = mean
         self.std = std
@@ -115,7 +116,8 @@ class FilterDetection(tf.keras.layers.Layer):
         anchors = tf.tile(tf.expand_dims(anchors, axis = 0), [tf.shape(logits)[0], 1, 1])
         args = [l for l in [logits, regress, anchors, centerness] if l is not None]
         out = map_fn(filter_detection, *args, dtype = (logits.dtype, regress.dtype), batch_size = self.batch_size,
-                     proposal_count = self.proposal_count, nms = self.nms, soft_nms = self.soft_nms, iou_threshold = self.iou_threshold, score_threshold = self.score_threshold, mean = self.mean, std = self.std, clip_ratio = self.clip_ratio)
+                     proposal_count = self.proposal_count, nms = self.nms, soft_nms = self.soft_nms, iou_threshold = self.iou_threshold, score_threshold = self.score_threshold, performance_count = self.performance_count,
+                     mean = self.mean, std = self.std, clip_ratio = self.clip_ratio)
         return out
         
     def get_config(self):
@@ -125,6 +127,7 @@ class FilterDetection(tf.keras.layers.Layer):
         config["score_threshold"] = self.score_threshold
         config["nms"] = self.nms
         config["soft_nms"] = self.soft_nms
+        config["performance_count"] = self.performance_count
         config["batch_size"] = self.batch_size
         config["mean"] = self.mean
         config["std"] = self.std

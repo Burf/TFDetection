@@ -115,6 +115,7 @@ class FilterDetection(tf.keras.layers.Layer):
         self.score_threshold = score_threshold
         self.soft_nms = soft_nms
         self.ensemble = ensemble
+        self.performance_count = performance_count
         self.batch_size = batch_size
         self.mean = mean
         self.std = std
@@ -148,7 +149,8 @@ class FilterDetection(tf.keras.layers.Layer):
             dtype += (mask_regress.dtype,)
         args = [l for l in [cls_logits, cls_regress, proposals, mask_regress] if l is not None]
         out = map_fn(filter_detection, *args, dtype = dtype, batch_size = self.batch_size, 
-                     proposal_count = self.proposal_count, iou_threshold = self.iou_threshold, score_threshold = self.score_threshold, soft_nms = self.soft_nms, mean = self.mean, std = self.std, clip_ratio = self.clip_ratio)
+                     proposal_count = self.proposal_count, iou_threshold = self.iou_threshold, score_threshold = self.score_threshold, soft_nms = self.soft_nms, performance_count = self.performance_count,
+                     mean = self.mean, std = self.std, clip_ratio = self.clip_ratio)
         return out
         
     def get_config(self):
@@ -158,6 +160,7 @@ class FilterDetection(tf.keras.layers.Layer):
         config["score_threshold"] = self.score_threshold
         config["soft_nms"] = self.soft_nms
         config["ensemble"] = self.ensemble
+        config["performance_count"] = self.performance_count
         config["batch_size"] = self.batch_size
         config["mean"] = self.mean
         config["std"] = self.std

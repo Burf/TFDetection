@@ -63,6 +63,7 @@ class FilterDetection(tf.keras.layers.Layer):
         self.iou_threshold = iou_threshold
         self.score_threshold = score_threshold
         self.soft_nms = soft_nms
+        self.performance_count = performance_count
         self.batch_size = batch_size
         self.clip_ratio = clip_ratio
 
@@ -80,7 +81,8 @@ class FilterDetection(tf.keras.layers.Layer):
         anchors = tf.gather(anchors, valid_indices)
         anchors = tf.tile(tf.expand_dims(anchors, axis = 0), [tf.shape(logits)[0], 1, 1])
         out = map_fn(filter_detection, score, logits, regress, anchors, dtype = (logits.dtype, regress.dtype), batch_size = self.batch_size,
-                     proposal_count = self.proposal_count, iou_threshold = self.iou_threshold, score_threshold = self.score_threshold, soft_nms = self.soft_nms, clip_ratio = self.clip_ratio)
+                     proposal_count = self.proposal_count, iou_threshold = self.iou_threshold, score_threshold = self.score_threshold, soft_nms = self.soft_nms, performance_count = self.performance_count,
+                     clip_ratio = self.clip_ratio)
         return out
         
     def get_config(self):
@@ -89,6 +91,7 @@ class FilterDetection(tf.keras.layers.Layer):
         config["iou_threshold"] = self.iou_threshold
         config["score_threshold"] = self.score_threshold
         config["soft_nms"] = self.soft_nms
+        config["performance_count"] = self.performance_count
         config["batch_size"] = self.batch_size
         config["clip_ratio"] = self.clip_ratio
         return config
