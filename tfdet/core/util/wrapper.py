@@ -11,7 +11,7 @@ def dict_function(function = None, extra_keys = []):
                     kwargs = {**args[0], **kwargs}
                     args = tuple()
                 result = function(*args, **kwargs)
-                return {k:v for k, v in zip(keys + extra_keys, result if isinstance(result, list) or isinstance(result, tuple) else [result])}
+                return {k:v for k, v in zip(keys + [key for key in extra_keys if key not in keys], result if isinstance(result, list) or isinstance(result, tuple) else [result])}
             else:
                 return function(*args, **kwargs)
         return run

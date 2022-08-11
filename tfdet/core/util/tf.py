@@ -28,7 +28,6 @@ def convert_to_numpy(*args, return_tuple = False):
         args = tuple(args)
     return args
 
-@dict_function(extra_keys = ["bbox_true"])
 def py_func(function, *args, Tout = tf.float32, **kwargs):
     #return tf.py_function(lambda *args: functools.partial(function, **kwargs)(*convert_to_numpy(*args, return_tuple = True)), args, Tout = Tout)
     tf_kwargs = {k:v for k, v in kwargs.items() if tf.is_tensor(v)}
