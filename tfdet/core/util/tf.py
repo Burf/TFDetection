@@ -57,5 +57,5 @@ def pipeline(dataset, map = None, batch_size = 0, epoch = 1, shuffle = False, pr
         if callable(m):
             dataset = dataset.map(m, num_parallel_calls = num_parallel_calls if num_parallel_calls is not None else tf.data.experimental.AUTOTUNE)
     if prefetch:
-        dataset = dataset.prefetch(prefetch_size if prefetch_size is not None else (max(batch_size, 1) * 2) + 1)
+        dataset = dataset.prefetch(prefetch_size if prefetch_size is not None else 1)
     return dataset
