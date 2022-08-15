@@ -1,1 +1,1 @@
-from .object_detection import mean_average_precision
+from .object_detection import MeanAveragePrecision
