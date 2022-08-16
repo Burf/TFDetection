@@ -128,6 +128,8 @@ TFDetection(tfdet) is a detection toolbox based on Tensorflow2 and Keras.
             <li>Albumentations</li>
             <li>Mosaic</li>
             <li>Cut Mix</li>
+            <li>Cut Out</li>
+            <li>Mix Up</li>
           </ul>
         </ul>
         <ul>

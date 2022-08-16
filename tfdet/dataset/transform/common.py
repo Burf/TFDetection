@@ -6,14 +6,22 @@ from tfdet.core.util import to_categorical
 from .augment import albumentations
 from ..util import load_image, load_pascal_voc
 
-def load(x_true, y_true = None, bbox_true = None, mask_true = None, load_func = load_image, anno_func = load_pascal_voc):
+def load(x_true, y_true = None, bbox_true = None, mask_true = None, load_func = load_image, anno_func = load_pascal_voc, mask_func = None):
     if callable(load_func):
         x_true = load_func(x_true)
     if y_true is not None:
         if callable(anno_func):
             y_true = anno_func(y_true, bbox_true)
         if isinstance(y_true, tuple):
-            y_true, bbox_true = y_true
+            out = list(y_true)
+            y_true = out.pop(0)
+            if 0 < len(out):
+                bbox_true = out.pop(0)
+            if 0 < len(out):
+                mask_true = out.pop(0)
+    if mask_true is not None:
+        if callable(mask_func):
+            mask_true = mask_func(mask_true)
     result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
     result = result[0] if len(result) == 1 else tuple(result)
     return result
@@ -82,13 +90,15 @@ def resize(x_true, y_true = None, bbox_true = None, mask_true = None, image_shap
     result = result[0] if len(result) == 1 else tuple(result)
     return result
 
-def pad(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape = None, max_pad_size = 100, pad_val = 0, background = "bg", mode = "right"):
+def pad(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape = None, max_pad_size = 100, pad_val = 0, mode = "right", background = "bg"):
     """
     x_true = (H, W, C)
     y_true(without bbox_true) = (1 or n_class,)
     y_true(with bbox_true) = (P, 1 or n_class)
     bbox_true = (P, 4)
     mask_true(with bbox_true & instance mask_true) = (P, H, W, 1)
+    
+    mode = ("left", "right", "both", "random")
     """
     if mode not in ("left", "right", "both", "random"):
         raise ValueError("unknown mode '{0}'".format(mode))
@@ -140,4 +150,56 @@ def crop(x_true, y_true = None, bbox_true = None, mask_true = None, bbox = None,
     else:
         result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
         result = result[0] if len(result) == 1 else tuple(result)
+    return result
+
+def random_apply(function, x_true, y_true = None, bbox_true = None, mask_true = None, p = 0.5, choice_size = 1, 
+                 image_shape = None, max_pad_size = 100, pad_val = 0, mode = "right", background = "bg", **kwargs):
+    """
+    x_true = (N, H, W, C)
+    y_true(without bbox_true) = (N, n_class)
+    y_true(with bbox_true) = (N, P, 1 or n_class)
+    bbox_true = (N, P, 4)
+    mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
+    mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
+    """
+    n_batch = len(x_true)
+    indices = np.arange(n_batch)
+    x_trues = []
+    y_trues = []
+    bbox_trues = []
+    mask_trues = []
+    for index in range(n_batch):
+        if np.random.random() < p:
+            if 1 < choice_size:
+                #index = [index] + random.choices(indices, k = choice_size - 1)
+                index = [index] + np.random.choice(indices, choice_size - 1).tolist() #for numpy seed
+            out = function(x_true[index], 
+                           y_true[index] if y_true is not None else None,
+                           bbox_true[index] if bbox_true is not None else None, 
+                           mask_true[index] if mask_true is not None else None, **kwargs)
+            if not isinstance(out, tuple) and not isinstance(out, list):
+                out = (out,)
+        else:
+            out = [arg[index] for arg in [x_true, y_true, bbox_true, mask_true] if arg is not None]
+        args = {k:v for k, v in zip(["x_true", "y_true", "bbox_true", "mask_true"], out)}
+        out = pad(**args, image_shape = image_shape, max_pad_size = max_pad_size, pad_val = pad_val, mode = mode, background = background)
+        if not isinstance(out, tuple) and not isinstance(out, list):
+            out = (out,)
+        out = list(out)
+        x_trues.append(out.pop(0))
+        if y_true is not None and 0 < len(out):
+            y_trues.append(out.pop(0))
+        if bbox_true is not None and 0 < len(out):
+            bbox_trues.append(out.pop(0))
+        if mask_true is not None and 0 < len(out):
+            mask_trues.append(out.pop(0))
+    try:
+        x_true = np.stack(x_trues, axis = 0)
+        y_true = np.stack(y_trues, axis = 0) if y_true is not None else None
+        bbox_true = np.stack(bbox_trues, axis = 0) if bbox_true is not None else None
+        mask_true = np.stack(mask_trues, axis = 0) if mask_true is not None else None
+    except:
+        raise ValueError("all input arrays must have the same shape : please check 'image_shape' or 'max_pad_size'")
+    result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
+    result = result[0] if len(result) == 1 else tuple(result)
     return result

@@ -6,76 +6,61 @@ import numpy as np
 import tensorflow as tf
 
 from .util import pipe
-from ..transform import load, preprocess, resize, pad, crop, random_crop, mosaic, cut_mix, albumentations, key_map, collect
+from ..transform import load, preprocess, resize, pad, crop, random_apply, albumentations, random_crop, mosaic, cut_mix, cut_out, mix_up, key_map, collect
 from ..util import load_image, load_pascal_voc
 
 def load_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, 
-              load_func = load_image, anno_func = load_pascal_voc,
-              batch_size = 0, epoch = 1, shuffle = False, prefetch = False, num_parallel_calls = None, cache = None, shuffle_size = None, prefetch_size = None):
+              load_func = load_image, anno_func = load_pascal_voc, mask_func = None,
+              batch_size = 0, epoch = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
+              cache = None, num_parallel_calls = None):
     return pipe(load, x_true, y_true, bbox_true, mask_true, dtype = None, tf_func = False,
-                load_func = load_func, anno_func = anno_func,
-                batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
+                load_func = load_func, anno_func = anno_func, mask_func = mask_func,
+                batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
+                cache = cache, num_parallel_calls = num_parallel_calls)
   
 def preprocess_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, 
                     dtype = tf.float32,
                     rescale = 1., mean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375],
                     label = None, one_hot = True, label_smoothing = 0.1,
                     bbox_normalize = True, min_area = 0.,
-                    batch_size = 0, epoch = 1, shuffle = False, prefetch = False, num_parallel_calls = None, cache = None, shuffle_size = None, prefetch_size = None):
+                    batch_size = 0, epoch = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
+                    cache = None, num_parallel_calls = None):
     return pipe(preprocess, x_true, y_true, bbox_true, mask_true, dtype = dtype, tf_func = False,
                 rescale = rescale, mean = mean, std = std,
                 label = label, one_hot = one_hot, label_smoothing = label_smoothing,
                 bbox_normalize = bbox_normalize, min_area = min_area,
-                batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
+                batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
+                cache = cache, num_parallel_calls = num_parallel_calls)
     
 def resize_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, 
                 image_shape = None,
-                batch_size = 0, epoch = 1, shuffle = False, prefetch = False, num_parallel_calls = None, cache = None, shuffle_size = None, prefetch_size = None):
+                batch_size = 0, epoch = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
+                cache = None, num_parallel_calls = None):
     return pipe(resize, x_true, y_true, bbox_true, mask_true, dtype = None, tf_func = False,
                 image_shape = image_shape,
-                batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
+                batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
+                cache = cache, num_parallel_calls = num_parallel_calls)
 
 def pad_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, 
              image_shape = None, max_pad_size = 100, pad_val = 0, background = "bg", mode = "right",
-             batch_size = 0, epoch = 1, shuffle = False, prefetch = False, num_parallel_calls = None, cache = None, shuffle_size = None, prefetch_size = None):
+             batch_size = 0, epoch = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
+             cache = None, num_parallel_calls = None):
     return pipe(pad, x_true, y_true, bbox_true, mask_true, dtype = None, tf_func = False,
                 image_shape = image_shape, max_pad_size = max_pad_size, pad_val = pad_val, background = background, mode = mode,
-                batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
+                batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
+                cache = cache, num_parallel_calls = num_parallel_calls)
 
 def crop_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, 
               bbox = None, min_area = 0., min_visibility = 0.,
-              batch_size = 0, epoch = 1, shuffle = False, prefetch = False, num_parallel_calls = None, cache = None, shuffle_size = None, prefetch_size = None):
+              batch_size = 0, epoch = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
+              cache = None, num_parallel_calls = None):
     """
     bbox = [x1, y1, x2, y2]
     """
     return pipe(crop, x_true, y_true, bbox_true, mask_true, dtype = None, tf_func = False,
                 bbox = bbox, min_area = min_area, min_visibility = min_visibility,
-                batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
-
-def random_crop_pipe(x_true, y_true = None, bbox_true = None, mask_true = None,
-                     image_shape = None, min_area = 0., min_visibility = 0.,
-                     batch_size = 0, epoch = 1, shuffle = False, prefetch = False, num_parallel_calls = None, cache = None, shuffle_size = None, prefetch_size = None):
-    return pipe(random_crop, x_true, y_true, bbox_true, mask_true, dtype = None, tf_func = False,
-                image_shape = image_shape, min_area = min_area, min_visibility = min_visibility,
-                batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
-  
-def mosaic_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, 
-                image_shape = None, alpha = 0.2, pad_val = 0, min_area = 0., min_visibility = 0., e = 1e-12, 
-                pre_batch_size = 4, pre_shuffle = False, pre_shuffle_size = None, pre_prefetch = False, pre_prefetch_size = None,
-                batch_size = 0, epoch = 1, shuffle = False, prefetch = False, num_parallel_calls = None, cache = None, shuffle_size = None, prefetch_size = None):
-    return pipe(mosaic, x_true, y_true, bbox_true, mask_true, dtype = None, tf_func = False,
-                image_shape = image_shape, alpha = alpha, pad_val = pad_val, min_area = min_area, min_visibility = min_visibility, e = e,
-                pre_batch_size = pre_batch_size, pre_shuffle = pre_shuffle, pre_shuffle_size = pre_shuffle_size, pre_prefetch = pre_prefetch, pre_prefetch_size = pre_prefetch_size,
-                batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
- 
-def cut_mix_pipe(x_true, y_true = None, bbox_true = None, mask_true = None,
-                 alpha = 0.2, min_area = 0., min_visibility = 0., e = 1e-12, 
-                 pre_batch_size = 2, pre_shuffle = False, pre_shuffle_size = None, pre_prefetch = False, pre_prefetch_size = None,
-                 batch_size = 0, epoch = 1, shuffle = False, prefetch = False, num_parallel_calls = None, cache = None, shuffle_size = None, prefetch_size = None):
-    return pipe(cut_mix, x_true, y_true, bbox_true, mask_true, dtype = None, tf_func = False,
-                alpha = alpha, min_area = min_area, min_visibility = min_visibility, e = e,
-                pre_batch_size = pre_batch_size, pre_shuffle = pre_shuffle, pre_shuffle_size = pre_shuffle_size, pre_prefetch = pre_prefetch, pre_prefetch_size = pre_prefetch_size,
-                batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
+                batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
+                cache = cache, num_parallel_calls = num_parallel_calls)
 
 def albumentations_pipe(x_true, y_true = None, bbox_true = None, mask_true = None,
                         transform = [A.Blur(p = 0.01),
@@ -93,21 +78,131 @@ def albumentations_pipe(x_true, y_true = None, bbox_true = None, mask_true = Non
                                      A.ImageCompression(p = 0.01, quality_lower = 75),
                                     ],
                         min_area = 0., min_visibility = 0.,
-                        batch_size = 0, epoch = 1, shuffle = False, prefetch = False, num_parallel_calls = None, cache = None, shuffle_size = None, prefetch_size = None):
+                        batch_size = 0, epoch = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
+                        cache = None, num_parallel_calls = None):
     return pipe(albumentations, x_true, y_true, bbox_true, mask_true, dtype = None, tf_func = False,
                 transform = transform, min_area = min_area, min_visibility = min_visibility,
-                batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
+                batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
+                cache = cache, num_parallel_calls = num_parallel_calls)
+
+def random_crop_pipe(x_true, y_true = None, bbox_true = None, mask_true = None,
+                     image_shape = None, min_area = 0., min_visibility = 0.,
+                     batch_size = 0, epoch = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
+                     cache = None, num_parallel_calls = None):
+    return pipe(random_crop, x_true, y_true, bbox_true, mask_true, dtype = None, tf_func = False,
+                image_shape = image_shape, min_area = min_area, min_visibility = min_visibility,
+                batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
+                cache = cache, num_parallel_calls = num_parallel_calls)
   
+def mosaic_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, 
+                image_shape = None, alpha = 0.2, pad_val = 0, min_area = 0., min_visibility = 0., e = 1e-12, 
+                pre_batch_size = 4, pre_shuffle = False, pre_shuffle_size = None,
+                batch_size = 0, epoch = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
+                cache = None, num_parallel_calls = None):
+    return pipe(mosaic, x_true, y_true, bbox_true, mask_true, dtype = None, tf_func = False,
+                image_shape = image_shape, alpha = alpha, pad_val = pad_val, min_area = min_area, min_visibility = min_visibility, e = e,
+                batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
+                pre_batch_size = pre_batch_size, pre_shuffle = pre_shuffle, pre_shuffle_size = pre_shuffle_size,
+                cache = cache, num_parallel_calls = num_parallel_calls)
+ 
+def cut_mix_pipe(x_true, y_true = None, bbox_true = None, mask_true = None,
+                 alpha = 1., min_area = 0., min_visibility = 0., e = 1e-12, 
+                 pre_batch_size = 2, pre_shuffle = False, pre_shuffle_size = None,
+                 batch_size = 0, epoch = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
+                 cache = None, num_parallel_calls = None):
+    return pipe(cut_mix, x_true, y_true, bbox_true, mask_true, dtype = None, tf_func = False,
+                alpha = alpha, min_area = min_area, min_visibility = min_visibility, e = e,
+                pre_batch_size = pre_batch_size, pre_shuffle = pre_shuffle, pre_shuffle_size = pre_shuffle_size,
+                batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
+                cache = cache, num_parallel_calls = num_parallel_calls)
+ 
+def cut_out_pipe(x_true, y_true = None, bbox_true = None, mask_true = None,
+                 alpha = 1., pad_val = 0, min_area = 0., min_visibility = 0., e = 1e-12,
+                 batch_size = 0, epoch = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
+                 cache = None, num_parallel_calls = None):
+    return pipe(cut_out, x_true, y_true, bbox_true, mask_true, dtype = None, tf_func = False,
+                alpha = alpha, pad_val = pad_val, min_area = min_area, min_visibility = min_visibility, e = e,
+                batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
+                cache = cache, num_parallel_calls = num_parallel_calls)
+ 
+def mix_up_pipe(x_true, y_true = None, bbox_true = None, mask_true = None,
+                alpha = 8.,
+                pre_batch_size = 2, pre_shuffle = False, pre_shuffle_size = None,
+                batch_size = 0, epoch = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
+                cache = None, num_parallel_calls = None):
+    return pipe(mix_up, x_true, y_true, bbox_true, mask_true, dtype = None, tf_func = False,
+                alpha = alpha,
+                pre_batch_size = pre_batch_size, pre_shuffle = pre_shuffle, pre_shuffle_size = pre_shuffle_size,
+                batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
+                cache = cache, num_parallel_calls = num_parallel_calls)
+
+def random_mosaic_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, 
+                       p = 0.5,
+                       image_shape = None, alpha = 0.2, pad_val = 0, min_area = 0., min_visibility = 0., e = 1e-12,
+                       max_pad_size = 100, mode = "right", background = "bg",
+                       pre_batch_size = 16, pre_shuffle = False, pre_shuffle_size = None,
+                       batch_size = 0, epoch = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
+                       cache = None, num_parallel_calls = None):
+    func = functools.partial(mosaic, image_shape = image_shape, alpha = alpha, pad_val = pad_val, min_area = min_area, min_visibility = min_visibility, e = e)
+    random_func = functools.partial(random_apply, func, p = p, choice_size = 4, image_shape = image_shape, max_pad_size = max_pad_size, pad_val = pad_val, mode = mode, background = background)
+    return pipe(random_func, x_true, y_true, bbox_true, mask_true, dtype = None, tf_func = False,
+                batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
+                pre_batch_size = pre_batch_size, pre_unbatch = True, pre_shuffle = pre_shuffle, pre_shuffle_size = pre_shuffle_size,
+                cache = cache, num_parallel_calls = num_parallel_calls)
+
+def random_cut_mix_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, 
+                        p = 0.5,
+                        alpha = 1., min_area = 0., min_visibility = 0., e = 1e-12,
+                        image_shape = None, max_pad_size = 100, pad_val = 0, mode = "right", background = "bg",
+                        pre_batch_size = 8, pre_shuffle = False, pre_shuffle_size = None,
+                        batch_size = 0, epoch = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
+                        cache = None, num_parallel_calls = None):
+    func = functools.partial(cut_mix, alpha = alpha, min_area = min_area, min_visibility = min_visibility, e = e)
+    random_func = functools.partial(random_apply, func, p = p, choice_size = 2, image_shape = image_shape, max_pad_size = max_pad_size, pad_val = pad_val, mode = mode, background = background)
+    return pipe(random_func, x_true, y_true, bbox_true, mask_true, dtype = None, tf_func = False,
+                batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
+                pre_batch_size = pre_batch_size, pre_unbatch = True, pre_shuffle = pre_shuffle, pre_shuffle_size = pre_shuffle_size,
+                cache = cache, num_parallel_calls = num_parallel_calls)
+
+def random_cut_out_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, 
+                        p = 0.5,
+                        alpha = 1., pad_val = 0, min_area = 0., min_visibility = 0., e = 1e-12,
+                        image_shape = None, max_pad_size = 100, mode = "right", background = "bg",
+                        batch_size = 0, epoch = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
+                        cache = None, num_parallel_calls = None):
+    func = functools.partial(cut_out, alpha = alpha, pad_val = pad_val, min_area = min_area, min_visibility = min_visibility, e = e)
+    random_func = functools.partial(random_apply, func, p = p, choice_size = 1, image_shape = image_shape, max_pad_size = max_pad_size, pad_val = pad_val, mode = mode, background = background)
+    return pipe(random_func, x_true, y_true, bbox_true, mask_true, dtype = None, tf_func = False,
+                batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
+                pre_batch_size = 1, pre_unbatch = True,
+                cache = cache, num_parallel_calls = num_parallel_calls)
+
+def random_mix_up_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, 
+                       p = 0.5,
+                       alpha = 8.,
+                       image_shape = None, max_pad_size = 100, pad_val = 0, mode = "right", background = "bg",
+                       pre_batch_size = 8, pre_shuffle = False, pre_shuffle_size = None,
+                       batch_size = 0, epoch = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
+                       cache = None, num_parallel_calls = None):
+    func = functools.partial(mix_up, alpha = alpha)
+    random_func = functools.partial(random_apply, func, p = p, choice_size = 2, image_shape = image_shape, max_pad_size = max_pad_size, pad_val = pad_val, mode = mode, background = background)
+    return pipe(random_func, x_true, y_true, bbox_true, mask_true, dtype = None, tf_func = False,
+                batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
+                pre_batch_size = pre_batch_size, pre_unbatch = True, pre_shuffle = pre_shuffle, pre_shuffle_size = pre_shuffle_size,
+                cache = cache, num_parallel_calls = num_parallel_calls)
+
 def key_map_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, 
                  map = {"x_true":"x_true", "y_true":"y_true", "bbox_true":"bbox_true", "mask_true":"mask_true"},
-                 batch_size = 0, epoch = 1, shuffle = False, prefetch = False, num_parallel_calls = None, cache = None, shuffle_size = None, prefetch_size = None):
+                 batch_size = 0, epoch = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
+                 cache = None, num_parallel_calls = None):
     return pipe(key_map, x_true, y_true, bbox_true, mask_true, dtype = None, tf_func = True,
                 map = map,
                 batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
 
 def collect_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, 
                  keys = ["x_true", "y_true", "bbox_true", "mask_true"],
-                 batch_size = 0, epoch = 1, shuffle = False, prefetch = False, num_parallel_calls = None, cache = None, shuffle_size = None, prefetch_size = None):
+                 batch_size = 0, epoch = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
+                 cache = None, num_parallel_calls = None):
     return pipe(collect, x_true, y_true, bbox_true, mask_true, dtype = None, tf_func = True,
                 keys = keys,
                 batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)

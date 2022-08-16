@@ -30,3 +30,13 @@ def walk_dir(path, keyword = None, absolute = False):
                 file_path = os.path.abspath(file_path)
             result.append(file_path)
     return result
+
+def load_file(path, map = {"\n":""}, mode = "rt"):
+    result = []
+    with open(path, mode) as file:
+        for line in file.readlines():
+            if isinstance(map, dict):
+                for k, v in map.items():
+                    line = line.replace(k, v)
+            result.append(line)
+    return result

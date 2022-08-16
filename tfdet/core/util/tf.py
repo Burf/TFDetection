@@ -39,23 +39,29 @@ def to_categorical(y, n_class = None, label_smoothing = 0.1):
     bias = label_smoothing / (result.shape[-1] - 1)
     return result * (alpha - bias) + bias
     
-def pipeline(dataset, map = None, batch_size = 0, epoch = 1, shuffle = False, prefetch = False, post_map = None, num_parallel_calls = None, cache = None, shuffle_size = None, prefetch_size = None):
+def pipeline(dataset, function = None,
+             batch_size = 0, epoch = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
+             pre_batch_size = 0, pre_unbatch = False, pre_shuffle = False, pre_shuffle_size = None,
+             cache = None, num_parallel_calls = None):
     if not isinstance(dataset, tf.data.Dataset):
         dataset = tf.data.Dataset.from_tensor_slices(dataset)
-    for m in map if isinstance(map, list) else [map]:
-        if callable(m):
-            dataset = dataset.map(m, num_parallel_calls = num_parallel_calls if num_parallel_calls is not None else tf.data.experimental.AUTOTUNE)
+    if pre_shuffle:
+        dataset = dataset.shuffle(buffer_size = pre_shuffle_size if pre_shuffle_size is not None else max(pre_batch_size, 1) * 10)
+    if 0 < pre_batch_size:
+        dataset = dataset.batch(pre_batch_size)
+    for func in function if isinstance(function, list) else [function]:
+        if callable(func):
+            dataset = dataset.map(func, num_parallel_calls = num_parallel_calls if num_parallel_calls is not None else tf.data.experimental.AUTOTUNE)
+    if pre_unbatch:
+        dataset = dataset.unbatch()
     if isinstance(cache, str):
         dataset = dataset.cache(cache)
     if shuffle:
         dataset = dataset.shuffle(buffer_size = shuffle_size if shuffle_size is not None else max(batch_size, 1) * 10)
-    if isinstance(batch_size, int) and 0 < batch_size:
+    if 0 < batch_size:
         dataset = dataset.batch(batch_size)
-    if isinstance(epoch, int) and 1 < epoch:
+    if 1 < epoch:
         dataset = dataset.repeat(epoch)
-    for m in post_map if isinstance(post_map, list) else [post_map]:
-        if callable(m):
-            dataset = dataset.map(m, num_parallel_calls = num_parallel_calls if num_parallel_calls is not None else tf.data.experimental.AUTOTUNE)
     if prefetch:
         dataset = dataset.prefetch(prefetch_size if prefetch_size is not None else 1)
     return dataset
