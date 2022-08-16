@@ -23,7 +23,7 @@ def filter_detection(cls_logit, cls_regress, proposal, mask_regress = None, prop
         mask_regress = tf.gather_nd(mask_regress, valid_indices)
         
     performance_count = tf.minimum(performance_count, tf.shape(cls_logit)[0])
-    top_indices = tf.nn.top_k(tf.reduce_max(cls_logit, axis = -1), performance_count, sorted = True).indices
+    top_indices = tf.nn.top_k(tf.reduce_max(cls_logit[..., 1:], axis = -1), performance_count, sorted = True).indices
     cls_logit = tf.gather(cls_logit, top_indices)
     cls_regress = tf.gather(cls_regress, top_indices)
     proposal = tf.gather(proposal, top_indices)

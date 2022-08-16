@@ -15,7 +15,7 @@ def filter_detection(score, logit, regress, anchors, proposal_count = 100, iou_t
     anchors = tf.gather(anchors, valid_indices)
     
     performance_count = tf.minimum(performance_count, tf.shape(logit)[0])
-    top_indices = tf.nn.top_k(tf.reduce_max(logit, axis = -1), performance_count, sorted = True).indices
+    top_indices = tf.nn.top_k(tf.reduce_max(logit[..., 1:], axis = -1), performance_count, sorted = True).indices
     logit = tf.gather(logit, top_indices)
     regress = tf.gather(regress, top_indices)
     anchors = tf.gather(anchors, top_indices)
