@@ -63,5 +63,5 @@ def pipeline(dataset, function = None,
     if 1 < epoch:
         dataset = dataset.repeat(epoch)
     if prefetch:
-        dataset = dataset.prefetch(prefetch_size if prefetch_size is not None else 1)
+        dataset = dataset.prefetch(prefetch_size if prefetch_size is not None else tf.data.experimental.AUTOTUNE)
     return dataset

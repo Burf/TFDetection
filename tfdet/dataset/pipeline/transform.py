@@ -21,7 +21,7 @@ def load_pipe(x_true, y_true = None, bbox_true = None, mask_true = None,
 def preprocess_pipe(x_true, y_true = None, bbox_true = None, mask_true = None, 
                     dtype = tf.float32,
                     rescale = 1., mean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375],
-                    label = None, one_hot = True, label_smoothing = 0.1,
+                    label = None, one_hot = False, label_smoothing = 0.1,
                     bbox_normalize = True, min_area = 0.,
                     batch_size = 0, epoch = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
                     cache = None, num_parallel_calls = None):

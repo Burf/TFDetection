@@ -28,7 +28,7 @@ def load(x_true, y_true = None, bbox_true = None, mask_true = None, load_func = 
     
 def preprocess(x_true, y_true = None, bbox_true = None, mask_true = None, 
                rescale = 1., mean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375],
-               label = None, one_hot = True, label_smoothing = 0.1,
+               label = None, one_hot = False, label_smoothing = 0.1,
                bbox_normalize = True, min_area = 0.):
     """
     x_true = (H, W, C)
@@ -57,11 +57,12 @@ def preprocess(x_true, y_true = None, bbox_true = None, mask_true = None,
     if std is not None:
         x_true = np.divide(x_true, std)
     if y_true is not None and label is not None:
-        label_convert = {k:v for v, k in enumerate(label)}
-        if 1 < np.ndim(y_true):
-            y_true = np.array([[label_convert[l[0]]] if l[0] in label else l for l in y_true])
-        else:
-            y_true = label_convert[y_true] if y_true in label else y_true
+        if 0 < len(y_true):
+            label_convert = {k:v for v, k in enumerate(label)}
+            if 1 < np.ndim(y_true):
+                y_true = np.array([[label_convert[l[0]]] if l[0] in label else l for l in y_true])
+            else:
+                y_true = label_convert[y_true] if y_true in label else y_true
         if one_hot:
             y_true = to_categorical(y_true, len(label), label_smoothing)
         if 0 < min_area and bbox_true is not None and 1 < np.ndim(y_true):
