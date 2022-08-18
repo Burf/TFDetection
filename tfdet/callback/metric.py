@@ -34,7 +34,7 @@ class MeanAveragePrecision(tf.keras.callbacks.Callback):
                     x = [data[k] for k in input_key if k in data]
                     y_true, bbox_true = data["y_true"], data["bbox_true"]
 
-                y_pred, bbox_pred = self.model.predict(x)
+                y_pred, bbox_pred = self.model.predict(x, verbose = 0)
                 
                 self.metric.add(y_true, bbox_true, y_pred, bbox_pred)
             except:

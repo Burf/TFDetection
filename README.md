@@ -127,9 +127,9 @@ TFDetection(tfdet) is a detection toolbox based on Tensorflow2 and Keras.
           <ul>
             <li>Albumentations</li>
             <li>Mosaic</li>
-            <li>Cut Mix</li>
-            <li>Cut Out</li>
-            <li>Mix Up</li>
+            <li>CutMix</li>
+            <li>CutOut</li>
+            <li>MixUp</li>
           </ul>
         </ul>
         <ul>
@@ -148,7 +148,6 @@ TFDetection(tfdet) is a detection toolbox based on Tensorflow2 and Keras.
 
 - Python 3.8▲
 - tensorflow 2.4▲ (If you installed tensorflow latest, more backbone is available.)
-- keras
 - opencv-python
 - albumentations
 
