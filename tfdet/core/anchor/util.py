@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 
-from ..bbox import overlap_bbox
+from ..bbox import overlap_bbox_numpy as overlap_bbox
 
 def generate_hist_scale(bbox_true, count = 5, decimal = 4):
     bbox_true = tf.reshape(bbox_true, (-1, 4))

@@ -1,4 +1,5 @@
 import tensorflow as tf
+import numpy as np
 
 def overlap_bbox(bbox_true, bbox_pred, mode = "normal"):
     """
@@ -89,4 +90,70 @@ def overlap_point(bbox_true, points, regress_range = None):
     pad_area = tf.where(overlap_flag, area, tf.reduce_max(area) + 1)
     min_flag = tf.equal(area, tf.reduce_min(pad_area, axis = 0, keepdims = True))
     overlaps = tf.where(min_flag, area, 0)
+    return overlaps
+
+def overlap_bbox_numpy(bbox_true, bbox_pred, mode = "normal", e = 1e-12):
+    """
+    bbox_true = [[x1, y1, x2, y2], ...] #(N, bbox)
+    bbox_pred = [[x1, y1, x2, y2], ...] #(M, bbox)
+    
+    overlaps = true & pred iou matrix #(N, M)
+    """
+    if mode not in ("normal", "foreground", "general", "complete", "distance"):
+        raise ValueError("unknown mode '{0}'".format(mode))
+    
+    true_count = np.shape(bbox_true)[0]
+    pred_count = np.shape(bbox_pred)[0]
+        
+    bbox_true = np.reshape(np.tile(np.expand_dims(bbox_true, 0), [1, 1, pred_count]), [-1, 4])
+    bbox_pred = np.tile(bbox_pred, [true_count, 1])
+    
+    tx1, ty1, tx2, ty2 = np.split(bbox_true, 4, axis = -1)
+    px1, py1, px2, py2 = np.split(bbox_pred, 4, axis = -1)
+    
+    area_true = (tx2 - tx1) * (ty2 - ty1)
+    area_pred = (px2 - px1) * (py2 - py1)
+    
+    x1 = np.maximum(tx1, px1)
+    y1 = np.maximum(ty1, py1)
+    x2 = np.minimum(tx2, px2)
+    y2 = np.minimum(ty2, py2)
+    
+    inter = np.maximum(x2 - x1, 0) * np.maximum(y2 - y1, 0)
+    if mode != "foreground":
+        union = area_true + area_pred - inter
+    else:
+        union = area_true
+    iou = np.clip((inter + e) / (union + e), 0, 1)
+    if mode in ["general", "complete", "distance"]:
+        gx1 = np.minimum(tx1, px1)
+        gy1 = np.minimum(ty1, py1)
+        gx2 = np.maximum(tx2, px2)
+        gy2 = np.maximum(ty2, py2)
+        
+        if mode == "general":
+            general_inter = np.maximum(gx2 - gx1, 0) * np.maximum(gy2 - gy1, 0)
+            iou = giou = np.clip(iou - (general_inter - union + e) / (general_inter + e), 0, 1)
+        else:
+            tw = np.maximum(tx2 - tx1, 0)
+            th = np.maximum(ty2 - ty1, 0)
+            pw = np.maximum(px2 - px1, 0)
+            ph = np.maximum(py2 - py1, 0)
+            ctx = tx1 + 0.5 * tw
+            cty = ty1 + 0.5 * th
+            cpx = px1 + 0.5 * pw
+            cpy = py1 + 0.5 * ph
+            c = (gx2 - gx1) ** 2 + (gy2 - gy1) ** 2
+            rho = (ctx - cpx) ** 2 + (cty - cpy) ** 2
+            
+            diou = np.clip(iou - (rho + e) / (c + e), 0, 1)
+            if mode == "distance": 
+                iou = diou
+            else: #complete
+                atan = np.vectorize(np.math.atan)
+                v = ((atan((pw + e) / (ph + e))
+                    - atan((tw + e) / (th + e))) * 2 / np.pi) ** 2
+                alpha = (v + e) / (1 - iou + v + e)
+                iou = ciou = np.clip(diou - alpha * v, 0, 1)
+    overlaps = np.reshape(iou, [true_count, pred_count])
     return overlaps
