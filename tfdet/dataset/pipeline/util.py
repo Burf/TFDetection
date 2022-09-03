@@ -3,13 +3,18 @@ import functools
 import numpy as np
 import tensorflow as tf
 
-from tfdet.core.util import pipeline, py_func, dict_function
+from tfdet.core.util import pipeline, convert_to_numpy, py_func, dict_function
 
 @dict_function(extra_keys = ["y_true", "bbox_true", "mask_true"])
 def dict_py_func(function, *args, Tout = tf.float32, **kwargs):
     return py_func(function, *args, Tout = Tout, **kwargs)
 
-def pipe(function, x_true, y_true = None, bbox_true = None, mask_true = None, dtype = None, tf_func = False,
+def func_format(x_true, y_true = None, bbox_true = None, mask_true = None):
+    result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
+    result = result[0] if len(result) == 1 else tuple(result)
+    return result 
+
+def pipe(x_true, y_true = None, bbox_true = None, mask_true = None, function = func_format, dtype = None, tf_func = False,
          batch_size = 0, epoch = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
          pre_batch_size = 0, pre_unbatch = False, pre_shuffle = False, pre_shuffle_size = None,
          cache = None, num_parallel_calls = None,
@@ -23,15 +28,23 @@ def pipe(function, x_true, y_true = None, bbox_true = None, mask_true = None, dt
     elif callable(function):
         if dtype is None:
             if isinstance(x_true, tf.data.Dataset):
-                dtype = tuple(x_true.element_spec.values()) if isinstance(x_true.element_spec, dict) else x_true.element_spec
+                sample_args = next(iter(x_true))
+                if isinstance(sample_args, dict):
+                    sample_args = convert_to_numpy(sample_args)
+                    sample_args = {k:np.stack([v] * pre_batch_size, axis = 0) for k, v in sample_args.items()} if 0 < pre_batch_size else sample_args
+                    sample_result = function(**sample_args, **kwargs)
+                else:
+                    sample_args = convert_to_numpy([v for v in (sample_args if isinstance(sample_args, tuple) else [sample_args]) if v is not None])
+                    sample_args = [np.stack([v] * pre_batch_size, axis = 0) for v in sample_args] if 0 < pre_batch_size else sample_args
+                    sample_result = function(*sample_args, **kwargs)
             else:
                 if isinstance(x_true, dict):
-                    sample_result = function(**{k:v[0] for k, v in x_true.items()}, **kwargs)
+                    sample_result = function(**{k:(v[:pre_batch_size] if 0 < pre_batch_size else v[0]) for k, v in x_true.items()}, **kwargs)
                 else:
-                    sample_args = [v[0] for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
+                    sample_args = [v[:pre_batch_size] if 0 < pre_batch_size else v[0] for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
                     sample_result = function(*sample_args, **kwargs)
-                dtype = [tf.convert_to_tensor(r).dtype for r in (sample_result if isinstance(sample_result, tuple) else (sample_result,))]
-                dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
+            dtype = [tf.convert_to_tensor(r).dtype for r in (sample_result if isinstance(sample_result, tuple) else (sample_result,))]
+            dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
         elif np.ndim(dtype) == 0:
             if isinstance(x_true, tf.data.Dataset):
                 if isinstance(x_true.element_spec, tuple) or isinstance(x_true.element_spec, dict):

@@ -1,4 +1,5 @@
 import os
+import json
 
 def list_dir(path, keyword = None, absolute = False):
     if isinstance(keyword, str):
@@ -39,4 +40,9 @@ def load_file(path, map = {"\n":""}, mode = "rt"):
                 for k, v in map.items():
                     line = line.replace(k, v)
             result.append(line)
+    return result
+
+def load_json(path, mode = "rt"):
+    with open(path, mode) as file:
+        result = json.load(file)
     return result

@@ -1,8 +1,8 @@
-from .transform import (load_pipe, preprocess_pipe, 
-                        resize_pipe, pad_pipe, crop_pipe, 
-                        albumentations_pipe, random_crop_pipe,
-                        mosaic_pipe, cut_mix_pipe, cut_out_pipe,
-                        mix_up_pipe, random_mosaic_pipe, random_cut_mix_pipe,
-                        random_cut_out_pipe, random_mix_up_pipe,
-                        key_map_pipe, collect_pipe)
+from .transform import (load, preprocess, 
+                        resize, pad, crop, 
+                        albumentations, random_crop,
+                        mosaic, cut_mix, cut_out,
+                        mix_up, random_mosaic, random_cut_mix,
+                        random_cut_out, random_mix_up,
+                        key_map, collect, cast, args2dict)
 from .util import pipe, dict_py_func

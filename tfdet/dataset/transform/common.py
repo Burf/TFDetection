@@ -4,11 +4,22 @@ import numpy as np
 
 from tfdet.core.util import to_categorical
 from .augment import albumentations
-from ..util import load_image, load_pascal_voc
+from ..util import load_image
+from ..pascal_voc import load_annotation
 
-def load(x_true, y_true = None, bbox_true = None, mask_true = None, load_func = load_image, anno_func = load_pascal_voc, mask_func = None):
+def load(x_true, y_true = None, bbox_true = None, mask_true = None, load_func = load_image, anno_func = load_annotation, mask_func = None):
     if callable(load_func):
         x_true = load_func(x_true)
+        if isinstance(x_true, tuple):
+            out = list(x_true)
+            x_true = out.pop(0)
+            if 0 < len(out):
+                y_true = out.pop(0)
+            if 0 < len(out):
+                bbox_true = out.pop(0)
+            if 0 < len(out):
+                mask_true = out.pop(0)
+    
     if y_true is not None:
         if callable(anno_func):
             y_true = anno_func(y_true, bbox_true)
@@ -19,6 +30,7 @@ def load(x_true, y_true = None, bbox_true = None, mask_true = None, load_func = 
                 bbox_true = out.pop(0)
             if 0 < len(out):
                 mask_true = out.pop(0)
+    
     if mask_true is not None:
         if callable(mask_func):
             mask_true = mask_func(mask_true)

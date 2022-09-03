@@ -9,24 +9,27 @@ def map_fn(function, *args, dtype = tf.float32, batch_size = 1, name = None, **k
     return tf.map_fn(lambda args: functools.partial(function, **kwargs)(*args), args, dtype = dtype, parallel_iterations = batch_size, name = name)
 
 def convert_to_numpy(*args, return_tuple = False):
-    if args and isinstance(args[0], tuple):
-        args = args[0]
-    args = list(args)
-    for index in range(len(args)):
-        if tf.is_tensor(args[index]):
-            if args[index].dtype == tf.string:
-                arg = args[index].numpy()
-                if 0 < np.ndim(arg):
-                    args[index] = arg.astype(str)
-                else:
-                    args[index] = arg.decode("UTF-8")
-            else:
-                args[index] = args[index].numpy()
-    if not return_tuple and len(args) == 1:
-        args = args[0]
+    if args and isinstance(args[0], dict):
+        return {k:convert_to_numpy(v) for k, v in args[0].items()}
     else:
-        args = tuple(args)
-    return args
+        if args and (isinstance(args[0], tuple) or isinstance(args[0], list)):
+            args = args[0]
+        args = list(args)
+        for index in range(len(args)):
+            if tf.is_tensor(args[index]):
+                if args[index].dtype == tf.string:
+                    arg = args[index].numpy()
+                    if 0 < np.ndim(arg):
+                        args[index] = arg.astype(str)
+                    else:
+                        args[index] = arg.decode("UTF-8")
+                else:
+                    args[index] = args[index].numpy()
+        if not return_tuple and len(args) == 1:
+            args = args[0]
+        else:
+            args = tuple(args)
+        return args
 
 def py_func(function, *args, Tout = tf.float32, **kwargs):
     #return tf.py_function(lambda *args: functools.partial(function, **kwargs)(*convert_to_numpy(*args, return_tuple = True)), args, Tout = Tout)
