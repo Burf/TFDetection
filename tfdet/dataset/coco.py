@@ -45,13 +45,13 @@ COLOR = [(0, 0, 0),
          (95, 54, 80), (128, 76, 255), (201, 57, 1), (246, 0, 122),
          (191, 162, 208)]
 
-def load_coco(path, dir_path, mask = False, crowd = False):
+def load_data(path, dir_path, mask = False, crowd = False):
     """
     https://cocodataset.org
     
     <example>
     path = "./coco/annotations/instances_train2017.json"
-    dir_path ="./coco/train2017"
+    dir_path = "./coco/train2017"
     mask = with instance mask_true
     crowd = iscrowd
     """
@@ -107,10 +107,19 @@ def load_coco(path, dir_path, mask = False, crowd = False):
             result = (x_true, y_true, bbox_true, mask_true)
         yield result
         
-def load_coco_pipe(path, dir_path, mask = False, crowd = False,
-                   batch_size = 0, epoch = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
-                   cache = None, num_parallel_calls = None):
-    generator = functools.partial(load_coco, path, dir_path, mask = mask, crowd = crowd)
+def load_pipe(path, dir_path, mask = False, crowd = False,
+              batch_size = 0, epoch = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
+              cache = None, num_parallel_calls = None):
+    """
+    https://cocodataset.org
+    
+    <example>
+    path = "./coco/annotations/instances_train2017.json"
+    dir_path = "./coco/train2017"
+    mask = with instance mask_true
+    crowd = iscrowd
+    """
+    generator = functools.partial(load_data, path, dir_path, mask = mask, crowd = crowd)
     dtype = (tf.string, tf.string, tf.int32, tf.float32) if mask else (tf.string, tf.string, tf.int32)
     pipe = tf.data.Dataset.from_generator(generator, dtype)
     return pipeline(pipe, batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,

@@ -11,7 +11,7 @@ from tfdet.core.util import pipeline
 LABEL = ["bg", #background
          "balloon"]
 
-def load_balloon(path, dir_path = None, mask = False):
+def load_data(path, dir_path = None, mask = False):
     """
     https://github.com/matterport/Mask_RCNN/releases/download/v2.1/balloon_dataset.zip
     
@@ -48,10 +48,18 @@ def load_balloon(path, dir_path = None, mask = False):
         result = (x_true, y_true, bbox_true, mask_true) if mask else (x_true, y_true, bbox_true)
         yield result
         
-def load_balloon_pipe(path, dir_path = None, mask = False,
-                      batch_size = 0, epoch = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
-                      cache = None, num_parallel_calls = None):
-    generator = functools.partial(load_balloon, path, dir_path, mask = mask)
+def load_pipe(path, dir_path = None, mask = False,
+              batch_size = 0, epoch = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
+              cache = None, num_parallel_calls = None):
+    """
+    https://github.com/matterport/Mask_RCNN/releases/download/v2.1/balloon_dataset.zip
+    
+    <example>
+    path = "./balloon/train/via_region_data.json"
+    dir_path = None or "./balloon/train"
+    mask = with instance mask_true
+    """
+    generator = functools.partial(load_data, path, dir_path, mask = mask)
     dtype = (tf.string, tf.string, tf.int32, tf.float32) if mask else (tf.string, tf.string, tf.int32)
     pipe = tf.data.Dataset.from_generator(generator, dtype)
     return pipeline(pipe, batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
