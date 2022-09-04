@@ -50,6 +50,12 @@ def preprocess(x_true, y_true = None, bbox_true = None, mask_true = None,
     mask_true(with bbox_true & instance mask_true) = (P, H, W, 1)
     mask_true(semantic mask_true) = (H, W, 1 or n_class)
     """
+    if rescale is not None:
+        x_true = np.multiply(x_true, rescale)
+    if mean is not None:
+        x_true = np.subtract(x_true, mean)
+    if std is not None:
+        x_true = np.divide(x_true, std)
     if bbox_true is not None:
         h, w = np.shape(x_true)[:2]
         if bbox_normalize and np.any(np.greater(bbox_true, 1)):
@@ -62,12 +68,10 @@ def preprocess(x_true, y_true = None, bbox_true = None, mask_true = None,
             area = (bbox_true[..., 3] - bbox_true[..., 1]) * (bbox_true[..., 2] - bbox_true[..., 0])
             flag = min_area <= (area if np.max(area) <= 1 else area / (h * w))
             bbox_true = bbox_true[flag]
-    if rescale is not None:
-        x_true = np.multiply(x_true, rescale)
-    if mean is not None:
-        x_true = np.subtract(x_true, mean)
-    if std is not None:
-        x_true = np.divide(x_true, std)
+            if y_true is not None and 1 < np.ndim(y_true):
+                y_true = y_true[flag]
+            if mask_true is not None and 3 < np.ndim(mask_true):
+                mask_true = mask_true[flag]
     if y_true is not None and label is not None:
         if 0 < len(y_true):
             label_convert = {k:v for v, k in enumerate(label)}
@@ -77,8 +81,6 @@ def preprocess(x_true, y_true = None, bbox_true = None, mask_true = None,
                 y_true = label_convert[y_true] if y_true in label else y_true
         if one_hot:
             y_true = to_categorical(y_true, len(label), label_smoothing)
-        if 0 < min_area and bbox_true is not None and 1 < np.ndim(y_true):
-            y_true = y_true[flag]
     result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
     result = result[0] if len(result) == 1 else tuple(result)
     return result
