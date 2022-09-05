@@ -1,4 +1,5 @@
 import functools
+import os
 
 import tensorflow as tf
 import numpy as np
@@ -68,3 +69,63 @@ def pipeline(dataset, function = None,
     if prefetch:
         dataset = dataset.prefetch(prefetch_size if prefetch_size is not None else tf.data.experimental.AUTOTUNE)
     return dataset
+
+def save_model(model, path, graph = True, weight = True, mode = "w"):
+    path, ext = os.path.splitext(path)
+    ext = ".h5" if len(ext) < 2 else ext
+    if graph:
+        try:
+            with open("{0}{1}".format(path, ".json"), mode = mode) as file:
+                file.write(model.to_json())
+        except Exception as e:
+            print("Failed to save graph : {0}".format(e))
+    if weight:
+        model.save_weights("{0}{1}".format(path, ext), save_format = ext.replace(".", ""))
+    return path
+
+def load_model(path, by_name = False, model = None, weight = True, custom_objects = {}, mode = "r"):
+    path, ext = os.path.splitext(path)
+    ext = ".h5" if len(ext) < 2 else ext
+    if model is None:
+        with open("{0}{1}".format(path, ".json"), mode = mode) as file:
+            model = tf.keras.models.model_from_json(file.read(), custom_objects)
+    if weight:
+        try:
+            model.load_weights("{0}{1}".format(path, ext), by_name = by_name)
+        except Exception as e:
+            print("Failed to load weight : {0}".format(e))
+    return model
+
+def get_device(type = None):
+    try:
+        result = tf.config.list_physical_devices(type)
+    except:
+        from tensorflow.python.client import device_lib
+        result = device_lib.list_local_devices()
+        if isinstance(type, str):
+            result = [device for device in result if device.device_type == type]
+    return result
+
+def select_device(gpu = None, limit = None):
+    if len(get_device("GPU")) == 0:
+        return tf.device("/cpu:0")
+    else:
+        if not isinstance(gpu, list):
+            gpu = [gpu]
+        os.environ["CUDA_VISIBLE_DEVICES"] = ",".join([str(device) for device in gpu])
+        os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+
+        for device in get_device("GPU"):
+            try:
+                tf.config.experimental.set_memory_growth(device, True)
+                if limit is not None:
+                    tf.config.experimental.set_virtual_device_configuration(device, [tf.config.experimental.VirtualDeviceConfiguration(memory_limit = limit)])
+            except:
+                pass
+
+        if len(gpu) == 1:
+            device = tf.device("/gpu:0")
+        else:
+            strategy = tf.distribute.MirroredStrategy(["/gpu:{0}".format(device) for device in range(len(gpu))], cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
+            device = strategy.scope()
+        return device
