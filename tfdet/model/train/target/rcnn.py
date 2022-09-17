@@ -9,7 +9,7 @@ def rpn_assign(bbox_true, bbox_pred, positive_threshold = 0.7, negative_threshol
 def cls_assign(bbox_true, bbox_pred, positive_threshold = 0.5, negative_threshold = 0.5, min_threshold = 0.5, match_low_quality = False, mode = "normal"):
     return max_iou(bbox_true, bbox_pred, positive_threshold = positive_threshold, negative_threshold = negative_threshold, min_threshold = min_threshold, match_low_quality = match_low_quality, mode = mode)
 
-def rpn_target(bbox_true, rpn_score, rpn_regress, anchors, assign = rpn_assign, sampling_count = 256, positive_ratio = 0.5, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2]):
+def rpn_target(bbox_true, rpn_score, rpn_regress, anchors, assign = rpn_assign, sampling_count = 256, positive_ratio = 0.5, valid = False, mean = [0., 0., 0., 0.], std = [1., 1., 1., 1.]):
     """
     bbox_true = [[x1, y1, x2, y2], ...] #(padded_num_true, bbox)
     rpn_score = score for FG/BG #(num_anchors, 1)
@@ -23,15 +23,16 @@ def rpn_target(bbox_true, rpn_score, rpn_regress, anchors, assign = rpn_assign, 
     """
     valid_indices = tf.where(0 < tf.reduce_max(bbox_true, axis = -1))
     bbox_true = tf.gather_nd(bbox_true, valid_indices)
-    valid_flags = tf.logical_and(tf.less_equal(anchors[..., 2], 1),
-                             tf.logical_and(tf.less_equal(anchors[..., 3], 1),
-                                            tf.logical_and(tf.greater_equal(anchors[..., 0], 0),
-                                                           tf.greater_equal(anchors[..., 1], 0))))
-    #valid_indices = tf.range(tf.shape(anchors)[0])[valid_flags]
-    valid_indices = tf.where(valid_flags)[:, 0]
-    rpn_score = tf.gather(rpn_score, valid_indices)
-    rpn_regress = tf.gather(rpn_regress, valid_indices)
-    anchors = tf.gather(anchors, valid_indices)
+    if valid:
+        valid_flags = tf.logical_and(tf.less_equal(anchors[..., 2], 1),
+                                 tf.logical_and(tf.less_equal(anchors[..., 3], 1),
+                                                tf.logical_and(tf.greater_equal(anchors[..., 0], 0),
+                                                               tf.greater_equal(anchors[..., 1], 0))))
+        #valid_indices = tf.range(tf.shape(anchors)[0])[valid_flags]
+        valid_indices = tf.where(valid_flags)[:, 0]
+        rpn_score = tf.gather(rpn_score, valid_indices)
+        rpn_regress = tf.gather(rpn_regress, valid_indices)
+        anchors = tf.gather(anchors, valid_indices)
     pred_count = tf.shape(anchors)[0]
 
     true_indices, positive_indices, negative_indices = assign(bbox_true, anchors)
@@ -119,7 +120,7 @@ def sampling_target(y_true, bbox_true, proposal, mask_true = None, assign = cls_
         result = y_true, bbox_true, mask_true, proposal
     return result
 
-def sampling_postprocess(y_true, bbox_true, cls_logits, cls_regress, proposal, mask_true = None, mask_regress = None, interleaved = False, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], method = "bilinear"):
+def sampling_postprocess(y_true, bbox_true, cls_logits, cls_regress, proposal, mask_true = None, mask_regress = None, interleaved = False, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, method = "bilinear"):
     if mask_true is not None:
         if tf.keras.backend.ndim(mask_true) == 3:
             mask_true = tf.expand_dims(mask_true, axis = -1)
@@ -145,7 +146,7 @@ def sampling_postprocess(y_true, bbox_true, cls_logits, cls_regress, proposal, m
         bbox_pred = tf.gather_nd(bbox_pred, indices)
         if mask_true is not None and mask_regress is not None:
             if interleaved:
-                proposal = delta2bbox(proposal, bbox_pred, mean, std)
+                proposal = delta2bbox(proposal, bbox_pred, mean, std, clip_ratio)
                 proposal = tf.clip_by_value(proposal, 0, 1)
             x1, y1, x2, y2 = tf.split(proposal, 4, axis = -1)
             mask_bbox = tf.concat([y1, x1, y2, x2], axis = -1)
@@ -175,7 +176,7 @@ def sampling_postprocess(y_true, bbox_true, cls_logits, cls_regress, proposal, m
         result = y_true, bbox_true, mask_true, y_pred, bbox_pred, mask_pred
     return result
 
-def cls_target(y_true, bbox_true, cls_logit, cls_regress, proposal, mask_true = None, mask_regress = None, assign = cls_assign, sampling_count = 256, positive_ratio = 0.25, interleaved = False, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], method = "bilinear"):
+def cls_target(y_true, bbox_true, cls_logit, cls_regress, proposal, mask_true = None, mask_regress = None, assign = cls_assign, sampling_count = 256, positive_ratio = 0.25, interleaved = False, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, method = "bilinear"):
     """
     y_true = label #(padded_num_true, 1 or num_class)
     bbox_true = [[x1, y1, x2, y2], ...] #(padded_num_true, bbox)
@@ -240,7 +241,7 @@ def cls_target(y_true, bbox_true, cls_logit, cls_regress, proposal, mask_true = 
         bbox_pred = tf.gather_nd(bbox_pred, indices)
         if mask_true is not None and mask_regress is not None:
             if interleaved:
-                proposal = delta2bbox(proposal, bbox_pred, mean, std)
+                proposal = delta2bbox(proposal, bbox_pred, mean, std, clip_ratio)
                 proposal = tf.clip_by_value(proposal, 0, 1)
             x1, y1, x2, y2 = tf.split(proposal, 4, axis = -1)
             mask_bbox = tf.concat([y1, x1, y2, x2], axis = -1)

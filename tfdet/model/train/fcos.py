@@ -5,11 +5,11 @@ from tfdet.core.loss import regularize as regularize_loss
 from tfdet.core.util import map_fn
 from .loss.fcos import classnet_accuracy, classnet_loss, boxnet_loss, centernessnet_loss
 from .target import fcos_target
-from ..postprocess.retina import FilterDetection
+from ..postprocess.fcos import FilterDetection
 
 def train_model(input, logits, regress, points, centerness = None,
-                assign = point, sampling_count = 256, positive_ratio = 0.5,
-                proposal_count = 100, iou_threshold = 0.5, score_threshold = 0.05, nms = True, soft_nms = False, performance_count = 5000,
+                assign = point, sampling_count = None, positive_ratio = 0.5,
+                proposal_count = 100, iou_threshold = 0.5, score_threshold = 0.05, soft_nms = False, performance_count = 5000,
                 batch_size = 1, 
                 regularize = True, weight_decay = 1e-4, focal = True, alpha = .25, gamma = 2., sigma = 3, class_weight = None, missing_value = 0.):
     if not isinstance(logits, list):
@@ -52,7 +52,7 @@ def train_model(input, logits, regress, points, centerness = None,
     loss = {k:tf.expand_dims(v, axis = -1) for k, v in loss.items()}
 
     
-    y_pred, bbox_pred = FilterDetection(proposal_count = proposal_count, iou_threshold = iou_threshold, score_threshold = score_threshold, nms = nms, soft_nms = soft_nms, performance_count = performance_count,
+    y_pred, bbox_pred = FilterDetection(proposal_count = proposal_count, iou_threshold = iou_threshold, score_threshold = score_threshold, soft_nms = soft_nms, performance_count = performance_count,
                                         batch_size = batch_size)([l for l in [logits, regress, points, centerness] if l is not None])
     model = tf.keras.Model([input, y_true, bbox_true], [y_pred, bbox_pred])
     

@@ -71,7 +71,7 @@ class RegionProposalNetwork(tf.keras.layers.Layer):
         return config
     
 class Rpn2Proposal(tf.keras.layers.Layer):
-    def __init__(self, proposal_count = 1000, iou_threshold = 0.7, soft_nms = False, valid = True, performance_count = 5000, batch_size = 1, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, **kwargs):
+    def __init__(self, proposal_count = 1000, iou_threshold = 0.7, soft_nms = False, valid = False, performance_count = 5000, batch_size = 1, mean = [0., 0., 0., 0.], std = [1., 1., 1., 1.], clip_ratio = 16 / 1000, **kwargs):
         super(Rpn2Proposal, self).__init__(**kwargs)   
         self.proposal_count = proposal_count
         self.iou_threshold = iou_threshold
@@ -282,13 +282,12 @@ class RoiMask(tf.keras.layers.Layer):
         config["n_depth"] = self.n_depth
         return config
 
-def classifier2proposal(cls_logit, cls_regress, proposal, valid = True, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000):
-    if valid:
-        sampling_count = tf.shape(proposal)[0]
-        valid_indices = tf.where(0 < tf.reduce_max(proposal, axis = -1))
-        cls_logit = tf.gather_nd(cls_logit, valid_indices)
-        cls_regress = tf.gather_nd(cls_regress, valid_indices)
-        proposal = tf.gather_nd(proposal, valid_indices)
+def classifier2proposal(cls_logit, cls_regress, proposal, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000):
+    sampling_count = tf.shape(proposal)[0]
+    valid_indices = tf.where(0 < tf.reduce_max(proposal, axis = -1))
+    cls_logit = tf.gather_nd(cls_logit, valid_indices)
+    cls_regress = tf.gather_nd(cls_regress, valid_indices)
+    proposal = tf.gather_nd(proposal, valid_indices)
 
     logit_indices = tf.argmax(cls_logit, axis = -1, output_type = tf.int32)
     indices = tf.stack([tf.range(tf.shape(cls_logit)[0]), logit_indices], axis = -1)
@@ -298,15 +297,13 @@ def classifier2proposal(cls_logit, cls_regress, proposal, valid = True, mean = [
 
     proposal = delta2bbox(proposal, delta, mean, std, clip_ratio) # Transform delta to bbox
     proposal = tf.clip_by_value(proposal, 0, 1) # Clipping to valid area
-    if valid:
-        pad_count = tf.maximum(sampling_count - tf.shape(valid_indices)[0], 0)
-        proposal = tf.pad(proposal, [[0, pad_count], [0, 0]])
+    pad_count = tf.maximum(sampling_count - tf.shape(valid_indices)[0], 0)
+    proposal = tf.pad(proposal, [[0, pad_count], [0, 0]])
     return proposal
 
 class Classifier2Proposal(tf.keras.layers.Layer):
-    def __init__(self, valid = True, batch_size = 1, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, **kwargs):
+    def __init__(self, batch_size = 1, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, **kwargs):
         super(Classifier2Proposal, self).__init__(**kwargs)
-        self.valid = valid
         self.batch_size = batch_size
         self.mean = mean
         self.std = std
@@ -314,13 +311,12 @@ class Classifier2Proposal(tf.keras.layers.Layer):
 
     def call(self, inputs):
         cls_logits, cls_regress, proposals = inputs[:3]
-        out = map_fn(classifier2proposal, cls_logits, cls_regress, proposals, dtype = proposals.dtype, batch_size = self.batch_size, valid = self.valid, mean = self.mean, std = self.std, clip_ratio = self.clip_ratio)
+        out = map_fn(classifier2proposal, cls_logits, cls_regress, proposals, dtype = proposals.dtype, batch_size = self.batch_size, mean = self.mean, std = self.std, clip_ratio = self.clip_ratio)
         out = tf.stop_gradient(out)
         return out
     
     def get_config(self):
         config = super(Classifier2Proposal, self).get_config()
-        config["valid"] = self.valid
         config["batch_size"] = self.batch_size
         config["mean"] = self.mean
         config["std"] = self.std
@@ -442,16 +438,6 @@ def rpn_head(feature, image_shape = [1024, 1024],
         n_anchor = len(scale[0]) * len(ratio)
     score, regress = RegionProposalNetwork(n_anchor, n_feature = n_feature, use_bias = use_bias, feature_share = feature_share, convolution = convolution, normalize = normalize, activation = activation, name = "region_proposal_network")(feature)
     anchors = generate_anchors(feature, image_shape, scale, ratio, normalize = True, auto_scale = True, dtype = score.dtype)
-
-    #valid_flags = tf.logical_and(tf.less_equal(anchors[..., 2], 1),
-    #                             tf.logical_and(tf.less_equal(anchors[..., 3], 1),
-    #                                            tf.logical_and(tf.greater_equal(anchors[..., 0], 0),
-    #                                                           tf.greater_equal(anchors[..., 1], 0))))
-    ##valid_indices = tf.range(tf.shape(anchors)[0])[valid_flags]
-    #valid_indices = tf.where(valid_flags)[:, 0]
-    #score = tf.gather(score, valid_indices, axis = 1)
-    #regress = tf.gather(regress, valid_indices, axis = 1)
-    #anchors = tf.gather(anchors, valid_indices)
     return score, regress, anchors
 
 def rcnn_head(feature, proposals, mask_feature = None, semantic_feature = None,

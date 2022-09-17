@@ -3,7 +3,7 @@ import tensorflow as tf
 from tfdet.core.assign import max_iou
 from tfdet.core.bbox import yolo2bbox
 
-def yolo_target(y_true, bbox_true, score_pred, logit_pred, bbox_pred, anchors, assign = max_iou, sampling_count = 256, positive_ratio = 0.5, clip_ratio = 16 / 1000):
+def yolo_target(y_true, bbox_true, score_pred, logit_pred, bbox_pred, anchors, assign = max_iou, sampling_count = 256, positive_ratio = 0.5, valid = False, clip_ratio = 16 / 1000):
     """
     y_true = label #(padded_num_true, 1 or num_class)
     bbox_true = [[x1, y1, x2, y2], ...] #(padded_num_true, bbox)
@@ -15,16 +15,17 @@ def yolo_target(y_true, bbox_true, score_pred, logit_pred, bbox_pred, anchors, a
     valid_indices = tf.where(0 < tf.reduce_max(bbox_true, axis = -1))
     y_true = tf.gather_nd(y_true, valid_indices)
     bbox_true = tf.gather_nd(bbox_true, valid_indices)
-    valid_flags = tf.logical_and(tf.less_equal(anchors[..., 2], 1),
-                             tf.logical_and(tf.less_equal(anchors[..., 3], 1),
-                                            tf.logical_and(tf.greater_equal(anchors[..., 0], 0),
-                                                           tf.greater_equal(anchors[..., 1], 0))))
-    #valid_indices = tf.range(tf.shape(anchors)[0])[valid_flags]
-    valid_indices = tf.where(valid_flags)[:, 0]
-    score_pred = tf.gather(score_pred, valid_indices)
-    logit_pred = tf.gather(logit_pred, valid_indices)
-    bbox_pred = tf.gather(bbox_pred, valid_indices)
-    anchors = tf.gather(anchors, valid_indices)
+    if valid:
+        valid_flags = tf.logical_and(tf.less_equal(anchors[..., 2], 1),
+                                 tf.logical_and(tf.less_equal(anchors[..., 3], 1),
+                                                tf.logical_and(tf.greater_equal(anchors[..., 0], 0),
+                                                               tf.greater_equal(anchors[..., 1], 0))))
+        #valid_indices = tf.range(tf.shape(anchors)[0])[valid_flags]
+        valid_indices = tf.where(valid_flags)[:, 0]
+        score_pred = tf.gather(score_pred, valid_indices)
+        logit_pred = tf.gather(logit_pred, valid_indices)
+        bbox_pred = tf.gather(bbox_pred, valid_indices)
+        anchors = tf.gather(anchors, valid_indices)
     pred_count = tf.shape(anchors)[0]
     
     true_indices, positive_indices, negative_indices = assign(bbox_true, anchors)

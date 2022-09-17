@@ -1,4 +1,5 @@
 import tensorflow as tf
+import numpy as np
 
 from tfdet.core.assign import max_iou
 from tfdet.core.loss import regularize as regularize_loss
@@ -23,8 +24,11 @@ def train_model(input, rpn_score = None, rpn_regress = None, anchors = None, cls
                 sampling_tag = None, sampling_count = 256,
                 rpn_assign = rpn_assign, rpn_positive_ratio = 0.5,
                 cls_assign = [cls_assign, cls_assign2, cls_assign3], cls_positive_ratio = 0.25,
-                proposal_count = 100, iou_threshold = 0.5, score_threshold = 0.05, soft_nms = False, ensemble = True, performance_count = 5000,
-                batch_size = 1, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, method = "bilinear",
+                proposal_count = 100, iou_threshold = 0.5, score_threshold = 0.05, soft_nms = False, ensemble = True, valid = False, performance_count = 5000,
+                batch_size = 1, 
+                rpn_mean = [0., 0., 0., 0.], rpn_std = [1., 1., 1., 1.], rpn_clip_ratio = 16 / 1000, 
+                cls_mean = [0., 0., 0., 0.], cls_std = [0.1, 0.1, 0.2, 0.2], cls_clip_ratio = 16 / 1000,
+                method = "bilinear",
                 regularize = True, weight_decay = 1e-4, focal = True, alpha = 1., gamma = 2., sigma = 1, class_weight = None, stage_weight = [1.0, 0.5, 0.25], semantic_weight = 0.2, threshold = 0.5, missing_value = 0.):
     """
     y_true > #(batch_size, padded_num_true, 1 or n_class)
@@ -54,6 +58,7 @@ def train_model(input, rpn_score = None, rpn_regress = None, anchors = None, cls
             args += [mask_regress]
     else:
         args = [rpn_score, rpn_regress, anchors]
+        cls_mean, cls_std, cls_clip_ratio = rpn_mean, rpn_std, rpn_clip_ratio
         
     y_true = bbox_true = mask_true = sampling_y_true = sampling_bbox_true = sampling_mask_true = None
     if isinstance(sampling_tag, dict):
@@ -66,7 +71,7 @@ def train_model(input, rpn_score = None, rpn_regress = None, anchors = None, cls
     if rpn_score is not None and rpn_regress is not None:
         anchors = tf.tile(tf.expand_dims(anchors, axis = 0), [tf.shape(input)[0], 1, 1])
         rpn_match, rpn_bbox_true, rpn_score, rpn_bbox_pred = tf.keras.layers.Lambda(lambda args: map_fn(rpn_target, *args, dtype = (tf.int32, bbox_true.dtype, rpn_score.dtype, rpn_regress.dtype), batch_size = batch_size, 
-                                                                                                        assign = rpn_assign, sampling_count = sampling_count, positive_ratio = rpn_positive_ratio, mean = mean, std = std), name = "rpn_target")([bbox_true, rpn_score, rpn_regress, anchors])
+                                                                                                        assign = rpn_assign, sampling_count = sampling_count, positive_ratio = rpn_positive_ratio, valid = valid, mean = rpn_mean, std = rpn_std), name = "rpn_target")([bbox_true, rpn_score, rpn_regress, anchors])
         
         rpn_score_accuracy = tf.keras.layers.Lambda(lambda args: score_accuracy(*args, threshold = threshold, missing_value = missing_value), name = "rpn_score_accuracy")([rpn_match, rpn_score])
         rpn_score_loss = tf.keras.layers.Lambda(lambda args: score_loss(*args, missing_value = missing_value), name = "rpn_score_loss")([rpn_match, rpn_score])
@@ -110,14 +115,14 @@ def train_model(input, rpn_score = None, rpn_regress = None, anchors = None, cls
         for i, (_cls_logits, _cls_regress, _proposals, _mask_regress) in enumerate(zip(cls_logits, cls_regress, proposals[:len(cls_logits)], mask_regress)):
             if isinstance(sampling_tag, dict):
                 cls_y_true, cls_bbox_true, cls_mask_true = sampling_y_true[i], sampling_bbox_true[i], sampling_mask_true[i]
-                kwargs = {"interleaved":interleaved, "mean":mean, "std":std, "method":method}
+                kwargs = {"interleaved":interleaved, "mean":cls_mean, "std":np.divide(cls_std, i + 1), "clip_ratio":cls_clip_ratio, "method":method}
                 if _mask_regress is not None:
                     cls_y_true, cls_bbox_true, cls_mask_true, cls_y_pred, cls_bbox_pred, cls_mask_pred = tf.keras.layers.Lambda(sampling_mask_func, arguments = kwargs, name = "sampling_postprocess{0}".format(i + 1) if 1 < len(proposals) else "sampling_postprocess")([cls_y_true, cls_bbox_true, _cls_logits, _cls_regress, _proposals, cls_mask_true, _mask_regress])
                 else:
                     cls_y_true, cls_bbox_true, cls_y_pred, cls_bbox_pred = tf.keras.layers.Lambda(sampling_func, arguments = kwargs, name = "sampling_postprocess{0}".format(i + 1) if 1 < len(proposals) else "sampling_postprocess")([cls_y_true, cls_bbox_true, _cls_logits, _cls_regress, _proposals])
             #elif _cls_logits is not None:
             else:
-                kwargs = {"assign":cls_assign[i], "sampling_count":sampling_count, "positive_ratio":cls_positive_ratio, "interleaved":interleaved, "mean":mean, "std":std, "method":method}
+                kwargs = {"assign":cls_assign[i], "sampling_count":sampling_count, "positive_ratio":cls_positive_ratio, "interleaved":interleaved, "mean":cls_mean, "std":np.divide(cls_std, i + 1), "clip_ratio":cls_clip_ratio, "method":method}
                 if _mask_regress is not None:
                     cls_y_true, cls_bbox_true, cls_mask_true, cls_y_pred, cls_bbox_pred, cls_mask_pred = tf.keras.layers.Lambda(cls_mask_func, arguments = kwargs, name = "cls_target{0}".format(i + 1) if 1 < len(proposals) else "cls_target")([cls_y_true, cls_bbox_true, _cls_logits, _cls_regress, _proposals, cls_mask_true, _mask_regress])
                 else:
@@ -145,8 +150,8 @@ def train_model(input, rpn_score = None, rpn_regress = None, anchors = None, cls
     loss = {k:tf.expand_dims(v, axis = -1) for k, v in loss.items()}
 
     input = [input] + [l for l in [y_true, bbox_true, mask_true] if l is not None]
-    output = FilterDetection(proposal_count = proposal_count, iou_threshold = iou_threshold, score_threshold = score_threshold, soft_nms = soft_nms, ensemble = ensemble, performance_count = performance_count,
-                             batch_size = batch_size, mean = mean, std = std, clip_ratio = clip_ratio)(args)
+    output = FilterDetection(proposal_count = proposal_count, iou_threshold = iou_threshold, score_threshold = score_threshold, soft_nms = soft_nms, ensemble = ensemble, valid = valid, performance_count = performance_count,
+                             batch_size = batch_size, mean = cls_mean, std = cls_std, clip_ratio = cls_clip_ratio)(args)
     model = tf.keras.Model(input, list(output))
 
     for k, v in list(metric.items()) + list(loss.items()):

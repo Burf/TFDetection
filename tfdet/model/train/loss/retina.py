@@ -50,12 +50,14 @@ def classnet_loss(y_true, y_pred, focal = True, alpha = .25, gamma = 1.5, weight
         focal_weight = tf.where(0.5 < y_true, 1 - y_pred, y_pred)
         focal_weight = alpha_factor * focal_weight ** gamma
         loss = tf.expand_dims(focal_weight, axis = -1) * loss
+    loss = tf.reduce_sum(loss, axis = -1)
     if weight is not None:
         loss *= weight
-    loss = tf.reduce_sum(loss, axis = -1)
-    loss = tf.reduce_mean(loss, axis = -1)
+    #loss = tf.reduce_sum(loss, axis = -1)
     
-    loss = tf.reduce_mean(loss)
+    label = tf.argmax(y_true, axis = -1)
+    true_count = tf.reduce_sum(tf.cast(0 < label, y_pred.dtype))
+    loss = tf.reduce_sum(loss) / tf.maximum(true_count, 1.)
     loss = tf.where(tf.math.is_nan(loss), missing_value, loss)
     return loss
 
@@ -75,6 +77,7 @@ def boxnet_loss(y_true, bbox_true, bbox_pred, sigma = 3, missing_value = 0.):
     bbox_pred = tf.gather_nd(bbox_pred, true_indices)
     
     loss = smooth_l1(bbox_true, bbox_pred, sigma)
+    loss = tf.reduce_sum(loss, axis = -1)
     
     loss = tf.reduce_mean(loss)
     loss = tf.where(tf.math.is_nan(loss), missing_value, loss)

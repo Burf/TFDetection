@@ -8,8 +8,8 @@ from .target import yolo_target
 from ..postprocess.yolo import FilterDetection
 
 def train_model(input, score, logits, regress, anchors,
-                assign = max_iou, sampling_count = 256, positive_ratio = 0.5,
-                proposal_count = 100, iou_threshold = 0.5, score_threshold = 0.05, soft_nms = False, performance_count = 5000,
+                assign = max_iou, sampling_count = None, positive_ratio = 0.5,
+                proposal_count = 100, iou_threshold = 0.5, score_threshold = 0.05, soft_nms = False, valid = False, performance_count = 5000,
                 batch_size = 1, clip_ratio = 16 / 1000, 
                 regularize = True, weight_decay = 1e-4, mode = "general", focal = True, alpha = .25, gamma = 1.5, class_weight = None, threshold = 0.5, missing_value = 0.):
     y_true = tf.keras.layers.Input(shape = (None, None), name = "y_true", dtype = score.dtype)
@@ -17,7 +17,7 @@ def train_model(input, score, logits, regress, anchors,
     
     tile_anchors = tf.tile(tf.expand_dims(anchors, axis = 0), [tf.shape(input)[0], 1, 1])
     score_true, logits_true, _bbox_true, score_pred, logits_pred, bbox_pred = tf.keras.layers.Lambda(lambda args: map_fn(yolo_target, *args, dtype = (tf.int32, y_true.dtype, bbox_true.dtype, score.dtype, logits.dtype, regress.dtype), batch_size = batch_size, 
-                                                                                                                         assign = assign, sampling_count = sampling_count, positive_ratio = positive_ratio, clip_ratio = clip_ratio), name = "yolo_target")([y_true, bbox_true, score, logits, regress, tile_anchors])
+                                                                                                                         assign = assign, sampling_count = sampling_count, positive_ratio = positive_ratio, valid = valid, clip_ratio = clip_ratio), name = "yolo_target")([y_true, bbox_true, score, logits, regress, tile_anchors])
     
     _score_accuracy = tf.keras.layers.Lambda(lambda args: score_accuracy(*args, threshold = threshold, missing_value = missing_value), name = "score_accuracy")([score_true, score_pred])
     _logits_accuracy = tf.keras.layers.Lambda(lambda args: logits_accuracy(*args, missing_value = missing_value), name = "logits_accuracy")([score_true, logits_true, logits_pred])
@@ -32,7 +32,7 @@ def train_model(input, score, logits, regress, anchors,
     _regress_loss = tf.expand_dims(_regress_loss, axis = -1)
     
     
-    y_pred, bbox_pred = FilterDetection(proposal_count = proposal_count, iou_threshold = iou_threshold, score_threshold = score_threshold, soft_nms = soft_nms, performance_count = performance_count,
+    y_pred, bbox_pred = FilterDetection(proposal_count = proposal_count, iou_threshold = iou_threshold, score_threshold = score_threshold, soft_nms = soft_nms, valid = valid, performance_count = performance_count,
                                         batch_size = batch_size, clip_ratio = clip_ratio)([score, logits, regress, anchors])
     model = tf.keras.Model([input, y_true, bbox_true], [y_pred, bbox_pred])
     

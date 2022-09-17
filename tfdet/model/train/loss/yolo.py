@@ -37,7 +37,8 @@ def score_loss(score_true, score_pred, focal = True, missing_value = 0.):
     if focal:
         loss = tf.expand_dims(loss, axis = -1) * tf.pow(match_score - score, 2)
     
-    loss = tf.reduce_mean(loss)
+    true_count = tf.reduce_sum(match_score)
+    loss = tf.reduce_sum(loss) / tf.maximum(true_count, 1.)
     loss = tf.where(tf.math.is_nan(loss), missing_value, loss)
     return loss
     
@@ -93,10 +94,10 @@ def logits_loss(score_true, logit_true, logit_pred, focal = True, alpha = .25, g
         focal_weight = tf.where(0.5 < logit_true, 1 - logit_pred, logit_pred)
         focal_weight = alpha_factor * focal_weight ** gamma
         loss = tf.expand_dims(focal_weight, axis = -1) * loss
+    loss = tf.reduce_sum(loss, axis = -1)
     if weight is not None:
         loss *= weight
     loss = tf.reduce_sum(loss, axis = -1)
-    loss = tf.reduce_mean(loss, axis = -1)
     
     loss = tf.reduce_mean(loss)
     loss = tf.where(tf.math.is_nan(loss), missing_value, loss)
@@ -116,8 +117,8 @@ def regress_loss(score_true, bbox_true, bbox_pred, mode = "general", missing_val
     bbox_true = tf.gather_nd(bbox_true, true_indices)
     bbox_pred = tf.gather_nd(bbox_pred, true_indices)
 
-    overlaps = overlap_bbox(bbox_true, bbox_pred, mode = mode) #(T, P)
-    max_iou = tf.reduce_max(overlaps, axis = 0)
+    overlaps = overlap_bbox(bbox_pred, bbox_true, mode = mode) #(P, T)
+    max_iou = tf.reduce_max(overlaps, axis = 1)
     bbox_loss_scale = 1. - ((bbox_true[..., 2] - bbox_true[..., 0]) * (bbox_true[..., 3] - bbox_true[..., 1])) #2 - 1 * bbox_area / input_area
     loss = bbox_loss_scale * (1 - max_iou)
 

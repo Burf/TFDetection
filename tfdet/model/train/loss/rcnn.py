@@ -34,7 +34,9 @@ def score_loss(match, score, missing_value = 0.):
     score = tf.expand_dims(tf.clip_by_value(score, tf.keras.backend.epsilon(), 1 - tf.keras.backend.epsilon()), axis = -1)
     
     loss = tf.keras.losses.binary_crossentropy(match_score, score)
-    loss = tf.reduce_mean(loss)
+    
+    true_count = tf.reduce_sum(match_score)
+    loss = tf.reduce_sum(loss) / tf.maximum(true_count, 1.)
     loss = tf.where(tf.math.is_nan(loss), missing_value, loss)
     return loss
 
@@ -85,8 +87,11 @@ def logits_loss(y_true, y_pred, focal = True, alpha = 1., gamma = 2., weight = N
         loss = alpha * tf.math.pow(1 - y_pred, gamma) * loss
     if weight is not None:
         loss *= weight
-    loss = tf.reduce_sum(loss, axis = -1)
-    loss = tf.reduce_mean(loss)
+    #loss = tf.reduce_sum(loss, axis = -1)
+    
+    label = tf.argmax(y_true, axis = -1)
+    true_count = tf.reduce_sum(tf.cast(0 < label, y_pred.dtype))
+    loss = tf.reduce_sum(loss) / tf.maximum(true_count, 1.)
     loss = tf.where(tf.math.is_nan(loss), missing_value, loss)
     return loss
 
@@ -106,6 +111,8 @@ def regress_loss(match_or_y_true, bbox_true, bbox_pred, sigma = 1, missing_value
     bbox_pred = tf.gather_nd(bbox_pred, true_indices)
     
     loss = smooth_l1(bbox_true, bbox_pred, sigma)
+    loss = tf.reduce_sum(loss, axis = -1)
+    
     loss = tf.reduce_mean(loss)
     loss = tf.where(tf.math.is_nan(loss), missing_value, loss)
     return loss
@@ -127,6 +134,8 @@ def mask_loss(y_true, mask_true, mask_pred, missing_value = 0.):
     true_indices = tf.where(0 < y_true)
     mask_true = tf.gather_nd(mask_true, true_indices)
     mask_pred = tf.gather_nd(mask_pred, true_indices)
+    mask_true = tf.expand_dims(mask_true, axis = -1)
+    mask_pred = tf.expand_dims(mask_pred, axis = -1)
     
     loss = tf.keras.losses.binary_crossentropy(mask_true, mask_pred)
     loss = tf.reduce_mean(loss)

@@ -10,7 +10,7 @@ def center_region(bbox_true, bbox_pred, positive_scale = 0.2, negative_scale = 0
     pos_flag = tf.transpose(isin(pos_bbox_true, bbox_pred)) #(P, T)
     neg_flag = tf.transpose(~isin(neg_bbox_true, bbox_pred)) #(P, T)
     #ignore_flag = tf.logical_and(~pos_flag, ~neg_flag)
-    overlaps = tf.transpose(overlap_bbox(bbox_true, bbox_pred, mode = mode)) #(P, T)
+    overlaps = overlap_bbox(bbox_pred, bbox_true, mode = mode) #(P, T)
     overlaps = tf.where(pos_flag, overlaps, 0)
     neg_overlaps = tf.where(neg_flag, -1, 0)
     
