@@ -1,18 +1,20 @@
 import tensorflow as tf
 import numpy as np
 
+from tfdet.core.util import metric2text
 from ..bbox import overlap_bbox_numpy as overlap_bbox
 
 class MeanAveragePrecision:
-    def __init__(self, iou_threshold = 0.5, score_threshold = 0.05, mode = "normal", e = 1e-12):
+    def __init__(self, iou_threshold = 0.5, score_threshold = 0.05, mode = "normal", e = 1e-12, label = None):
         """
-        run = class_instance(*args)
-        batch run = add(*batch_args) -> evaluate()
+        run = MeanAveragePrecision()(*args)
+        batch run = self.add(*batch_args) -> self.evaluate()
         """
         self.iou_threshold = np.array([iou_threshold]) if np.ndim(iou_threshold) == 0 else np.array(iou_threshold)
         self.score_threshold = score_threshold
         self.mode = mode
         self.e = e
+        self.label = label
         
         self.reset()
         
@@ -41,13 +43,6 @@ class MeanAveragePrecision:
         return 2 * (precision * recall) / np.maximum(precision + recall, self.e)
     
     @property
-    def threshold(self):
-        if self.num_true is not None:
-            #sort_indices = np.argsort(-self.iou_threshold)
-            #return np.where(self.num_true[..., 0] != 0, self.iou_threshold[sort_indices][np.argmax(self.f1[:, sort_indices], axis = -1)], 0)
-            return np.where(self.num_true[..., 0] != 0, self.iou_threshold[np.argmax(self.f1, axis = -1)], 0)
-    
-    @property
     def average_precision(self):
         return self.evaluate(reduce = False)
     
@@ -58,6 +53,31 @@ class MeanAveragePrecision:
     @property
     def summary(self):
         return self.evaluate(reduce = False, return_summary = True)
+    
+    @property
+    def summary_text(self):
+        text = ""
+        if self.num_pred is not None and 0 < np.sum(self.num_pred):
+            try:
+                precision, recall, average_precision = self.summary
+                num_true = self.num_true[..., 0].astype(int)
+                num_pred = self.num_pred[..., 0].astype(int)
+                precision = np.mean(precision, axis = 1)
+                recall = np.mean(recall, axis = 1)
+                average_precision = np.mean(average_precision, axis = 1)
+                info = {"num_true":num_true, "num_pred":num_pred, "precision":precision, "recall":recall, "average_precision":average_precision}
+                
+                precision = np.mean(precision[num_true != 0]).item()
+                recall = np.mean(recall[num_true != 0]).item()
+                average_precision = np.mean(average_precision[num_true != 0]).item()
+                num_true = np.sum(num_true)
+                num_pred = np.sum(num_pred)
+                summary = [num_true, num_pred, precision, recall, average_precision]
+                
+                text = metric2text(info, summary = summary, label = self.label)
+            except:
+                pass
+        return text
     
     def __call__(self, y_true, bbox_true, y_pred, bbox_pred, reduce = True, return_precision_n_recall = False, mode = "area", return_summary = False, reset = True):
         """
@@ -156,8 +176,8 @@ class MeanAveragePrecision:
                 precision = precision[:, -1]
                 recall = recall[:, -1]
                 if reduce:
-                    precision = np.mean(precision, axis = 1)
-                    recall = np.mean(recall, axis = 1)
+                    precision = np.mean(precision[self.num_true[..., 0] != 0]).item()
+                    recall = np.mean(recall[self.num_true[..., 0] != 0]).item()
                 return [precision, recall]
             
             n_class = np.shape(self.tp[0])[0]
@@ -184,27 +204,32 @@ class MeanAveragePrecision:
                 precision = precision[:, -1]
                 recall = recall[:, -1]
                 if reduce:
-                    precision = np.mean(precision, axis = 1)
-                    recall = np.mean(recall, axis = 1)
-                    average_precision = np.mean(average_precision, axis = 1)
+                    precision = np.mean(precision[self.num_true[..., 0] != 0]).item()
+                    recall = np.mean(recall[self.num_true[..., 0] != 0]).item()
+                    average_precision = np.mean(average_precision[self.num_true[..., 0] != 0]).item()
                 return [precision, recall, average_precision]
             if reduce:
                 average_precision = np.mean(average_precision[self.num_true[..., 0] != 0]).item()
             return average_precision
         else:
             if return_precision_n_recall:
-                return [[0.] * len(self.iou_threshold), [0.] * len(self.iou_threshold)]
+                return [0., 0.] if reduce else [[[0.] * len(self.iou_threshold)]] * 2
             elif return_summary:
-                return [[0.] * len(self.iou_threshold), [0.] * len(self.iou_threshold), [0.] * len(self.iou_threshold)]
+                return [0., 0., 0.] if reduce else [[[0.] * len(self.iou_threshold)]] * 3
             else:
-                return 0.
+                return 0. if reduce else [0.]
     
 class CoCoMeanAveragePrecision:
-    def __init__(self, iou_threshold = [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.], score_threshold = 0.05, mode = "normal", e = 1e-12):
+    def __init__(self, iou_threshold = [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.], score_threshold = 0.05, mode = "normal", e = 1e-12, label = None):
+        """
+        run = CoCoMeanAveragePrecision()(*args)
+        batch run = self.add(*batch_args) -> self.evaluate()
+        """
         self.iou_threshold = np.array([iou_threshold]) if np.ndim(iou_threshold) == 0 else np.array(iou_threshold)
         self.score_threshold = score_threshold
         self.mode = mode
         self.e = e
+        self.label = label
         
         self.reset()
         
@@ -254,7 +279,7 @@ class CoCoMeanAveragePrecision:
 
     @property
     def precision_n_recall_50(self):
-        return self.sub_metric.precision_n_recall[..., :1]
+        return np.array(self.sub_metric.precision_n_recall)[..., :1]
     
     @property
     def precision_50(self):
@@ -266,23 +291,26 @@ class CoCoMeanAveragePrecision:
     
     @property
     def f1_50(self):
-        return self.sub_metric.f1[..., :1]
+        return np.array(self.sub_metric.f1)[..., :1]
     
     @property
     def average_precision_50(self):
-        return self.sub_metric.average_precision[..., :1]
+        return np.array(self.sub_metric.average_precision)[..., :1]
     
     @property
     def mean_average_precision_50(self):
-        return np.mean(self.average_precision_50[self.num_true[..., 0] != 0]).item()
+        if self.num_true is not None:
+            return np.mean(self.average_precision_50[self.num_true[..., 0] != 0]).item()
+        else:
+            return 0.
     
     @property
     def summary_50(self):
-        return [v[..., :1] for v in self.sub_metric.evaluate(reduce = False, return_summary = True)]
+        return [np.array(v)[..., :1] for v in self.sub_metric.evaluate(reduce = False, return_summary = True)]
 
     @property
     def precision_n_recall_75(self):
-        return self.sub_metric.precision_n_recall[..., 1:]
+        return np.array(self.sub_metric.precision_n_recall)[..., 1:]
     
     @property
     def precision_75(self):
@@ -294,19 +322,62 @@ class CoCoMeanAveragePrecision:
     
     @property
     def f1_75(self):
-        return self.sub_metric.f1[..., 1:]
+        return np.array(self.sub_metric.f1)[..., 1:]
     
     @property
     def average_precision_75(self):
-        return self.sub_metric.average_precision[..., 1:]
+        return np.array(self.sub_metric.average_precision)[..., 1:]
     
     @property
     def mean_average_precision_75(self):
-        return np.mean(self.average_precision_75[self.num_true[..., 0] != 0]).item()
+        if self.num_true is not None:
+            return np.mean(self.average_precision_75[self.num_true[..., 0] != 0]).item()
+        else:
+            return 0.
     
     @property
     def summary_75(self):
-        return [v[..., 1:] for v in self.sub_metric.evaluate(reduce = False, return_summary = True)]
+        return [np.array(v)[..., 1:] for v in self.sub_metric.evaluate(reduce = False, return_summary = True)]
+    
+    @property
+    def summary_text(self):
+        text = ""
+        if self.num_pred is not None and 0 < np.sum(self.num_pred):
+            try:
+                precision, recall, average_precision = self.metric.summary
+                sub_precision, sub_recall, sub_average_precision = self.sub_metric.summary
+                num_true = self.num_true[..., 0].astype(int)
+                num_pred = self.num_pred[..., 0].astype(int)
+                precision = np.mean(precision, axis = 1)
+                recall = np.mean(recall, axis = 1)
+                average_precision = np.mean(average_precision, axis = 1)
+                precision_50, recall_50, average_precision_50 = sub_precision[..., 0], sub_recall[..., 0], sub_average_precision[..., 0]
+                precision_75, recall_75, average_precision_75 = sub_precision[..., 1], sub_recall[..., 1], sub_average_precision[..., 1]
+                info = {"num_true":num_true, "num_pred":num_pred,
+                        "precision_50":precision_50, "precision_75":precision_75, "precision":precision,
+                        "recall_50":recall_50, "recall_75":recall_75, "recall":recall,
+                        "average_precision_50":average_precision_50, "average_precision_75":average_precision_75, "average_precision":average_precision}
+                
+                precision = np.mean(precision[num_true != 0]).item()
+                precision_50 = np.mean(precision_50[num_true != 0]).item()
+                precision_75 = np.mean(precision_75[num_true != 0]).item()
+                recall = np.mean(recall[num_true != 0]).item()
+                recall_50 = np.mean(recall_50[num_true != 0]).item()
+                recall_75 = np.mean(recall_75[num_true != 0]).item()
+                average_precision = np.mean(average_precision[num_true != 0]).item()
+                average_precision_50 = np.mean(average_precision_50[num_true != 0]).item()
+                average_precision_75 = np.mean(average_precision_75[num_true != 0]).item()
+                num_true = np.sum(num_true)
+                num_pred = np.sum(num_pred)
+                summary = [num_true, num_pred, 
+                           precision_50, precision_75, precision, 
+                           recall_50, recall_75, recall, 
+                           average_precision_50, average_precision_75, average_precision]
+                
+                text = metric2text(info, summary = summary, label = self.label)
+            except:
+                pass
+        return text
     
     def __call__(self, y_true, bbox_true, y_pred, bbox_pred, reduce = True, return_precision_n_recall = False, mode = "area", return_summary = False, reset = True):
         """
