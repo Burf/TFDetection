@@ -3,6 +3,7 @@ import numpy as np
 
 from tfdet.core.anchor import generate_anchors
 from tfdet.core.bbox import delta2bbox
+from tfdet.core.roi import roi_align
 from tfdet.core.util import pad_nms, map_fn
 
 def conv(filters, kernel_size, strides = 1, padding = "same", use_bias = True, kernel_initializer = "he_normal", **kwargs):
@@ -140,58 +141,22 @@ class Rpn2Proposal(tf.keras.layers.Layer):
         return config
 
 class RoiAlign(tf.keras.layers.Layer):
-    def __init__(self, pool_size = 7, method = "bilinear", **kwargs):
+    def __init__(self, pool_size = 7, method = "bilinear", batch_size = 1, **kwargs):
         super(RoiAlign, self).__init__(**kwargs)
         self.pool_size = pool_size
         self.method = method
+        self.batch_size = batch_size
 
     def call(self, inputs, image_shape = [1024, 1024]):
         feature, proposals = inputs
-        if not isinstance(feature, list):
-            feature = [feature]
-        pool_size = self.pool_size
-        if isinstance(pool_size, int):
-            pool_size = [pool_size, pool_size]
-        
-        roi_level = roi2level(proposals, len(feature), image_shape)
-        x1, y1, x2, y2 = tf.split(proposals, 4, axis = -1)
-        proposals = tf.concat([y1, x1, y2, x2], axis = -1)
-        align = tf.keras.layers.Lambda(lambda args: tf.image.crop_and_resize(image = args[0], boxes = args[1], box_indices = args[2], crop_size = pool_size, method = self.method))
-    
-        indices = []
-        result = []
-        for level, x in enumerate(feature):
-            level_indices = tf.where(tf.equal(roi_level, level))
-            bbox = tf.gather_nd(proposals, level_indices)
-
-            bbox = tf.stop_gradient(bbox)
-            bbox_indices = tf.stop_gradient(tf.cast(level_indices[:, 0], tf.int32))
-            out = align([x, bbox, bbox_indices])
-
-            indices.append(level_indices)
-            result.append(out)
-
-        indices = tf.concat(indices, axis = 0)
-        result = tf.concat(result, axis = 0)
-          
-        # rearange
-        sort_range = tf.expand_dims(tf.range(tf.shape(indices)[0]), axis = 1)
-        indices = tf.concat([tf.cast(indices, tf.int32), sort_range], axis = 1)
-
-        sort_indices = indices[:, 0] * 100000 + indices[:, 1]
-        sorted_indices = tf.nn.top_k(sort_indices, k = tf.shape(indices)[0]).indices[::-1]
-        indices = tf.gather(indices[:, 2], sorted_indices)
-        result = tf.gather(result, indices)
-        
-        # reshape
-        shape = tf.concat([tf.shape(proposals)[:2], tf.shape(result)[1:]], axis = 0)
-        result = tf.reshape(result, shape)
-        return result
+        out = map_fn(roi_align, feature, proposals, dtype = proposals.dtype, batch_size = self.batch_size, image_shape = image_shape, pool_size = self.pool_size, method = self.method)
+        return out
     
     def get_config(self):
         config = super(RoiAlign, self).get_config()
         config["pool_size"] = self.pool_size
         config["method"] = self.method
+        config["batch_size"] = self.batch_size
         return config
 
 class RoiClassifier(tf.keras.layers.Layer):
@@ -397,21 +362,6 @@ class FusedSemanticHead(tf.keras.layers.Layer):
         config["n_depth"] = self.n_depth
         config["method"] = self.method
         return config
-
-def roi2level(bbox, n_level, input_shape = (224, 224)):
-    if 1 < tf.reduce_max(bbox):
-        bbox = tf.divide(bbox, tf.cast(tf.tile(input_shape[::-1], [2]), bbox.dtype))
-    x1, y1, x2, y2 = tf.split(bbox, 4, axis = -1)
-    h = y2 - y1
-    w = x2 - x1
-
-    bbox_area = h * w
-    image_area = tf.cast(input_shape[0] * input_shape[1], bbox.dtype)
-
-    roi_level = tf.cast(tf.floor(tf.math.log((tf.sqrt(bbox_area)) / ((56. / tf.sqrt(image_area)) + 1e-6)) / tf.math.log(2.)), tf.int32)
-    roi_level = tf.clip_by_value(roi_level, 0, n_level - 1)
-    roi_level = tf.squeeze(roi_level, axis = -1)
-    return roi_level
 
 def rpn_head(feature, image_shape = [1024, 1024],
              scale = [32, 64, 128, 256, 512], ratio = [0.5, 1, 2], octave = 1,
