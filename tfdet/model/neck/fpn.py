@@ -44,7 +44,8 @@ class FeaturePyramidNetwork(tf.keras.layers.Layer):
         self.convolution = convolution
         self.normalize = normalize
         self.activation = activation
-
+        self.upsample = tf.keras.layers.Lambda(lambda args: tf.image.resize(args[0], args[1], method = method), name = "upsample")
+        
     def build(self, input_shape):
         if not isinstance(input_shape, list):
             input_shape = [input_shape]
@@ -61,7 +62,7 @@ class FeaturePyramidNetwork(tf.keras.layers.Layer):
         
         self.u2b_combine = []
         for index in range(1, len(input_shape)):
-            upsample = tf.keras.layers.UpSampling2D(size = (2, 2), interpolation = self.method, name = "{0}_up2bottom_upsample{1}".format(self.mode, index + 1))
+            #upsample = tf.keras.layers.UpSampling2D(size = (2, 2), interpolation = self.method, name = "{0}_up2bottom_upsample{1}".format(self.mode, index + 1))
             if self.weighted_add:
                 add = WeightedAdd(name = "{0}_up2bottom_weighted_add{1}".format(self.mode, index))
             else:
@@ -73,7 +74,8 @@ class FeaturePyramidNetwork(tf.keras.layers.Layer):
                 combine.append(self.convolution(self.n_feature, 3, padding = "same", use_bias = self.use_bias, name = "{0}_up2bottom_combine_conv{1}".format(self.mode, index)))
                 if self.normalize is not None:
                     combine.append(self.normalize(name = "{0}_up2bottom_combine_norm{1}".format(self.mode, index)))
-            self.u2b_combine.append([upsample, add, combine])
+            #self.u2b_combine.append([upsample, add, combine])
+            self.u2b_combine.append([add, combine])
             
         if self.mode != "fpn":
             self.b2u_resample = []
@@ -134,10 +136,12 @@ class FeaturePyramidNetwork(tf.keras.layers.Layer):
         
         u2b = [feature[-1]]
         for index in range(len(feature) - 1, 0, -1):
-            upsample, add, combine = self.u2b_combine[index - 1]
+            #upsample, add, combine = self.u2b_combine[index - 1]
+            add, combine = self.u2b_combine[index - 1]
             prev = u2b[-1]
             x = feature[index - 1]
-            out = add([x, upsample(prev)])
+            #out = add([x, upsample(prev)])
+            out = add([x, self.upsample([prev, tf.shape(x)[1:3]])])
             for layer in combine:
                 out = layer(out)
             u2b.append(out)

@@ -53,9 +53,9 @@ def feature_extract(feature, sampling_index = None, pool_size = 1, sub_sampling 
 def core_sampling(*args, n_sample = 3, n_feature = "auto", eps = 0.9, index = False):
     try:
         from sklearn.random_projection import SparseRandomProjection, johnson_lindenstrauss_min_dim
-    except:
+    except Exception as e:
         print("If you want to use 'core_sampling', please install 'scikit-learn 0.14▲'")
-        return
+        raise e
     if isinstance(n_sample, float):
         n_sample = int(len(args[0]) * n_sample)
     n_sample = max(min(n_sample, len(args[0])), 1 if len(args[0]) != 0 else 0)
