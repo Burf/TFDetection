@@ -11,13 +11,12 @@ from tfdet.core.util import pipeline
 LABEL = ["bg", #background
          "balloon"]
 
-def load_data(path, dir_path = None, mask = False):
+def load_data(path, mask = False, shuffle = False):
     """
     https://github.com/matterport/Mask_RCNN/releases/download/v2.1/balloon_dataset.zip
     
     <example>
     path = "./balloon/train/via_region_data.json"
-    dir_path = None or "./balloon/train"
     mask = with instance mask_true
     """
     try:
@@ -26,9 +25,11 @@ def load_data(path, dir_path = None, mask = False):
         print("If you want to use 'load_balloon', please install 'skimage'")
         raise e
     
-    dir_path = os.path.dirname(os.path.abspath(path)) if dir_path is None else dir_path
+    dir_path = os.path.dirname(os.path.abspath(path))
     balloon = load_json(path)
     balloon = list(balloon.values())
+    if shuffle:
+        np.random.shuffle(balloon)
     for anno in balloon:
         x_true = os.path.join(dir_path, anno["filename"])
         h, w = np.shape(cv2.imread(x_true, -1))[:2]
@@ -48,19 +49,18 @@ def load_data(path, dir_path = None, mask = False):
         result = (x_true, y_true, bbox_true, mask_true) if mask else (x_true, y_true, bbox_true)
         yield result
         
-def load_pipe(path, dir_path = None, mask = False,
-              batch_size = 0, epoch = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
+def load_pipe(path, mask = False, shuffle = False,
+              batch_size = 0, epoch = 1, prefetch = False, shuffle_size = None, prefetch_size = None,
               cache = None, num_parallel_calls = None):
     """
     https://github.com/matterport/Mask_RCNN/releases/download/v2.1/balloon_dataset.zip
     
     <example>
     path = "./balloon/train/via_region_data.json"
-    dir_path = None or "./balloon/train"
     mask = with instance mask_true
     """
-    generator = functools.partial(load_data, path, dir_path, mask = mask)
+    generator = functools.partial(load_data, path, mask = mask, shuffle = shuffle and shuffle_size is None)
     dtype = (tf.string, tf.string, tf.int32, tf.float32) if mask else (tf.string, tf.string, tf.int32)
     pipe = tf.data.Dataset.from_generator(generator, dtype)
-    return pipeline(pipe, batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
+    return pipeline(pipe, batch_size = batch_size, epoch = epoch, shuffle = shuffle and shuffle_size is not None, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
                     cache = cache, num_parallel_calls = num_parallel_calls)

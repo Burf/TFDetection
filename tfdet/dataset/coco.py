@@ -45,13 +45,13 @@ COLOR = [(0, 0, 0),
          (95, 54, 80), (128, 76, 255), (201, 57, 1), (246, 0, 122),
          (191, 162, 208)]
 
-def load_data(path, dir_path, mask = False, crowd = False):
+def load_data(path, data_path, mask = False, crowd = False, shuffle = False):
     """
     https://cocodataset.org
     
     <example>
     path = "./coco/annotations/instances_train2017.json"
-    dir_path = "./coco/train2017"
+    data_path = "./coco/train2017"
     mask = with instance mask_true
     crowd = iscrowd
     """
@@ -65,13 +65,16 @@ def load_data(path, dir_path, mask = False, crowd = False):
     coco = COCO(path)
     cat_ids = coco.getCatIds(LABEL[1:])
     cat2label = {cat_id: i for i, cat_id in enumerate(cat_ids)}
-    for id in coco.getImgIds():
+    ids = coco.getImgIds()
+    if shuffle:
+        np.random.shuffle(ids)
+    for id in ids:
         info = coco.loadImgs([id])[0]
         filename = info["file_name"]
         height, width = info["height"], info["width"]
         anno_id = coco.getAnnIds([id], iscrowd = crowd)
         anno = coco.loadAnns(anno_id)
-        x_true = os.path.join(dir_path, filename)
+        x_true = os.path.join(data_path, filename)
         y_true = []
         bbox_true = []
         mask_true = []
@@ -107,20 +110,20 @@ def load_data(path, dir_path, mask = False, crowd = False):
             result = (x_true, y_true, bbox_true, mask_true)
         yield result
         
-def load_pipe(path, dir_path, mask = False, crowd = False,
-              batch_size = 0, epoch = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
+def load_pipe(path, data_path, mask = False, crowd = False, shuffle = False,
+              batch_size = 0, epoch = 1, prefetch = False, shuffle_size = None, prefetch_size = None,
               cache = None, num_parallel_calls = None):
     """
     https://cocodataset.org
     
     <example>
     path = "./coco/annotations/instances_train2017.json"
-    dir_path = "./coco/train2017"
+    data_path = "./coco/train2017"
     mask = with instance mask_true
     crowd = iscrowd
     """
-    generator = functools.partial(load_data, path, dir_path, mask = mask, crowd = crowd)
+    generator = functools.partial(load_data, path, data_path, mask = mask, crowd = crowd, shuffle = shuffle and shuffle_size is None)
     dtype = (tf.string, tf.string, tf.int32, tf.float32) if mask else (tf.string, tf.string, tf.int32)
     pipe = tf.data.Dataset.from_generator(generator, dtype)
-    return pipeline(pipe, batch_size = batch_size, epoch = epoch, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
+    return pipeline(pipe, batch_size = batch_size, epoch = epoch, shuffle = shuffle and shuffle_size is not None, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
                     cache = cache, num_parallel_calls = num_parallel_calls)

@@ -132,7 +132,7 @@ def pad(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape =
     elif mode == "random":
         l = np.random.randint(0, np.add(p, 1))
         r = np.subtract(p, l)        
-    x_true = np.pad(x_true, [[l[0], r[0]], [l[1], r[1]], [0, 0]])
+    x_true = np.pad(x_true, [[l[0], r[0]], [l[1], r[1]], [0, 0]], constant_values = pad_val)
     if y_true is not None and 1 < np.ndim(y_true):
         val = background if 0 < len(y_true) and isinstance(y_true[0][0], str) else 0
         #y_true = y_true[:max_pad_size]
