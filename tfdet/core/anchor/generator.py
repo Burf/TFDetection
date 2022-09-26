@@ -46,7 +46,7 @@ def generate_anchors(feature, image_shape = [1024, 1024], scale = [32, 64, 128, 
             feature_shape = feature_shape[-3:-1]
         
         stride = [1, 1]
-        if 1 < tf.reduce_max(scale[0]):
+        if 2 <= tf.reduce_max(scale[0]):
             if normalize:
                 #shape = image_shape
                 #ndim = (tf.keras.backend.ndim(shape) if tf.is_tensor(shape) else np.ndim(shape)) - np.ndim(scale)
@@ -127,7 +127,7 @@ def generate_yolo_anchors(feature, image_shape = [608, 608], size = [[ 10, 13], 
             feature_shape = feature_shape[-3:-1]
         
         stride = [1, 1]
-        if 1 < tf.reduce_max(size):
+        if 2 <= tf.reduce_max(size):
             if normalize:
                 #shape = image_shape
                 #ndim = (tf.keras.backend.ndim(shape) if tf.is_tensor(shape) else np.ndim(shape)) - np.ndim(size)
@@ -190,7 +190,7 @@ def generate_points(feature, image_shape = [1024, 1024], stride = None, normaliz
             stride = tf.divide(tf.cast(image_shape, dtype), tf.cast(shape, dtype))
             if normalize:
                 stride = tf.where(tf.greater(stride, 1), tf.divide(stride, tf.cast(image_shape, dtype)), stride)
-        elif normalize and 1 < tf.reduce_max(stride):
+        elif normalize and 2 <= tf.reduce_max(stride):
             stride = tf.divide(stride, tf.cast(image_shape, dtype))
         shift = tf.cast(tf.divide(stride, 2), dtype)
         shift = tf.where(tf.greater(stride[0], 1), tf.floor(shift), shift)

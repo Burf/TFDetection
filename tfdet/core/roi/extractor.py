@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 def roi2level(bbox, n_level, input_shape = (224, 224)):
-    if 1 < tf.reduce_max(bbox):
+    if 2 <= tf.reduce_max(bbox):
         bbox = tf.divide(bbox, tf.cast(tf.tile(input_shape[::-1], [2]), bbox.dtype))
     x1, y1, x2, y2 = tf.split(bbox, 4, axis = -1)
     h = y2 - y1
@@ -24,7 +24,7 @@ def roi_align(feature, bbox_pred, image_shape = [1024, 1024], pool_size = 7, met
     valid_indices = tf.where(0 < tf.reduce_max(bbox_pred, axis = -1))
     bbox_pred = tf.gather_nd(bbox_pred, valid_indices)
     
-    if 1 < tf.reduce_max(bbox_pred):
+    if 2 <= tf.reduce_max(bbox_pred):
         bbox_pred = tf.divide(bbox_pred, tf.cast(tf.tile(image_shape[::-1], [2]), bbox_pred.dtype))
     
     bbox_pred = tf.expand_dims(bbox_pred, axis = 0)

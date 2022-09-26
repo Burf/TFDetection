@@ -27,15 +27,22 @@ def isin(bbox_true, bbox_pred):
     flag = tf.reshape(flag, [true_count, pred_count])
     return flag
 
-def random_bbox(r = 0.5, image_shape = None):
-    center_x = np.random.random()
-    center_y = np.random.random()
-    length = np.sqrt(1 - r)
-    x1 = np.clip(center_x - length / 2, 0, 1)
-    y1 = np.clip(center_y - length / 2, 0, 1)
-    x2 = np.clip(center_x + (length / 2), 0, 1)
-    y2 = np.clip(center_y + (length / 2), 0, 1)
-    bbox = [x1, y1, x2, y2]
+def random_bbox(alpha = 1, image_shape = None, scale = None, clip = False, clip_object = True):
+    h, w = image_shape[:2] if image_shape is not None else [1, 1]
+    scale_h, scale_w = [scale, scale] if np.ndim(scale) == 0 else scale
+    if scale is not None and np.any(np.greater_equal(scale, 2)):
+        if image_shape is None:
+            h, w = [scale_h, scale_w]
+        scale_h, scale_w = [scale_h / h, scale_w / w]
+    elif scale is None:
+        scale_h, scale_w = [np.random.beta(alpha, alpha), np.random.beta(alpha, alpha)]
+    center_x, center_y = np.random.random(), np.random.random()
+    if clip_object:
+        center_x = center_x * (1 - scale_w) + (scale_w / 2)
+        center_y = center_y * (1 - scale_h) + (scale_h / 2)
+    bbox = [center_x - (scale_w / 2), center_y - (scale_h / 2), center_x + (scale_w / 2), center_y + (scale_h / 2)]
+    if clip:
+        bbox = np.clip(bbox, 0, 1)
     if image_shape is not None:
-        bbox = np.round(bbox * np.tile(image_shape[:2][::-1], 2)).astype(int)
+        bbox = np.round(np.multiply(bbox, [w, h, w, h])).astype(int)
     return bbox

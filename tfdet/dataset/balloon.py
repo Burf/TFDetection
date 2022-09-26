@@ -50,7 +50,7 @@ def load_data(path, mask = False, shuffle = False):
         yield result
         
 def load_pipe(path, mask = False, shuffle = False,
-              batch_size = 0, epoch = 1, prefetch = False, shuffle_size = None, prefetch_size = None,
+              batch_size = 0, repeat = 1, prefetch = False, shuffle_size = None, prefetch_size = None,
               cache = None, num_parallel_calls = None):
     """
     https://github.com/matterport/Mask_RCNN/releases/download/v2.1/balloon_dataset.zip
@@ -62,5 +62,5 @@ def load_pipe(path, mask = False, shuffle = False,
     generator = functools.partial(load_data, path, mask = mask, shuffle = shuffle and shuffle_size is None)
     dtype = (tf.string, tf.string, tf.int32, tf.float32) if mask else (tf.string, tf.string, tf.int32)
     pipe = tf.data.Dataset.from_generator(generator, dtype)
-    return pipeline(pipe, batch_size = batch_size, epoch = epoch, shuffle = shuffle and shuffle_size is not None, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
+    return pipeline(pipe, batch_size = batch_size, repeat = repeat, shuffle = shuffle and shuffle_size is not None, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
                     cache = cache, num_parallel_calls = num_parallel_calls)
