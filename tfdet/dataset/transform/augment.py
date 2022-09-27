@@ -844,7 +844,7 @@ def copy_paste(x_true, y_true = None, bbox_true = None, mask_true = None, max_pa
                 new_area = (bw * bh) / (w * h)
                 
                 if (min_area <= new_area, min_visibility < (new_area / (sample_area[i] + e))) and (min_scale[0] <= bh and min_scale[1] <= bw):
-                    iou = overlap_bbox(new_bbox, np.expand_dims(bbox, axis = 0))
+                    iou = overlap_bbox(new_bbox, np.expand_dims(bbox, axis = 0), mode = "foreground")
                     if np.all(np.less(iou, iou_threshold)):
                         y = sample_y[i] if i < len(sample_y) is not None else None
                         mask = sample_mask[i] if i < len(sample_mask) is not None else None
