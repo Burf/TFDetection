@@ -793,10 +793,10 @@ def copy_paste(x_true, y_true = None, bbox_true = None, mask_true = None, max_pa
             area = ((bbox[..., 3] - bbox[..., 1]) * (bbox[..., 2] - bbox[..., 0])) / (w * h)
             indices2 = np.where(0 < area)[0]
             indices = indices[indices2]
-            np.random.shuffle(indices)
+            #np.random.shuffle(indices)
             for j, b in zip(indices, bbox[indices2]):
-                if max_paste_count <= len(sample_x):
-                    break
+                #if max_paste_count <= len(sample_x):
+                #    break
                 crop_x = np.array(x[b[1]:b[3], b[0]:b[2]])
                 sample_area.append(((b[3] - b[1]) * (b[2] - b[0])) / (w * h))
                 if mask is not None:
@@ -808,7 +808,7 @@ def copy_paste(x_true, y_true = None, bbox_true = None, mask_true = None, max_pa
                 else:
                     sample_x.append(crop_x)
             if y_true is not None:
-                sample_y = (sample_y + [*np.array(y_true[i])[indices]])[:max_paste_count]
+                sample_y = (sample_y + [*np.array(y_true[i])[indices]])#[:max_paste_count]
         
         #paste
         x_true = np.array(x_true[0])
