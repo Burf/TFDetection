@@ -27,13 +27,13 @@ def cast(x_true, y_true = None, bbox_true = None, mask_true = None, map = {"x_tr
     if isinstance(x_true, dict):
         x_true = {k:tf.cast(v, map[k]) if k in map else v for k, v in x_true.items()}
     else:
-        if "x_true" in keys:
+        if "x_true" in map:
             x_true = tf.cast(x_true, map["x_true"])
-        if "y_true" in keys:
+        if "y_true" in map:
             y_true = tf.cast(y_true, map["y_true"])
-        if "bbox_true" in keys:
+        if "bbox_true" in map:
             bbox_true = tf.cast(bbox_true, map["bbox_true"])
-        if "mask_true" in keys:
+        if "mask_true" in map:
             mask_true = tf.cast(mask_true, map["mask_true"])
     result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
     result = result[0] if len(result) == 1 else tuple(result)
