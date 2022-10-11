@@ -6,7 +6,7 @@ import tensorflow as tf
 
 from tfdet.core.util import pipeline
 
-LABEL = ["bg", #background
+LABEL = ["background", #background
          "person", "bicycle", "car", "motorcycle", "airplane", "bus",
          "train", "truck", "boat", "traffic light", "fire hydrant",
          "stop sign", "parking meter", "bench", "bird", "cat", "dog",
@@ -45,7 +45,7 @@ COLOR = [(0, 0, 0),
          (95, 54, 80), (128, 76, 255), (201, 57, 1), (246, 0, 122),
          (191, 162, 208)]
 
-def load_data(path, data_path, mask = False, crowd = False, shuffle = False):
+def load_data(path, data_path, mask = False, crowd = False, label = LABEL, shuffle = False):
     """
     https://cocodataset.org
     
@@ -63,7 +63,7 @@ def load_data(path, data_path, mask = False, crowd = False, shuffle = False):
         raise e
 
     coco = COCO(path)
-    cat_ids = coco.getCatIds(LABEL[1:])
+    cat_ids = coco.getCatIds(label)
     cat2label = {cat_id: i for i, cat_id in enumerate(cat_ids)}
     ids = coco.getImgIds()
     if shuffle:
@@ -89,7 +89,7 @@ def load_data(path, data_path, mask = False, crowd = False, shuffle = False):
             if a["category_id"] not in cat_ids:
                 continue
                 
-            y_true.append([LABEL[int(cat2label[a["category_id"]] + 1)]])
+            y_true.append([label[int(cat2label[a["category_id"]] + 1)]])
             bbox_true.append([int(round(x1)), int(round(y1)), int(round(x1 + w)), int(round(y1 + h))])
             if mask:
                 seg = a["segmentation"]
@@ -110,7 +110,7 @@ def load_data(path, data_path, mask = False, crowd = False, shuffle = False):
             result = (x_true, y_true, bbox_true, mask_true)
         yield result
         
-def load_pipe(path, data_path, mask = False, crowd = False, shuffle = False,
+def load_pipe(path, data_path, mask = False, crowd = False, label = LABEL, shuffle = False,
               batch_size = 0, repeat = 1, prefetch = False, shuffle_size = None, prefetch_size = None,
               cache = None, num_parallel_calls = None):
     """
@@ -122,7 +122,7 @@ def load_pipe(path, data_path, mask = False, crowd = False, shuffle = False,
     mask = with instance mask_true
     crowd = iscrowd
     """
-    generator = functools.partial(load_data, path, data_path, mask = mask, crowd = crowd, shuffle = shuffle and shuffle_size is None)
+    generator = functools.partial(load_data, path, data_path, mask = mask, crowd = crowd, label = label, shuffle = shuffle and shuffle_size is None)
     dtype = (tf.string, tf.string, tf.int32, tf.float32) if mask else (tf.string, tf.string, tf.int32)
     pipe = tf.data.Dataset.from_generator(generator, dtype)
     return pipeline(pipe, batch_size = batch_size, repeat = repeat, shuffle = shuffle and shuffle_size is not None, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,

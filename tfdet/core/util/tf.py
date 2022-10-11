@@ -21,7 +21,7 @@ def convert_to_numpy(*args, return_tuple = False):
                 if args[index].dtype == tf.string:
                     arg = args[index].numpy()
                     if 0 < np.ndim(arg):
-                        args[index] = arg.astype(str)
+                        args[index] = arg.astype(str).astype(np.object0)
                     else:
                         args[index] = arg.decode("UTF-8")
                 else:

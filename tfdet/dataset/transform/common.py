@@ -6,7 +6,7 @@ import numpy as np
 
 from tfdet.core.util import to_categorical
 from .augment import albumentations
-from ..util import load_image, trim_bbox
+from ..util import load_image, trim_bbox, pad as pad_numpy
 from ..pascal_voc import load_annotation, load_instance
 
 def load(x_true, y_true = None, bbox_true = None, mask_true = None, load_func = load_image, anno_func = load_annotation, mask_func = load_instance):
@@ -236,7 +236,7 @@ def resize(x_true, y_true = None, bbox_true = None, mask_true = None, image_shap
     result = result[0] if len(result) == 1 else tuple(result)
     return result
 
-def pad(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape = None, shape_divisor = None, max_pad_size = 100, pad_val = 114, mode = "both", background = "bg"):
+def pad(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape = None, shape_divisor = None, max_pad_size = 100, pad_val = 114, mode = "both", background = "background"):
     """
     x_true = (H, W, C)
     y_true(without bbox_true) = (1 or n_class)
@@ -266,8 +266,9 @@ def pad(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape =
         r = np.subtract(p, l)
     elif mode == "random":
         l = np.random.randint(0, np.add(p, 1))
-        r = np.subtract(p, l)        
-    x_true = np.pad(x_true, [[l[0], r[0]], [l[1], r[1]], [0, 0]], constant_values = pad_val)
+        r = np.subtract(p, l)
+    if 0 < np.max([l, r]):
+        x_true = pad_numpy(x_true, [[l[0], r[0]], [l[1], r[1]], [0, 0]], val = pad_val)
     if bbox_true is not None:
         indices = np.where(np.max(0 < bbox_true, axis = -1, keepdims = True) != 0)[0]
         bbox_true = np.array(bbox_true)[indices]
@@ -276,23 +277,24 @@ def pad(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape =
         if mask_true is not None and 3 < np.ndim(mask_true):
             mask_true = np.array(mask_true)[indices]
         
-        if np.any(np.greater_equal(bbox_true, 2)):
-            bbox_true = np.add(bbox_true, np.tile(l[::-1], 2))
-        else:
-            bbox_true = np.multiply(bbox_true, np.tile(np.divide([w, h], [new_w, new_h]), 2))
-            bbox_true = np.add(bbox_true, np.tile(np.divide(l[::-1], [new_w, new_h]), 2))
+        if 0 < np.max(l):
+            if np.any(np.greater_equal(bbox_true, 2)):
+                bbox_true = np.add(bbox_true, np.tile(l[::-1], 2))
+            else:
+                bbox_true = np.multiply(bbox_true, np.tile(np.divide([w, h], [new_w, new_h]), 2))
+                bbox_true = np.add(bbox_true, np.tile(np.divide(l[::-1], [new_w, new_h]), 2))
         #bbox_true = bbox_true[:max_pad_size]
-        bbox_true =  np.pad(bbox_true, [[0, max(max_pad_size - len(bbox_true), 0)], [0, 0]])
+        bbox_true =  pad_numpy(bbox_true, [[0, max(max_pad_size - len(bbox_true), 0)], [0, 0]])
     if y_true is not None and 1 < np.ndim(y_true):
-        val = background if 0 < len(y_true) and isinstance(y_true[0][0], str) else 0
+        val = 0 if np.issubdtype((np.array(y_true) if not isinstance(y_true, np.ndarray) else y_true).dtype, np.number) else background
         #y_true = y_true[:max_pad_size]
-        y_true = np.pad(y_true, [[0, max(max_pad_size - len(y_true), 0)], [0, 0]], constant_values = val)
+        y_true = pad_numpy(y_true, [[0, max(max_pad_size - len(y_true), 0)], [0, 0]], val = val)
     if mask_true is not None:
         if 3 < np.ndim(mask_true):
             #mask_true = mask_true[:max_pad_size]
-            mask_true = np.pad(mask_true, [[0, max(max_pad_size - len(mask_true), 0)], [l[0], r[0]], [l[1], r[1]], [0, 0]])
-        else:
-            mask_true = np.pad(mask_true, [[l[0], r[0]], [l[1], r[1]], [0, 0]])
+            mask_true = pad_numpy(mask_true, [[0, max(max_pad_size - len(mask_true), 0)], [l[0], r[0]], [l[1], r[1]], [0, 0]])
+        elif 0 < np.max([l, r]):
+            mask_true = pad_numpy(mask_true, [[l[0], r[0]], [l[1], r[1]], [0, 0]])
     result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
     result = result[0] if len(result) == 1 else tuple(result)
     return result
@@ -339,7 +341,7 @@ def crop(x_true, y_true = None, bbox_true = None, mask_true = None, bbox = None,
     return result
 
 def random_apply(function, x_true, y_true = None, bbox_true = None, mask_true = None, p = 0.5, choice_size = 1, 
-                 image_shape = None, shape_divisor = None, max_pad_size = 100, pad_val = 114, mode = "both", background = "bg", **kwargs):
+                 image_shape = None, shape_divisor = None, max_pad_size = 100, pad_val = 114, mode = "both", background = "background", **kwargs):
     """
     x_true = (N, H, W, C)
     y_true(without bbox_true) = (N, n_class)

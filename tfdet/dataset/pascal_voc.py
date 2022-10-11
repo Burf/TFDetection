@@ -9,7 +9,7 @@ from .util.file import load_file
 from .util.xml import xml2dict
 from tfdet.core.util import pipeline
 
-LABEL = ["bg", #background
+LABEL = ["background", #background
          "aeroplane", "bicycle", "bird", "boat", "bottle", "bus", "car",
          "cat", "chair", "cow", "diningtable", "dog", "horse",
          "motorbike", "person", "pottedplant", "sheep", "sofa", "train",

@@ -8,7 +8,7 @@ import tensorflow as tf
 from .util.file import load_json
 from tfdet.core.util import pipeline
 
-LABEL = ["bg", #background
+LABEL = ["background", #background
          "balloon"]
 
 def load_data(path, mask = False, shuffle = False):
