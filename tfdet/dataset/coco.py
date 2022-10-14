@@ -111,7 +111,7 @@ def load_data(path, data_path, mask = False, crowd = False, label = LABEL, shuff
         yield result
         
 def load_pipe(path, data_path, mask = False, crowd = False, label = LABEL, shuffle = False,
-              batch_size = 0, repeat = 1, prefetch = False, shuffle_size = None, prefetch_size = None,
+              batch_size = 0, repeat = 1, prefetch = False,
               cache = None, num_parallel_calls = None):
     """
     https://cocodataset.org
@@ -122,8 +122,8 @@ def load_pipe(path, data_path, mask = False, crowd = False, label = LABEL, shuff
     mask = with instance mask_true
     crowd = iscrowd
     """
-    generator = functools.partial(load_data, path, data_path, mask = mask, crowd = crowd, label = label, shuffle = shuffle and shuffle_size is None)
+    generator = functools.partial(load_data, path, data_path, mask = mask, crowd = crowd, label = label, shuffle = shuffle)
     dtype = (tf.string, tf.string, tf.int32, tf.float32) if mask else (tf.string, tf.string, tf.int32)
     pipe = tf.data.Dataset.from_generator(generator, dtype)
-    return pipeline(pipe, batch_size = batch_size, repeat = repeat, shuffle = shuffle and shuffle_size is not None, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
+    return pipeline(pipe, batch_size = batch_size, repeat = repeat, shuffle = False, prefetch = prefetch,
                     cache = cache, num_parallel_calls = num_parallel_calls)

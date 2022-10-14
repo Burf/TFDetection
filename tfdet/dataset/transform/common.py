@@ -1,11 +1,9 @@
 import random
 
-import albumentations as A
 import cv2
 import numpy as np
 
 from tfdet.core.util import to_categorical
-from .augment import albumentations
 from ..util import load_image, trim_bbox, pad as pad_numpy
 from ..pascal_voc import load_annotation, load_instance
 
@@ -66,10 +64,12 @@ def normalize(x_true, y_true = None, bbox_true = None, mask_true = None,
     if std is not None:
         x_true = np.divide(x_true, std)
     if bbox_true is not None:
-        h, w = np.shape(x_true)[:2]
-        if bbox_normalize and np.any(np.greater_equal(bbox_true, 2)):
-            bbox_true = np.divide(bbox_true, [w, h, w, h])
-        bbox_true = np.clip(bbox_true, 0, [w, h, w, h] if np.any(np.greater_equal(bbox_true, 2)) else 1)
+        h, w = np.shape(x_true)[-3:-1]
+        window = [w, h, w, h] if np.any(np.greater_equal(bbox_true, 2)) else 1
+        if bbox_normalize:
+            bbox_true = np.divide(bbox_true, window)
+            window = 1
+        bbox_true = np.clip(bbox_true, 0, window)
     result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
     result = result[0] if len(result) == 1 else tuple(result)
     return result
@@ -94,10 +94,12 @@ def unnormalize(x_true, y_true = None, bbox_true = None, mask_true = None,
     if rescale is not None:
         x_true = np.divide(x_true, rescale)
     if bbox_true is not None:
-        h, w = np.shape(x_true)[:2]
+        h, w = np.shape(x_true)[-3:-1]
+        window = [w, h, w, h] if np.any(np.greater_equal(bbox_true, 2)) else 1
         if bbox_normalize and not np.any(np.greater_equal(bbox_true, 2)):
-            bbox_true = np.round(np.multiply(bbox_true, [w, h, w, h])).astype(int)
-        bbox_true = np.clip(bbox_true, 0, [w, h, w, h] if np.any(np.greater_equal(bbox_true, 2)) else 1)
+            window = [w, h, w, h]
+            bbox_true = np.round(np.multiply(bbox_true, window)).astype(int)
+        bbox_true = np.clip(bbox_true, 0, window)
     result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
     result = result[0] if len(result) == 1 else tuple(result)
     return result
@@ -162,6 +164,8 @@ def label_encode(x_true, y_true = None, bbox_true = None, mask_true = None,
     bbox_true = (P, 4)
     mask_true(with bbox_true & instance mask_true) = (P, H, W, 1)
     mask_true(semantic mask_true) = (H, W, 1 or n_class)
+    
+    label = ["background", ...]
     """
     if y_true is not None and label is not None:
         if 0 < len(y_true):
@@ -171,13 +175,13 @@ def label_encode(x_true, y_true = None, bbox_true = None, mask_true = None,
             else:
                 y_true = label_convert[y_true] if y_true in label else y_true
         if one_hot:
-            y_true = to_categorical(y_true, len(label), label_smoothing)
+            y_true = np.array(to_categorical(y_true, len(label), label_smoothing))
     if (mask_true is not None and np.ndim(mask_true) < 4) and (label is not None and one_hot):
-        mask_true = to_categorical(mask_true, len(label), label_smoothing)
+        mask_true = np.array(to_categorical(mask_true, len(label), label_smoothing))
     result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
     result = result[0] if len(result) == 1 else tuple(result)
     return result
-    
+
 def label_decode(x_true, y_true = None, bbox_true = None, mask_true = None, label = None):
     """
     x_true = (H, W, C)
@@ -186,14 +190,16 @@ def label_decode(x_true, y_true = None, bbox_true = None, mask_true = None, labe
     bbox_true = (P, 4)
     mask_true(with bbox_true & instance mask_true) = (P, H, W, 1)
     mask_true(semantic mask_true) = (H, W, 1 or n_class)
+    
+    label = ["background", ...]
     """
     if y_true is not None and label is not None:
         if 0 < len(y_true):
             if 0 < np.ndim(y_true) and np.shape(y_true)[-1] != 1:
                 y_true = np.expand_dims(np.argmax(y_true, axis = -1), axis = -1)
-            y_true = np.array(label)[y_true]
+            y_true = np.array(label)[np.array(y_true, dtype = np.int32)]
     if mask_true is not None and np.ndim(mask_true) < 4:
-        if 0 < len(mask_true) and np.shape(mask_true)[-1] != 1:
+        if 0 < len(mask_true) and 2 < np.ndim(mask_true) and np.shape(mask_true)[-1] != 1:
             mask_true = np.expand_dims(np.argmax(mask_true, axis = -1), axis = -1)
     result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
     result = result[0] if len(result) == 1 else tuple(result)
@@ -215,6 +221,8 @@ def resize(x_true, y_true = None, bbox_true = None, mask_true = None, image_shap
             if 1 < choice_size:
                 #image_shape = random.choice(image_shape)
                 image_shape = image_shape[np.random.choice(np.arange(len(image_shape)))] #for numpy seed
+        elif np.ndim(image_shape) == 0:
+            image_shape = np.round(np.multiply(np.shape(x_true)[:2], image_shape)).astype(int)
         target_size = tuple(image_shape[:2])
         size = np.shape(x_true)[:2]
         if keep_ratio:
@@ -250,7 +258,9 @@ def pad(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape =
     if mode not in ("left", "right", "both", "random"):
         raise ValueError("unknown mode '{0}'".format(mode))
     
-    if image_shape is None and shape_divisor is not None:
+    if image_shape is not None and np.ndim(image_shape) == 0:
+        image_shape = np.round(np.multiply(np.shape(x_true)[:2], image_shape)).astype(int)
+    elif image_shape is None and shape_divisor is not None:
         image_shape = (np.ceil(np.divide(np.shape(x_true)[:2], shape_divisor)) * shape_divisor).astype(int)
     h, w = np.shape(x_true)[:2]
     new_h, new_w = image_shape[:2] if image_shape is not None else [h, w]
@@ -299,7 +309,7 @@ def pad(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape =
     result = result[0] if len(result) == 1 else tuple(result)
     return result
 
-def trim(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape = None, pad_val = 114, mode = "both", min_area = 0., min_visibility = 0., decimal = 4):
+def trim(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape = None, pad_val = 114, mode = "both", min_area = 0., min_visibility = 0., e = 1e-12, decimal = 4):
     """
     x_true = (H, W, C)
     y_true(without bbox_true) = (1 or n_class)
@@ -311,16 +321,18 @@ def trim(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape 
     #The pad will be removed.
     pad_val = np.round(x_true, decimal)'s pad_val
     """
+    if image_shape is not None and np.ndim(image_shape) == 0:
+        image_shape = np.round(np.multiply(np.shape(x_true)[:2], image_shape)).astype(int)
     h, w = np.shape(x_true)[:2]
     bbox = trim_bbox(x_true, image_shape = image_shape, pad_val = pad_val, mode = mode, decimal = decimal)
     if True: #not np.all(np.equal(bbox, [0, 0, w, h])):
-        return crop(x_true, y_true, bbox_true, mask_true, bbox = bbox, min_area = min_area, min_visibility = min_visibility)
+        return crop(x_true, y_true, bbox_true, mask_true, bbox = bbox, min_area = min_area, min_visibility = min_visibility, e = e)
     else:
         result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
         result = result[0] if len(result) == 1 else tuple(result)
         return result
 
-def crop(x_true, y_true = None, bbox_true = None, mask_true = None, bbox = None, min_area = 0., min_visibility = 0.):
+def crop(x_true, y_true = None, bbox_true = None, mask_true = None, bbox = None, min_area = 0., min_visibility = 0., e = 1e-12):
     """
     x_true = (H, W, C)
     y_true(without bbox_true) = (1 or n_class)
@@ -332,16 +344,70 @@ def crop(x_true, y_true = None, bbox_true = None, mask_true = None, bbox = None,
     #The pad will be removed.
     bbox = [x1, y1, x2, y2]
     """
-    if bbox is not None:
-        result = albumentations(x_true, y_true, bbox_true, mask_true, min_area = min_area, min_visibility = min_visibility,
-                                transform = [A.Crop(*bbox, always_apply = True)])
+    h, w = np.shape(x_true)[:2]
+    bbox = [0, 0, w, h] if bbox is None else bbox
+    bbox = np.round(np.multiply(np.clip(bbox, 0, 1), [w, h, w, h])).astype(int) if np.max(bbox) < 2 else np.clip(bbox, 0, [w, h, w, h]).astype(int)
+        
+    x_true = np.array(x_true[bbox[1]:bbox[3], bbox[0]:bbox[2]])
+    if mask_true is not None and bbox_true is None:
+        mask_true = np.array(mask_true)[..., bbox[1]:bbox[3], bbox[0]:bbox[2], :]
+    if bbox_true is not None:
+        new_h, new_w = np.shape(x_true)[:2]
+        bbox_unnorm = np.any(np.greater_equal(bbox_true, 2))
+        unnorm_bbox = np.round(np.multiply(bbox_true, [w, h, w, h])).astype(int) if not bbox_unnorm else np.array(bbox_true)
+
+        #new_bbox = np.maximum(unnorm_bbox, [bbox[2], bbox[3], bbox[2], bbox[3]])
+        new_bbox = np.subtract(unnorm_bbox, [bbox[0], bbox[1], bbox[0], bbox[1]])
+        new_bbox = np.clip(new_bbox, 0, [new_w, new_h, new_w, new_h])
+
+        area = (unnorm_bbox[..., 2] - unnorm_bbox[..., 0]) * (unnorm_bbox[..., 3] - unnorm_bbox[..., 1])
+        new_area = (new_bbox[..., 2] - new_bbox[..., 0]) * (new_bbox[..., 3] - new_bbox[..., 1])
+
+        flag = np.logical_and(min_area <= (new_area / (new_w * new_h)), min_visibility < (new_area / (area + e)))
+        bbox_true = new_bbox[flag]
+        bbox_true = np.divide(bbox_true, [new_w, new_h, new_w, new_h]) if not bbox_unnorm else bbox_true
+        if y_true is not None and 1 < np.ndim(y_true):
+            y_true = np.array(y_true)[flag]
+        if mask_true is not None:
+            mask_true = np.array(mask_true)
+            if 3 < np.ndim(mask_true):
+                mask_true = mask_true[flag]
+            mask_true = mask_true[..., bbox[1]:bbox[3], bbox[0]:bbox[2], :]
+            
+    result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
+    result = result[0] if len(result) == 1 else tuple(result)
+    return result
+
+def random_apply(x_true, y_true = None, bbox_true = None, mask_true = None, function = None, p = 0.5, reduce = False, **kwargs):
+    """
+    x_true = (H, W, C) or (N, H, W, C)
+    y_true(without bbox_true) = (n_class) or (N, n_class)
+    y_true(with bbox_true) = (P, 1 or n_class) or (N, P, 1 or n_class)
+    bbox_true = (P, 4) or (N, P, 4)
+    mask_true(with bbox_true & instance mask_true) = (P, H, W, 1) or (N, P, H, W, 1)
+    mask_true(semantic mask_true) = (H, W, 1 or n_class) or (N, H, W, 1 or n_class)
+    """
+    fail_function = None
+    if 0 < np.ndim(function) and 1 < len(function):
+        fail_function = function[1]
+        function = function[0]
+    
+    if callable(function) and np.random.random() < p:
+        result = function(x_true, y_true, bbox_true, mask_true, **kwargs)
+    elif callable(fail_function):
+        result = fail_function(x_true, y_true, bbox_true, mask_true, **kwargs)
     else:
+        if reduce and 3 < np.ndim(x_true):
+            x_true = x_true[0]
+            y_true = y_true[0] if y_true is not None else None
+            bbox_true = bbox_true[0] if bbox_true is not None else None
+            mask_true = mask_true[0] if mask_true is not None else None
         result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
         result = result[0] if len(result) == 1 else tuple(result)
     return result
 
-def random_apply(function, x_true, y_true = None, bbox_true = None, mask_true = None, p = 0.5, choice_size = 1, 
-                 image_shape = None, shape_divisor = None, max_pad_size = 100, pad_val = 114, mode = "both", background = "background", **kwargs):
+def random_shuffle_apply(x_true, y_true = None, bbox_true = None, mask_true = None, function = None, p = 0.5, sample_size = 1, replace = True,
+                         image_shape = None, shape_divisor = None, max_pad_size = 100, pad_val = 114, mode = "both", background = "background", **kwargs):
     """
     x_true = (N, H, W, C)
     y_true(without bbox_true) = (N, n_class)
@@ -350,11 +416,10 @@ def random_apply(function, x_true, y_true = None, bbox_true = None, mask_true = 
     mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
     mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
     """
-    if np.ndim(x_true) < 4:
-        x_true = np.expand_dims(x_true, axis = 0)
-        y_true = np.expand_dims(y_true, axis = 0) if y_true is not None else None
-        bbox_true = np.expand_dims(bbox_true, axis = 0) if bbox_true is not None else None
-        mask_true = np.expand_dims(mask_true, axis = 0) if mask_true is not None else None
+    fail_function = None
+    if 0 < np.ndim(function) and 1 < len(function):
+        fail_function = function[1]
+        function = function[0]
     
     n_batch = len(x_true)
     indices = np.arange(n_batch)
@@ -363,21 +428,31 @@ def random_apply(function, x_true, y_true = None, bbox_true = None, mask_true = 
     bbox_trues = []
     mask_trues = []
     for index in range(n_batch):
-        if np.random.random() < p:
-            if 1 < choice_size:
-                #index = [index] + random.choices(indices, k = choice_size - 1)
-                index = [index] + np.random.choice(indices, choice_size - 1).tolist() #for numpy seed
+        if callable(function) and np.random.random() < p:
+            if 1 < sample_size:
+                #index = [index] + random.choices(indices, k = min(n_batch - 1, sample_size - 1) if not replace else (sample_size - 1))
+                index = [index] + np.random.choice(indices, min(n_batch - 1, sample_size - 1) if not replace else (sample_size - 1), replace = replace).tolist() #for numpy seed
             out = function(x_true[index], 
                            y_true[index] if y_true is not None else None,
                            bbox_true[index] if bbox_true is not None else None, 
                            mask_true[index] if mask_true is not None else None, **kwargs)
-            if not isinstance(out, tuple) and not isinstance(out, list):
+            if not isinstance(out, (tuple, list)):
+                out = (out,)
+        elif callable(fail_function):
+            if 1 < sample_size:
+                #index = [index] + random.choices(indices, k = min(n_batch - 1, sample_size - 1) if not replace else (sample_size - 1))
+                index = [index] + np.random.choice(indices, min(n_batch - 1, sample_size - 1) if not replace else (sample_size - 1), replace = replace).tolist() #for numpy seed
+            out = fail_function(x_true[index], 
+                                y_true[index] if y_true is not None else None,
+                                bbox_true[index] if bbox_true is not None else None, 
+                                mask_true[index] if mask_true is not None else None, **kwargs)
+            if not isinstance(out, (tuple, list)):
                 out = (out,)
         else:
             out = [arg[index] for arg in [x_true, y_true, bbox_true, mask_true] if arg is not None]
         args = {k:v for k, v in zip(["x_true", "y_true", "bbox_true", "mask_true"], out)}
         out = pad(**args, image_shape = image_shape, shape_divisor = shape_divisor, max_pad_size = max_pad_size, pad_val = pad_val, mode = mode, background = background)
-        if not isinstance(out, tuple) and not isinstance(out, list):
+        if not isinstance(out, (tuple, list)):
             out = (out,)
         out = list(out)
         x_trues.append(out.pop(0))

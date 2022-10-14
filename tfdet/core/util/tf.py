@@ -38,37 +38,65 @@ def py_func(function, *args, Tout = tf.float32, **kwargs):
     return tf.py_function(lambda *args: function(*convert_to_numpy(*args[:-(args[-1] + 1)], return_tuple = True), **dict(kwargs, **{k:v for k,v in zip(list(tf_kwargs), convert_to_numpy(args[-(args[-1] + 1):-1], return_tuple = True))})), inp = args + (*list(tf_kwargs.values()), len(tf_kwargs)), Tout = Tout)
 
 def to_categorical(y, n_class = None, label_smoothing = 0.1):
-    result = tf.keras.utils.to_categorical(y, n_class)
+    if tf.is_tensor(y):
+        if n_class is None:
+            n_class = tf.cast(tf.reduce_max(y) + 1, tf.int32)
+        result = tf.one_hot(tf.cast(y, tf.int32), n_class)[..., 0, :]
+    else:
+        result = tf.keras.utils.to_categorical(y, n_class)
     alpha = 1 - label_smoothing
     bias = label_smoothing / (result.shape[-1] - 1)
     return result * (alpha - bias) + bias
     
 def pipeline(dataset, function = None,
-             batch_size = 0, repeat = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
-             pre_batch_size = 0, pre_unbatch = False, pre_shuffle = False, pre_shuffle_size = None,
-             cache = None, num_parallel_calls = None):
+             batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+             cache = False, num_parallel_calls = None):
     if not isinstance(dataset, tf.data.Dataset):
         dataset = tf.data.Dataset.from_tensor_slices(dataset)
-    if pre_shuffle:
-        dataset = dataset.shuffle(buffer_size = pre_shuffle_size if pre_shuffle_size is not None else max(pre_batch_size, 1) * 10)
-    if 0 < pre_batch_size:
-        dataset = dataset.batch(pre_batch_size)
     for func in function if 0 < np.ndim(function) else [function]:
         if callable(func):
             dataset = dataset.map(func, num_parallel_calls = num_parallel_calls if num_parallel_calls is not None else tf.data.experimental.AUTOTUNE)
-    if pre_unbatch:
-        dataset = dataset.unbatch()
-    if isinstance(cache, str):
-        dataset = dataset.cache(cache)
+    if (isinstance(cache, bool) and cache) or isinstance(cache, str):
+        dataset = dataset.cache(cache) if isinstance(cache, str) else dataset.cache()
     if shuffle:
-        dataset = dataset.shuffle(buffer_size = shuffle_size if shuffle_size is not None else max(batch_size, 1) * 10)
+        dataset = dataset.shuffle(buffer_size = shuffle if not isinstance(shuffle, bool) else max(batch_size, 1) * 10)
     if 0 < batch_size:
         dataset = dataset.batch(batch_size)
     if 1 < repeat:
         dataset = dataset.repeat(repeat)
     if prefetch:
-        dataset = dataset.prefetch(prefetch_size if prefetch_size is not None else tf.data.experimental.AUTOTUNE)
+        dataset = dataset.prefetch(buffer_size = prefetch if not isinstance(prefetch, bool) else tf.data.experimental.AUTOTUNE)
     return dataset
+
+def zip_pipeline(*args, function = None, num_parallel_calls = 1, **kwargs):
+    if len(args) == 1 and 0 < np.ndim(args[0]):
+        args = tuple(args[0])
+    new_pipe = tf.data.Dataset.zip(args)
+    if callable(function):
+        def func(*args, function):
+            dict_keys = None
+            tuple_flag = False
+            if isinstance(args[0], dict):
+                dict_keys = list(args[0].keys())
+                args = [[arg[k] for k in dict_keys] for arg in args]
+            elif not isinstance(args[0], (tuple, list)):
+                tuple_flag = True
+                args = [[arg] for arg in args]
+            new_args = [function(arg) for arg in zip(*args)]
+            if dict_keys is not None:
+                new_args = {k:v for k, v in zip(dict_keys, new_args)}
+            elif tuple_flag:
+                new_args = new_args[0]
+            return new_args
+        map_func = functools.partial(func, function = functools.partial(function, **kwargs))
+        new_pipe = new_pipe.map(map_func, num_parallel_calls = num_parallel_calls if num_parallel_calls is not None else tf.data.experimental.AUTOTUNE)
+    return new_pipe
+
+def concat_pipeline(*args, axis = 0, num_parallel_calls = 1):
+    return zip_pipeline(*args, function = tf.concat, axis = axis, num_parallel_calls = num_parallel_calls)
+
+def stack_pipeline(*args, axis = 0, num_parallel_calls = 1):
+    return zip_pipeline(*args, function = tf.stack, axis = axis, num_parallel_calls = num_parallel_calls)
 
 def save_model(model, path, graph = True, weight = True, mode = "w"):
     path, ext = os.path.splitext(path)

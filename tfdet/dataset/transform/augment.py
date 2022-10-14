@@ -52,12 +52,14 @@ def albumentations(x_true, y_true = None, bbox_true = None, mask_true = None,
         if mask_true is not None and 3 < np.ndim(mask_true):
             if bbox_true is not None:
                 mask_true = np.array(mask_true)[indices[indices2]]
-            mask_true = [np.array(m) for m in mask_true]
+            if 0 < len(mask_true):
+                mask_true = [np.array(m) for m in mask_true]
         
         args = {"image":x_true, "class_labels":class_labels if class_labels is not None else [0]}
         args["bboxes"] = bbox_true if bbox_true is not None else [[0, 0, 1, 1]]
         if mask_true is not None:
-            args["masks" if 3 < np.ndim(mask_true) else "mask"] = mask_true
+            if np.ndim(mask_true) < 4 or 0 < len(mask_true):
+                args["masks" if 3 < np.ndim(mask_true) else "mask"] = mask_true
         
         aug_result = method(**args)
         indices = aug_result["class_labels"] if class_labels is not None else (np.arange(len(y_true)) if y_true is not None else [])
@@ -66,7 +68,8 @@ def albumentations(x_true, y_true = None, bbox_true = None, mask_true = None,
         if y_true is not None:
             y_true = np.array(y_true)[indices]
         if mask_true is not None:
-            mask_true = np.array(aug_result["masks" if 3 < np.ndim(mask_true) else "mask"])
+            if np.ndim(mask_true) < 4 or 0 < len(mask_true):
+                mask_true = np.array(aug_result["masks" if 3 < np.ndim(mask_true) else "mask"])
             if 3 < np.ndim(mask_true):
                 if bbox_true is not None:
                     mask_true = mask_true[indices]
@@ -102,6 +105,8 @@ def random_crop(x_true, y_true = None, bbox_true = None, mask_true = None, image
     #The pad will be removed.
     """
     if image_shape is not None:
+        if np.ndim(image_shape) == 0:
+            image_shape = np.round(np.multiply(np.shape(x_true)[:2], image_shape)).astype(int)
         result = albumentations(x_true, y_true, bbox_true, mask_true, min_area = min_area, min_visibility = min_visibility,
                                 transform = [A.RandomCrop(*image_shape[:2], always_apply = True)])
     else:
@@ -174,6 +179,8 @@ def random_perspective(x_true, y_true = None, bbox_true = None, mask_true = None
     
     #The pad will be removed.
     """
+    if image_shape is not None and np.ndim(image_shape) == 0:
+        image_shape = np.round(np.multiply(np.shape(x_true)[:2], image_shape)).astype(int)
     h, w = np.shape(x_true)[:2]
     new_h, new_w = (h, w) if image_shape is None else image_shape[:2]
     
@@ -202,8 +209,8 @@ def random_perspective(x_true, y_true = None, bbox_true = None, mask_true = None
     
     # Translation
     T = np.eye(3)
-    T[0, 2] = random.uniform(0.5 - translate, 0.5 + translate) * new_w  # x translation (pixels)
-    T[1, 2] = random.uniform(0.5 - translate, 0.5 + translate) * new_h  # y translation (pixels)
+    T[0, 2] = np.random.uniform(0.5 - translate, 0.5 + translate) * new_w  # x translation (pixels)
+    T[1, 2] = np.random.uniform(0.5 - translate, 0.5 + translate) * new_h  # y translation (pixels)
     
     # Combined rotation matrix
     M = T @ S @ R @ P @ C  # order of operations (right to left) is IMPORTANT
@@ -243,20 +250,24 @@ def random_perspective(x_true, y_true = None, bbox_true = None, mask_true = None
                 y_true = np.array(y_true)[flag]
         
         if mask_true is not None:
-            masks = []
-            for mask in mask_true if 3 < np.ndim(mask_true) else [mask_true]:
-                if perspective != 0:
-                    new_mask = cv2.warpPerspective(mask, M, dsize = (new_w, new_h))
-                else:  # affine
-                    new_mask = cv2.warpAffine(mask, M[:2], dsize = (new_w, new_h))
-                new_mask = np.expand_dims(new_mask, axis = -1) if np.ndim(mask) != np.ndim(new_mask) else new_mask
-                masks.append(new_mask)
-            
-            if 0 < len(masks):
-                mask_true = np.stack(masks, axis = 0) if 3 < np.ndim(mask_true) else masks[0]
-                if 3 < np.ndim(mask_true):
-                    #mask_true = mask_true[0 < np.max(mask_true, axis = (-3, -2, -1))] if bbox_true is None else mask_true[flag]
-                    mask_true = mask_true[flag] if bbox_true is not None else mask_true
+            if 3 < np.ndim(mask_true) and len(mask_true) == 0:
+                mask_true = np.array(mask_true)
+                mask_true = np.zeros((0, new_h, new_w, np.shape(mask_true)[-1]), dtype = mask_true.dtype)
+            else:
+                masks = []
+                for mask in mask_true if 3 < np.ndim(mask_true) else [mask_true]:
+                    if perspective != 0:
+                        new_mask = cv2.warpPerspective(mask, M, dsize = (new_w, new_h))
+                    else:  # affine
+                        new_mask = cv2.warpAffine(mask, M[:2], dsize = (new_w, new_h))
+                    new_mask = np.expand_dims(new_mask, axis = -1) if np.ndim(mask) != np.ndim(new_mask) else new_mask
+                    masks.append(new_mask)
+
+                if 0 < len(masks):
+                    mask_true = np.stack(masks, axis = 0) if 3 < np.ndim(mask_true) else masks[0]
+                    if 3 < np.ndim(mask_true):
+                        #mask_true = mask_true[0 < np.max(mask_true, axis = (-3, -2, -1))] if bbox_true is None else mask_true[flag]
+                        mask_true = mask_true[flag] if bbox_true is not None else mask_true
     result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
     result = result[0] if len(result) == 1 else tuple(result)
     return result
@@ -275,11 +286,13 @@ def mosaic(x_true, y_true = None, bbox_true = None, mask_true = None, image_shap
     #The pad will be removed.
     #If image_shape is None, the result is (N, 2 * H, 2 * W, C).
     """
-    if np.ndim(x_true) < 4:
+    if np.ndim(x_true[0]) < 3:
         x_true = np.expand_dims(x_true, axis = 0)
         y_true = np.expand_dims(y_true, axis = 0) if y_true is not None else None
         bbox_true = np.expand_dims(bbox_true, axis = 0) if bbox_true is not None else None
         mask_true = np.expand_dims(mask_true, axis = 0) if mask_true is not None else None
+    if image_shape is not None and np.ndim(image_shape) == 0:
+        image_shape = np.round(np.multiply(np.shape(x_true[0])[:2], image_shape)).astype(int)
     
     h, w, c = np.shape(x_true[0]) if 2 < np.ndim(x_true[0]) else [*np.shape(x_true[0]), 1]
     if image_shape is not None:
@@ -328,11 +341,14 @@ def mosaic(x_true, y_true = None, bbox_true = None, mask_true = None, image_shap
         ratio = np.divide(area, sum(area))
         y_true = np.sum([np.multiply(l, r) for l, r in zip(y_true, ratio)], axis = 0)
     elif bbox_true is not None:
-        norm = False
-        if not np.any(np.greater_equal(bbox_true[:4], 2)):
+        norm = True
+        for bbox in bbox_true[:min(len(x_true), 4)]:
+            if np.any(np.greater_equal(bbox, 2)):
+                norm = False
+                break
+        if norm:
             pads = np.divide(pads, [w, h])
             h = w = 1
-            norm = True
         bboxes = []
         labels = []
         for i, bbox in enumerate(bbox_true[:min(len(x_true), 4)]):
@@ -375,11 +391,13 @@ def mosaic9(x_true, y_true = None, bbox_true = None, mask_true = None, image_sha
     #The pad will be removed.
     #If image_shape is None, the result is (N, 2 * H, 2 * W, C).
     """
-    if np.ndim(x_true) < 4:
+    if np.ndim(x_true[0]) < 3:
         x_true = np.expand_dims(x_true, axis = 0)
         y_true = np.expand_dims(y_true, axis = 0) if y_true is not None else None
         bbox_true = np.expand_dims(bbox_true, axis = 0) if bbox_true is not None else None
         mask_true = np.expand_dims(mask_true, axis = 0) if mask_true is not None else None
+    if image_shape is not None and np.ndim(image_shape) == 0:
+        image_shape = np.round(np.multiply(np.shape(x_true[0])[:2], image_shape)).astype(int)
         
     h, w, c = np.shape(x_true[0]) if 2 < np.ndim(x_true[0]) else [*np.shape(x_true[0]), 1]
     image_shape = [h * 2, w * 2] if image_shape is None else image_shape
@@ -449,18 +467,26 @@ def mosaic9(x_true, y_true = None, bbox_true = None, mask_true = None, image_sha
                                    [0, h, w, 2 * h],
                                    [0, 0, w, h]])[:len(y_true)]
     elif bbox_true is not None:
-        norm = False
-        if not np.any(np.greater_equal(bbox_true[:4], 2)):
+        norm = True
+        for bbox in bbox_true[:min(len(x_true), 9)]:
+            if np.any(np.greater_equal(bbox, 2)):
+                norm = False
+                break
+        if norm:
             pads = np.divide(pads, [w, h])
             h = w = 1
-            norm = True
         bboxes = []
         labels = []
         for i, bbox in enumerate(bbox_true[:min(len(x_true), 9)]):
+            indices = np.where(np.max(0 < bbox, axis = -1, keepdims = True) != 0)[0]
+            bbox = bbox[indices]
             bbox = np.divide(np.multiply(bbox, np.tile(np.shape(x_true[i])[:2][::-1], 2)), np.tile(np.shape(image)[:2][::-1], 2)) if norm else np.array(bbox)
             bboxes.append(np.add(bbox, np.tile(pads[i], 2)))
             if y_true is not None:
-                labels.append(np.array(y_true[i]))
+                labels.append(np.array(y_true[i][indices]))
+            if isinstance(masks, list) and i < len(masks):
+                masks[i] = masks[i][indices]
+            
         bbox_true = np.concatenate(bboxes, axis = 0) if 0 < len(bboxes) else np.zeros((0, 4), dtype = np.array(bbox_true).dtype)
         if y_true is not None:
             y_true = np.concatenate(labels, axis = 0) if 0 < len(labels) else np.zeros((0, np.shape(y_true)[-1]), dtype = np.array(y_true).dtype)
@@ -488,7 +514,7 @@ def cut_mix(x_true, y_true = None, bbox_true = None, mask_true = None, alpha = 1
     
     #The pad will be removed.
     """
-    if np.ndim(x_true) < 4:
+    if np.ndim(x_true[0]) < 3:
         x_true = np.expand_dims(x_true, axis = 0)
         y_true = np.expand_dims(y_true, axis = 0) if y_true is not None else None
         bbox_true = np.expand_dims(bbox_true, axis = 0) if bbox_true is not None else None
@@ -585,10 +611,10 @@ def cut_out(x_true, y_true = None, bbox_true = None, mask_true = None, alpha = 1
     image_shape = x_true.shape[:2]
     crop_bbox = random_bbox(alpha, image_shape)
     x_true[crop_bbox[1]:crop_bbox[3], crop_bbox[0]:crop_bbox[2]] = pad_val
-    if mask_true is not None:
+    if mask_true is not None and bbox_true is None:
         mask_true = np.array(mask_true)
         mask_true[..., crop_bbox[1]:crop_bbox[3], crop_bbox[0]:crop_bbox[2], :] = pad_val
-        #if 3 < np.ndim(mask_true) and bbox_true is None:
+        #if 3 < np.ndim(mask_true):
         #    mask_true = mask_true[0 < np.max(mask_true, axis = (-3, -2, -1))]
     if bbox_true is None and y_true is not None:
         y_true = np.array(y_true)
@@ -605,8 +631,11 @@ def cut_out(x_true, y_true = None, bbox_true = None, mask_true = None, alpha = 1
         bbox_true = bbox_true[flag]
         if y_true is not None:
             y_true = np.array(y_true)[flag]
-        if mask_true is not None and 3 < np.ndim(mask_true):
-            mask_true = mask_true[flag]
+        if mask_true is not None:
+            mask_true = np.array(mask_true)
+            if 3 < np.ndim(mask_true):
+                mask_true = mask_true[flag]
+            mask_true[..., crop_bbox[1]:crop_bbox[3], crop_bbox[0]:crop_bbox[2], :] = pad_val
     result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
     result = result[0] if len(result) == 1 else tuple(result)
     return result
@@ -622,7 +651,7 @@ def mix_up(x_true, y_true = None, bbox_true = None, mask_true = None, alpha = 8.
     
     #The pad will be removed.
     """
-    if np.ndim(x_true) < 4:
+    if np.ndim(x_true[0]) < 3:
         x_true = np.expand_dims(x_true, axis = 0)
         y_true = np.expand_dims(y_true, axis = 0) if y_true is not None else None
         bbox_true = np.expand_dims(bbox_true, axis = 0) if bbox_true is not None else None
@@ -734,8 +763,10 @@ def insta_boost(x_true, y_true = None, bbox_true = None, mask_true = None,
     result = result[0] if len(result) == 1 else tuple(result)
     return result
 
-def copy_paste(x_true, y_true = None, bbox_true = None, mask_true = None, max_paste_count = 20, scale_range = [0.03125, 0.75], clip_object = True, replace = True,
-               min_scale = 2, min_instance_area = 1, iou_threshold = 0.3, p_flip = 0.5, method = cv2.INTER_LINEAR,
+def copy_paste(x_true, y_true = None, bbox_true = None, mask_true = None, max_paste_count = 100, scale_range = [0.0625, 0.75], clip_object = True, replace = True, random_count = True, label = None,
+               min_scale = 2, min_instance_area = 1, iou_threshold = 0.3,
+               copy_min_scale = 2, copy_min_instance_area = 1, copy_iou_threshold = 0.3,
+               p_flip = 0.5, pad_val = 114, method = cv2.INTER_LINEAR,
                min_area = 0., min_visibility = 0., e = 1e-12):
     """
     https://arxiv.org/abs/2012.07177
@@ -751,28 +782,33 @@ def copy_paste(x_true, y_true = None, bbox_true = None, mask_true = None, max_pa
     #First image is Background image.
     #Paste object condition : min_scale[0] or min_scale <= paste_object_height and min_scale[1] or min_scale <= paste_object_width
     #Paste mask condition : min_instance_area <= paste_instance_mask_area
-    scale = np.random.beta(1, 1.3) * np.abs(scale_range[1] - scale_range[0]) + np.min(scale_range)
+    scale = np.random.beta(1, 1.4) * np.abs(scale_range[1] - scale_range[0]) + np.min(scale_range)
     clip_object = Don't crop object
-    replace = np.random.choice's replace
+    replace = np.random.choice's replace for paste
+    random_count = change max_paste_count from 0 to max_paste_count
+    label = copy target label
     """
-    if np.ndim(x_true) < 4:
+    if np.ndim(x_true[0]) < 3:
         x_true = np.expand_dims(x_true, axis = 0)
         y_true = np.expand_dims(y_true, axis = 0) if y_true is not None else None
         bbox_true = np.expand_dims(bbox_true, axis = 0) if bbox_true is not None else None
         mask_true = np.expand_dims(mask_true, axis = 0) if mask_true is not None else None
     
     if bbox_true is not None or (mask_true is not None and 3 < np.ndim(mask_true[0])):
-        max_paste_count = np.random.randint(0, max_paste_count + 1)
+        max_paste_count = np.random.randint(0, max_paste_count + 1) if random_count else max_paste_count
         min_scale = [min_scale, min_scale] if np.ndim(min_scale) == 0 else min_scale
+        copy_min_scale = [copy_min_scale, copy_min_scale] if np.ndim(copy_min_scale) == 0 else copy_min_scale
         if bbox_true is not None:
-            bbox_norm = not np.any(np.greater_equal(bbox_true, 2))
-            if bbox_norm:
-                bbox_true = np.array([np.round(np.multiply(bbox, np.tile(np.shape(x_true[i])[:2][::-1], 2))) for i, bbox in enumerate(bbox_true)], dtype = int)
-            else:
-                bbox_true = np.array(bbox_true, dtype = int)
+            bbox_norm = True
+            for bbox in bbox_true:
+                if np.any(np.greater_equal(bbox, 2)):
+                    bbox_norm = False
+                    break
             
         #copy
         shuffle_indices = np.arange(len(x_true))
+        if 1 < len(x_true):
+            shuffle_indices[1:]
         np.random.shuffle(shuffle_indices)
         sample_x, sample_y, sample_mask = [], [], []
         sample_area = []
@@ -781,34 +817,52 @@ def copy_paste(x_true, y_true = None, bbox_true = None, mask_true = None, max_pa
                 break
             x = x_true[i]
             if bbox_true is not None:
-                bbox = bbox_true[i]
+                bbox = np.round(np.multiply(bbox_true[i], np.tile(np.shape(x)[:2][::-1], 2))).astype(int) if bbox_norm else np.array(bbox_true[i], dtype = int)
             elif mask_true is not None and 3 < np.ndim(mask_true[i]):
                 bbox = instance2bbox(mask_true[i], normalize = False)
+            y = np.array(y_true[i]) if y_true is not None else None
             mask = np.array(mask_true[i]) if mask_true is not None else None
-            mask = np.expand_dims(np.argmax(mask, axis = -1), axis = -1) if mask_true is not None and np.ndim(mask) < 4 and np.shape(mask)[-1] != 1 else mask
+            #mask = np.expand_dims(np.argmax(mask, axis = -1), axis = -1) if mask_true is not None and np.ndim(mask) == 3 and np.shape(mask)[-1] != 1 else mask
             
             h, w = np.shape(x)[:2]
             indices = np.where(np.max(0 < bbox, axis = -1, keepdims = True) != 0)[0]
             bbox = bbox[indices]
-            area = ((bbox[..., 3] - bbox[..., 1]) * (bbox[..., 2] - bbox[..., 0])) / (w * h)
-            indices2 = np.where(0 < area)[0]
+            bh, bw = (bbox[..., 3] - bbox[..., 1]), (bbox[..., 2] - bbox[..., 0])
+            indices2 = np.where(np.logical_and(np.logical_and(copy_min_scale[0] <= bh, copy_min_scale[1] <= bw), 0 < (bh * bw)))[0]
             indices = indices[indices2]
-            #np.random.shuffle(indices)
-            for j, b in zip(indices, bbox[indices2]):
+            bbox = bbox[indices2]
+            iou = overlap_bbox(bbox, bbox, mode = "foreground")
+            indices3 = np.less(np.sum(np.greater_equal(iou, copy_iou_threshold), axis = 0), 2)
+            indices = indices[indices3]
+            bbox = bbox[indices3]
+            if y is not None and label is not None:
+                l = np.expand_dims(np.argmax(y[indices], axis = -1), axis = -1) if 1 < np.shape(y)[-1] else y[indices]
+                indices4 = np.where(np.isin(l, label))[0]
+                indices = indices[indices4]
+                bbox = bbox[indices4]
+            #sort_indices = np.arange(len(indices))
+            #np.random.shuffle(sort_indices)
+            #indices = indices[sort_indices]
+            #bbox = bbox[sort_indices]
+            for j, b in zip(indices, bbox):
                 #if max_paste_count <= len(sample_x):
                 #    break
                 crop_x = np.array(x[b[1]:b[3], b[0]:b[2]])
-                sample_area.append(((b[3] - b[1]) * (b[2] - b[0])) / (w * h))
                 if mask is not None:
-                    crop_mask = mask[j][b[1]:b[3], b[0]:b[2]] if 3 < np.ndim(mask) else mask[b[1]:b[3], b[0]:b[2]]
-                    region = np.greater(crop_mask, 0.5)[..., 0]
-                    crop_x[~region] = 0
-                    sample_x.append(crop_x)
-                    sample_mask.append(crop_mask)
+                    crop_mask = (mask[j] if 3 < np.ndim(mask) else mask)[b[1]:b[3], b[0]:b[2]]
+                    region = np.greater(np.squeeze(np.expand_dims(np.argmax(crop_mask, axis = -1), axis = -1) if 2 < np.ndim(crop_mask) and 1 < np.shape(crop_mask)[-1] else crop_mask), 0.5)
                 else:
-                    sample_x.append(crop_x)
-            if y_true is not None:
-                sample_y = (sample_y + [*np.array(y_true[i])[indices]])#[:max_paste_count]
+                    region = np.ones([b[3] - b[1], b[2] - b[0]], dtype = bool)
+                if np.sum(region) < copy_min_instance_area:
+                    continue
+                
+                crop_x[~region] = pad_val
+                sample_x.append(crop_x)
+                sample_area.append(((b[3] - b[1]) * (b[2] - b[0])) / (w * h))
+                if y is not None:
+                    sample_y.append(y[j])
+                if mask is not None:
+                    sample_mask.append(crop_mask)
         
         #paste
         x_true = np.array(x_true[0])
@@ -832,9 +886,9 @@ def copy_paste(x_true, y_true = None, bbox_true = None, mask_true = None, max_pa
             if np.max(min_scale) < 2:
                 min_scale = np.multiply(min_scale, [h, w])
             sample_indices = np.random.choice(np.arange(len(sample_x)), min(len(sample_x), max_paste_count) if not replace else max_paste_count, replace = replace)
-            for i in sample_indices:
+            scales = sorted(np.random.beta(1, 1.4, size = len(sample_indices)) * np.abs(scale_range[1] - scale_range[0]) + np.min(scale_range), reverse = True)
+            for i, scale in zip(sample_indices, scales):
                 x = sample_x[i]
-                scale = np.random.beta(1, 1.3) * np.abs(scale_range[1] - scale_range[0]) + np.min(scale_range)
                 sh, sw = np.shape(x)[:2]
                 scale = (np.multiply([sh, sw], min(max([h, w]) * scale / max([sh, sw]), min([h, w]) * scale / min([sh, sw]))) + 0.5).astype(int)
                 bbox = random_bbox(image_shape = [h, w], scale = scale, clip_object = clip_object, clip = False)
@@ -855,8 +909,11 @@ def copy_paste(x_true, y_true = None, bbox_true = None, mask_true = None, max_pa
                             x = cv2.flip(x, 1)
                             mask = cv2.flip(mask, 1) if mask is not None else None
                         x = x[pad[1]:scale[0] - pad[3], pad[0]:scale[1] - pad[2]]
-                        mask = mask[pad[1]:scale[0] - pad[3], pad[0]: scale[1] - pad[2]] if mask is not None else None
-                        region = np.greater(np.squeeze(mask), 0.5) if mask is not None else np.ones([bh, bw], dtype = bool)
+                        if mask is not None:
+                            mask = mask[pad[1]:scale[0] - pad[3], pad[0]: scale[1] - pad[2]]
+                            region = np.greater(np.squeeze(np.expand_dims(np.argmax(mask, axis = -1), axis = -1) if np.ndim(mask) == 3 and 1 < np.shape(mask)[-1] else mask), 0.5)
+                        else:
+                            region = np.ones([bh, bw], dtype = bool)
                         if np.sum(region) < min_instance_area:
                             continue
                         
@@ -897,7 +954,7 @@ def remove_background(x_true, y_true = None, bbox_true = None, mask_true = None,
         image = np.full_like(x_true, pad_val)
         for mask in (mask_true if 3 < np.ndim(mask_true) else [mask_true]):
             if 0 < np.max(mask):
-                if np.shape(mask)[-1] != 1:
+                if np.ndim(mask) == 3 and np.shape(mask)[-1] != 1:
                     mask = np.expand_dims(np.argmax(mask, axis = -1), axis = -1)
                 region = np.greater(mask[..., 0], 0.5)
                 image[region] = x_true[region]

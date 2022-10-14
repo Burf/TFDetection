@@ -4,8 +4,9 @@ import albumentations as A
 import cv2
 import numpy as np
 import tensorflow as tf
+from tensorflow.python.data.ops import dataset_ops
 
-from .util import pipe
+from .util import pipe, zip_pipe, concat_pipe, stack_pipe, dict_tf_func
 from ..util import load_image
 from ..pascal_voc import load_annotation
 from tfdet.dataset import transform as T
@@ -13,25 +14,25 @@ from tfdet.dataset import transform as T
 def load(x_true, y_true = None, bbox_true = None, mask_true = None,
          load_func = load_image, anno_func = load_annotation, mask_func = None,
          dtype = None,
-         batch_size = 0, repeat = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
-         cache = None, num_parallel_calls = None):
+         batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+         cache = False, num_parallel_calls = None):
     """
     x_true = [path, ...] or (N, H, W, C) or pipe
     y_true = [path, ...] or [annotation, ...]
     bbox_true = None or [annotation, ...]
     mask_true = [path, ...] or [annotation, ...]
     """
-    return pipe(x_true, y_true, bbox_true, mask_true, function = T.load, dtype = dtype, tf_func = False,
+    return pipe(x_true, y_true, bbox_true, mask_true, function = T.load,
                 load_func = load_func, anno_func = anno_func, mask_func = mask_func,
-                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
-                cache = cache, num_parallel_calls = num_parallel_calls)
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
+                cache = cache, num_parallel_calls = num_parallel_calls,
+                tf_func = False, dtype = dtype)
   
 def normalize(x_true, y_true = None, bbox_true = None, mask_true = None, 
               rescale = 1., mean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375],
               bbox_normalize = True,
-              dtype = None,
-              batch_size = 0, repeat = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
-              cache = None, num_parallel_calls = None):
+              batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+              cache = False, num_parallel_calls = None):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -42,18 +43,29 @@ def normalize(x_true, y_true = None, bbox_true = None, mask_true = None,
     
     x_true = ((x_true * rescale) - mean) / std (If variable is None, it does not apply.)
     """
-    return pipe(x_true, y_true, bbox_true, mask_true, function = T.normalize, dtype = dtype, tf_func = False,
+    pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
+    dtype_info = {"x_true":tf.float32,
+                  "y_true":None,
+                  "bbox_true":tf.float32 if bbox_normalize else None,
+                  "mask_true":None}
+    if isinstance(pre_pipe.element_spec, dict):
+        dtype = tuple([dtype_info[k] if dtype_info[k] is not None else v.dtype for k, v in pre_pipe.element_spec.items()])
+    else:
+        dtype_info = {i:dtype_info[k] for i, k in enumerate(["x_true", "y_true", "bbox_true", "mask_true"])}
+        dtype = tuple([dtype_info[i] if dtype_info[i] is not None else v.dtype for i, v in enumerate(pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))])
+    dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
+    return pipe(x_true, y_true, bbox_true, mask_true, function = T.normalize,
                 rescale = rescale, mean = mean, std = std,
                 bbox_normalize = bbox_normalize,
-                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
-                cache = cache, num_parallel_calls = num_parallel_calls)
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
+                cache = cache, num_parallel_calls = num_parallel_calls,
+                tf_func = False, dtype = dtype)
   
 def unnormalize(x_true, y_true = None, bbox_true = None, mask_true = None, 
                 rescale = 1., mean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375],
                 bbox_normalize = True,
-                dtype = None,
-                batch_size = 0, repeat = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
-                cache = None, num_parallel_calls = None):
+                batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+                cache = False, num_parallel_calls = None):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -64,17 +76,28 @@ def unnormalize(x_true, y_true = None, bbox_true = None, mask_true = None,
     
     x_true = ((x_true * std) + mean) / rescale (If variable is None, it does not apply.)
     """
-    return pipe(x_true, y_true, bbox_true, mask_true, function = T.unnormalize, dtype = dtype, tf_func = False,
+    pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
+    dtype_info = {"x_true":tf.float32,
+                  "y_true":None,
+                  "bbox_true":tf.int32 if bbox_normalize else None,
+                  "mask_true":None}
+    if isinstance(pre_pipe.element_spec, dict):
+        dtype = tuple([dtype_info[k] if dtype_info[k] is not None else v.dtype for k, v in pre_pipe.element_spec.items()])
+    else:
+        dtype_info = {i:dtype_info[k] for i, k in enumerate(["x_true", "y_true", "bbox_true", "mask_true"])}
+        dtype = tuple([dtype_info[i] if dtype_info[i] is not None else v.dtype for i, v in enumerate(pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))])
+    dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
+    return pipe(x_true, y_true, bbox_true, mask_true, function = T.unnormalize,
                 rescale = rescale, mean = mean, std = std,
                 bbox_normalize = bbox_normalize,
-                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
-                cache = cache, num_parallel_calls = num_parallel_calls)
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
+                cache = cache, num_parallel_calls = num_parallel_calls,
+                tf_func = False, dtype = dtype)
 
 def filter_annotation(x_true, y_true = None, bbox_true = None, mask_true = None, 
                       label = None, min_scale = 2, min_instance_area = 1,
-                      dtype = None,
-                      batch_size = 0, repeat = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
-                      cache = None, num_parallel_calls = None):
+                      batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+                      cache = False, num_parallel_calls = None):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -88,16 +111,20 @@ def filter_annotation(x_true, y_true = None, bbox_true = None, mask_true = None,
     annotation = annotation[min_scale[0] or min_scale <= bbox_height and min_scale[1] or min_scale <= bbox_width]
     annotation = annotation[min_instance_area <= instance_mask_area]
     """
-    return pipe(x_true, y_true, bbox_true, mask_true, function = T.filter_annotation, dtype = dtype, tf_func = False,
+    pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
+    dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
+    dtype = [spec.dtype for spec in dtype]
+    dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
+    return pipe(x_true, y_true, bbox_true, mask_true, function = T.filter_annotation,
                 label = label, min_scale = min_scale, min_instance_area = min_instance_area,
-                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
-                cache = cache, num_parallel_calls = num_parallel_calls)
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
+                cache = cache, num_parallel_calls = num_parallel_calls,
+                tf_func = False, dtype = dtype)
   
 def label_encode(x_true, y_true = None, bbox_true = None, mask_true = None, 
                  label = None, one_hot = False, label_smoothing = 0.1,
-                 dtype = None,
-                 batch_size = 0, repeat = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
-                 cache = None, num_parallel_calls = None):
+                 batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+                 cache = False, num_parallel_calls = None):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -105,17 +132,34 @@ def label_encode(x_true, y_true = None, bbox_true = None, mask_true = None,
     bbox_true = (N, P, 4)
     mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
     mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
+    
+    label = ["background", ...]
     """
-    return pipe(x_true, y_true, bbox_true, mask_true, function = T.label_encode, dtype = dtype, tf_func = False,
+    pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
+    dtype_info = {"x_true":None,
+                  "y_true":None,
+                  "bbox_true":None,
+                  "mask_true":tf.float32 if label is not None and one_hot and 0 < label_smoothing else None}
+    if label is not None:
+        dtype_info["y_true"] = tf.int32
+        if one_hot and 0 < label_smoothing:
+            dtype_info["y_true"] = tf.float32
+    if isinstance(pre_pipe.element_spec, dict):
+        dtype = tuple([dtype_info[k] if dtype_info[k] is not None else v.dtype for k, v in pre_pipe.element_spec.items()])
+    else:
+        dtype_info = {i:dtype_info[k] for i, k in enumerate(["x_true", "y_true", "bbox_true", "mask_true"])}
+        dtype = tuple([dtype_info[i] if dtype_info[i] is not None else v.dtype for i, v in enumerate(pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))])
+    dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
+    return pipe(x_true, y_true, bbox_true, mask_true, function = T.label_encode,
                 label = label, one_hot = one_hot, label_smoothing = label_smoothing,
-                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
-                cache = cache, num_parallel_calls = num_parallel_calls)
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
+                cache = cache, num_parallel_calls = num_parallel_calls,
+                tf_func = False, dtype = dtype)
   
 def label_decode(x_true, y_true = None, bbox_true = None, mask_true = None, 
                  label = None,
-                 dtype = None,
-                 batch_size = 0, repeat = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
-                 cache = None, num_parallel_calls = None):
+                 batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+                 cache = False, num_parallel_calls = None):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -123,17 +167,30 @@ def label_decode(x_true, y_true = None, bbox_true = None, mask_true = None,
     bbox_true = (N, P, 4)
     mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
     mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
+    
+    label = ["background", ...]
     """
-    return pipe(x_true, y_true, bbox_true, mask_true, function = T.label_decode, dtype = dtype, tf_func = False,
+    pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
+    dtype_info = {"x_true":None,
+                  "y_true":tf.convert_to_tensor(label).dtype if label is not None else None,
+                  "bbox_true":None,
+                  "mask_true":None}
+    if isinstance(pre_pipe.element_spec, dict):
+        dtype = tuple([dtype_info[k] if dtype_info[k] is not None else v.dtype for k, v in pre_pipe.element_spec.items()])
+    else:
+        dtype_info = {i:dtype_info[k] for i, k in enumerate(["x_true", "y_true", "bbox_true", "mask_true"])}
+        dtype = tuple([dtype_info[i] if dtype_info[i] is not None else v.dtype for i, v in enumerate(pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))])
+    dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
+    return pipe(x_true, y_true, bbox_true, mask_true, function = T.label_decode,
                 label = label,
-                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
-                cache = cache, num_parallel_calls = num_parallel_calls)
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
+                cache = cache, num_parallel_calls = num_parallel_calls,
+                tf_func = False, dtype = dtype)
     
 def resize(x_true, y_true = None, bbox_true = None, mask_true = None, 
            image_shape = None, keep_ratio = True,
-           dtype = None,
-           batch_size = 0, repeat = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
-           cache = None, num_parallel_calls = None):
+           batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+           cache = False, num_parallel_calls = None):
     
     """
     x_true = (N, H, W, C) or pipe
@@ -145,16 +202,20 @@ def resize(x_true, y_true = None, bbox_true = None, mask_true = None,
     
     image_shape = [h, w] or [[h, w], ...](random choice)
     """
-    return pipe(x_true, y_true, bbox_true, mask_true, function = T.resize, dtype = dtype, tf_func = False,
+    pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
+    dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
+    dtype = [spec.dtype for spec in dtype]
+    dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
+    return pipe(x_true, y_true, bbox_true, mask_true, function = T.resize,
                 image_shape = image_shape, keep_ratio = keep_ratio,
-                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
-                cache = cache, num_parallel_calls = num_parallel_calls)
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
+                cache = cache, num_parallel_calls = num_parallel_calls,
+                tf_func = False, dtype = dtype)
 
 def pad(x_true, y_true = None, bbox_true = None, mask_true = None, 
         image_shape = None, shape_divisor = None, max_pad_size = 100, pad_val = 114, mode = "both", background = "background",
-        dtype = None,
-        batch_size = 0, repeat = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
-        cache = None, num_parallel_calls = None):
+        batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+        cache = False, num_parallel_calls = None):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -165,16 +226,20 @@ def pad(x_true, y_true = None, bbox_true = None, mask_true = None,
     
     mode = ("left", "right", "both", "random")
     """
-    return pipe(x_true, y_true, bbox_true, mask_true, function = T.pad, dtype = dtype, tf_func = False,
+    pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
+    dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
+    dtype = [spec.dtype for spec in dtype]
+    dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
+    return pipe(x_true, y_true, bbox_true, mask_true, function = T.pad,
                 image_shape = image_shape, shape_divisor = shape_divisor, max_pad_size = max_pad_size, pad_val = pad_val, mode = mode, background = background,
-                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
-                cache = cache, num_parallel_calls = num_parallel_calls)
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
+                cache = cache, num_parallel_calls = num_parallel_calls,
+                tf_func = False, dtype = dtype)
 
 def trim(x_true, y_true = None, bbox_true = None, mask_true = None, 
-         image_shape = None, pad_val = 114, mode = "both", min_area = 0., min_visibility = 0., decimal = 4,
-         dtype = None,
-         batch_size = 0, repeat = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
-         cache = None, num_parallel_calls = None):
+         image_shape = None, pad_val = 114, mode = "both", min_area = 0., min_visibility = 0., e = 1e-12, decimal = 4,
+         batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+         cache = False, num_parallel_calls = None):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -186,16 +251,20 @@ def trim(x_true, y_true = None, bbox_true = None, mask_true = None,
     #The pad will be removed.
     pad_val = np.round(x_true, decimal)'s pad_val
     """
-    return pipe(x_true, y_true, bbox_true, mask_true, function = T.trim, dtype = dtype, tf_func = False,
-                image_shape = image_shape, pad_val = pad_val, mode = mode, min_area = min_area, min_visibility = min_visibility, decimal = decimal,
-                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
-                cache = cache, num_parallel_calls = num_parallel_calls)
+    pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
+    dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
+    dtype = [spec.dtype for spec in dtype]
+    dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
+    return pipe(x_true, y_true, bbox_true, mask_true, function = T.trim,
+                image_shape = image_shape, pad_val = pad_val, mode = mode, min_area = min_area, min_visibility = min_visibility, e = e, decimal = decimal,
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
+                cache = cache, num_parallel_calls = num_parallel_calls,
+                tf_func = False, dtype = dtype)
 
 def crop(x_true, y_true = None, bbox_true = None, mask_true = None, 
-         bbox = None, min_area = 0., min_visibility = 0.,
-         dtype = None,
-         batch_size = 0, repeat = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
-         cache = None, num_parallel_calls = None):
+         bbox = None, min_area = 0., min_visibility = 0., e = 1e-12,
+         batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+         cache = False, num_parallel_calls = None):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -207,10 +276,15 @@ def crop(x_true, y_true = None, bbox_true = None, mask_true = None,
     #The pad will be removed.
     bbox = [x1, y1, x2, y2]
     """
-    return pipe(x_true, y_true, bbox_true, mask_true, function = T.crop, dtype = dtype, tf_func = False,
-                bbox = bbox, min_area = min_area, min_visibility = min_visibility,
-                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
-                cache = cache, num_parallel_calls = num_parallel_calls)
+    pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
+    dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
+    dtype = [spec.dtype for spec in dtype]
+    dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
+    return pipe(x_true, y_true, bbox_true, mask_true, function = T.crop,
+                bbox = bbox, min_area = min_area, min_visibility = min_visibility, e = e,
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
+                cache = cache, num_parallel_calls = num_parallel_calls,
+                tf_func = False, dtype = dtype)
 
 def albumentations(x_true, y_true = None, bbox_true = None, mask_true = None,
                    transform = [A.Blur(p = 0.01),
@@ -226,9 +300,8 @@ def albumentations(x_true, y_true = None, bbox_true = None, mask_true = None,
                                 A.ImageCompression(p = 0.01, quality_lower = 75),
                                ],
                    min_area = 0., min_visibility = 0.,
-                   dtype = None,
-                   batch_size = 0, repeat = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
-                   cache = None, num_parallel_calls = None):
+                   batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+                   cache = False, num_parallel_calls = None):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -239,16 +312,20 @@ def albumentations(x_true, y_true = None, bbox_true = None, mask_true = None,
     
     #The pad will be removed.
     """
-    return pipe(x_true, y_true, bbox_true, mask_true, function = T.albumentations, dtype = dtype, tf_func = False,
+    pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
+    dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
+    dtype = [spec.dtype for spec in dtype]
+    dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
+    return pipe(x_true, y_true, bbox_true, mask_true, function = T.albumentations,
                 transform = transform, min_area = min_area, min_visibility = min_visibility,
-                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
-                cache = cache, num_parallel_calls = num_parallel_calls)
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
+                cache = cache, num_parallel_calls = num_parallel_calls,
+                tf_func = False, dtype = dtype)
 
 def random_crop(x_true, y_true = None, bbox_true = None, mask_true = None,
                 image_shape = None, min_area = 0., min_visibility = 0.,
-                dtype = None,
-                batch_size = 0, repeat = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
-                cache = None, num_parallel_calls = None):
+                batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+                cache = False, num_parallel_calls = None):
     """
     x_true = (N, H, W, C)
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -259,16 +336,20 @@ def random_crop(x_true, y_true = None, bbox_true = None, mask_true = None,
     
     #The pad will be removed.
     """
-    return pipe(x_true, y_true, bbox_true, mask_true, function = T.random_crop, dtype = dtype, tf_func = False,
+    pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
+    dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
+    dtype = [spec.dtype for spec in dtype]
+    dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
+    return pipe(x_true, y_true, bbox_true, mask_true, function = T.random_crop,
                 image_shape = image_shape, min_area = min_area, min_visibility = min_visibility,
-                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
-                cache = cache, num_parallel_calls = num_parallel_calls)
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
+                cache = cache, num_parallel_calls = num_parallel_calls,
+                tf_func = False, dtype = dtype)
 
 def random_flip(x_true, y_true = None, bbox_true = None, mask_true = None, 
                 p = 0.5, mode = "horizontal",
-                dtype = None,
-                batch_size = 0, repeat = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
-                cache = None, num_parallel_calls = None):
+                batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+                cache = False, num_parallel_calls = None):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -280,16 +361,20 @@ def random_flip(x_true, y_true = None, bbox_true = None, mask_true = None,
     #The pad will be removed.
     mode = ("horizontal", "vertical", "both")
     """
-    return pipe(x_true, y_true, bbox_true, mask_true, function = T.random_flip, dtype = dtype, tf_func = False,
+    pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
+    dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
+    dtype = [spec.dtype for spec in dtype]
+    dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
+    return pipe(x_true, y_true, bbox_true, mask_true, function = T.random_flip,
                 p = p, mode = mode,
-                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
-                cache = cache, num_parallel_calls = num_parallel_calls)
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
+                cache = cache, num_parallel_calls = num_parallel_calls,
+                tf_func = False, dtype = dtype)
 
 def multi_scale_flip(x_true, y_true = None, bbox_true = None, mask_true = None,
                      image_shape = None, keep_ratio = True, flip = True, mode = "horizontal",
-                     dtype = None,
-                     batch_size = 0, repeat = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
-                     cache = None, num_parallel_calls = None):
+                     batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+                     cache = False, num_parallel_calls = None):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -301,18 +386,13 @@ def multi_scale_flip(x_true, y_true = None, bbox_true = None, mask_true = None,
     image_shape = [h, w](single apply) or [[h, w], ...](multi apply)
     mode = ("horizontal", "vertical", "both")(single apply) or [mode, ...](multi apply)
     """
-    pre_pipe = pipe(x_true, y_true, bbox_true, mask_true)
-    if dtype is None:
-        dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else pre_pipe.element_spec
-        dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
-    
     aug_pipes = []
     for shape in ([image_shape] if np.ndim(image_shape) < 2 else image_shape):
-        resize_pipe = resize(pre_pipe, image_shape = shape, keep_ratio = keep_ratio, dtype = dtype) if shape is not None else pre_pipe
+        resize_pipe = resize(pre_pipe, image_shape = shape, keep_ratio = keep_ratio) if shape is not None else pre_pipe
         aug_pipes.append(resize_pipe)
         if flip:
             for m in ([mode] if np.ndim(mode) < 1 else mode):
-                flip_pipe = random_flip(resize_pipe, p = 1., mode = m, dtype = dtype)
+                flip_pipe = random_flip(resize_pipe, p = 1., mode = m)
                 aug_pipes.append(flip_pipe)
     
     concat_pipe = pre_pipe
@@ -320,15 +400,15 @@ def multi_scale_flip(x_true, y_true = None, bbox_true = None, mask_true = None,
         concat_pipe = aug_pipes[0]
         for p in aug_pipes[1:]:
             concat_pipe = concat_pipe.concatenate(p)
+            
     return pipe(concat_pipe,
-                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
                 cache = cache, num_parallel_calls = num_parallel_calls)
 
 def yolo_hsv(x_true, y_true = None, bbox_true = None, mask_true = None, 
              h = 0.015, s = 0.7, v = 0.4,
-             dtype = None,
-             batch_size = 0, repeat = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
-             cache = None, num_parallel_calls = None):
+             batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+             cache = False, num_parallel_calls = None):
     """
     https://github.com/WongKinYiu/yolov7/blob/main/utils/datasets.py
     
@@ -339,16 +419,20 @@ def yolo_hsv(x_true, y_true = None, bbox_true = None, mask_true = None,
     mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
     mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
     """
-    return pipe(x_true, y_true, bbox_true, mask_true, function = T.yolo_hsv, dtype = dtype, tf_func = False,
+    pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
+    dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
+    dtype = [spec.dtype for spec in dtype]
+    dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
+    return pipe(x_true, y_true, bbox_true, mask_true, function = T.yolo_hsv,
                 h = h, s = s, v = v,
-                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
-                cache = cache, num_parallel_calls = num_parallel_calls)
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
+                cache = cache, num_parallel_calls = num_parallel_calls,
+                tf_func = False, dtype = dtype)
 
 def random_perspective(x_true, y_true = None, bbox_true = None, mask_true = None, 
                        image_shape = None, perspective = 0., rotate = 0., translate = 0.2, scale = 0.9, shear = 0., pad_val = 114, min_area = 0., min_visibility = 0., e = 1e-12,
-                       dtype = None,
-                       batch_size = 0, repeat = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
-                       cache = None, num_parallel_calls = None):
+                       batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+                       cache = False, num_parallel_calls = None):
     """
     https://github.com/WongKinYiu/yolov7/blob/main/utils/datasets.py
     
@@ -361,19 +445,23 @@ def random_perspective(x_true, y_true = None, bbox_true = None, mask_true = None
     
     #The pad will be removed.
     """
-    return pipe(x_true, y_true, bbox_true, mask_true, function = T.random_perspective, dtype = dtype, tf_func = False,
+    pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
+    dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
+    dtype = [spec.dtype for spec in dtype]
+    dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
+    return pipe(x_true, y_true, bbox_true, mask_true, function = T.random_perspective,
                 image_shape = image_shape, perspective = perspective, rotate = rotate, translate = translate, scale = scale, shear = shear, pad_val = pad_val, min_area = min_area, min_visibility = min_visibility, e = e,
-                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
-                cache = cache, num_parallel_calls = num_parallel_calls)
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
+                cache = cache, num_parallel_calls = num_parallel_calls,
+                tf_func = False, dtype = dtype)
   
 def mosaic(x_true, y_true = None, bbox_true = None, mask_true = None, 
+           sample_x_true = None, sample_y_true = None, sample_bbox_true = None, sample_mask_true = None,
            p = 0.5,
            image_shape = None, alpha = 0.25, pad_val = 114, min_area = 0., min_visibility = 0., e = 1e-12,
-           shape_divisor = None, max_pad_size = 100, mode = "both", background = "background",
-           dtype = None,
-           pre_batch_size = 16, pre_shuffle = False, pre_shuffle_size = None, choice_size = 4,
-           batch_size = 0, repeat = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
-           cache = None, num_parallel_calls = None):
+           sample_cache = True,
+           batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+           cache = False, num_parallel_calls = None):
     """
     https://github.com/WongKinYiu/yolov7/blob/main/utils/datasets.py
     
@@ -383,25 +471,41 @@ def mosaic(x_true, y_true = None, bbox_true = None, mask_true = None,
     bbox_true = (N, P, 4)
     mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
     mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
-        
-    #The pad will be removed.
+    
+    usage > tfdet.dataset.pipeline.mosaic(tr_pipe.cache("./train"), sample_x_true = sample_pipe.cache("./sample"))
+    
     #If image_shape is None, the result is (N, 2 * H, 2 * W, C).
     """
+    pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
+    dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
+    dtype = [spec.dtype for spec in dtype]
+    dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
+    
+    sample_pipe = (sample_x_true if isinstance(sample_x_true, tf.data.Dataset) else pipe(sample_x_true, sample_y_true, sample_bbox_true, sample_mask_true)) if sample_x_true is not None else pre_pipe
+    if sample_cache and not isinstance(sample_pipe, dataset_ops.CacheDataset):
+        sample_pipe = pipe(sample_pipe, cache = sample_cache)
+    args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.repeat(3).shuffle(3 * 10).batch(3), axis = 0)
+    
     func = functools.partial(T.mosaic, image_shape = image_shape, alpha = alpha, pad_val = pad_val, min_area = min_area, min_visibility = min_visibility, e = e)
-    random_func = functools.partial(T.random_apply, func, p = p, choice_size = choice_size, image_shape = image_shape, shape_divisor = shape_divisor, max_pad_size = max_pad_size, pad_val = pad_val, mode = mode, background = background)
-    return pipe(x_true, y_true, bbox_true, mask_true, function = random_func, dtype = dtype, tf_func = False,
-                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
-                pre_batch_size = pre_batch_size, pre_unbatch = True, pre_shuffle = pre_shuffle, pre_shuffle_size = pre_shuffle_size,
-                cache = cache, num_parallel_calls = num_parallel_calls)
+    def fail_func(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape = image_shape):
+        x_true = x_true[0]
+        y_true = y_true[0] if y_true is not None else None
+        bbox_true = bbox_true[0] if bbox_true is not None else None
+        mask_true = mask_true[0] if mask_true is not None else None
+        return T.pad(x_true, y_true, bbox_true, mask_true, image_shape = image_shape if image_shape is not None else 2, max_pad_size = 0)
+    random_func = functools.partial(T.random_apply, function = [func, fail_func], p = p)
+    return pipe(args_pipe, function = random_func,
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
+                cache = cache, num_parallel_calls = num_parallel_calls,
+                tf_func = False, dtype = dtype)
 
 def mosaic9(x_true, y_true = None, bbox_true = None, mask_true = None, 
+            sample_x_true = None, sample_y_true = None, sample_bbox_true = None, sample_mask_true = None,
             p = 0.5,
             image_shape = None, pad_val = 114, min_area = 0., min_visibility = 0.,
-            shape_divisor = None, max_pad_size = 100, mode = "both", background = "background",
-            dtype = None,
-            pre_batch_size = 36, pre_shuffle = False, pre_shuffle_size = None, choice_size = 9, 
-            batch_size = 0, repeat = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
-            cache = None, num_parallel_calls = None):
+            sample_cache = True,
+            batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+            cache = False, num_parallel_calls = None):
     """
     https://github.com/WongKinYiu/yolov7/blob/main/utils/datasets.py
     
@@ -411,25 +515,40 @@ def mosaic9(x_true, y_true = None, bbox_true = None, mask_true = None,
     bbox_true = (N, P, 4)
     mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
     mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
-        
-    #The pad will be removed.
+    
+    usage > tfdet.dataset.pipeline.mosaic9(tr_pipe.cache("./train"), sample_x_true = sample_pipe.cache("./sample"))
+    
     #If image_shape is None, the result is (N, 2 * H, 2 * W, C).
     """
+    pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
+    dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
+    dtype = [spec.dtype for spec in dtype]
+    dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
+    
+    sample_pipe = (sample_x_true if isinstance(sample_x_true, tf.data.Dataset) else pipe(sample_x_true, sample_y_true, sample_bbox_true, sample_mask_true)) if sample_x_true is not None else pre_pipe
+    if sample_cache and not isinstance(sample_pipe, dataset_ops.CacheDataset):
+        sample_pipe = pipe(sample_pipe, cache = sample_cache)
+    args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.repeat(8).shuffle(8 * 10).batch(8), axis = 0)
+    
     func = functools.partial(T.mosaic9, image_shape = image_shape, pad_val = pad_val, min_area = min_area, min_visibility = min_visibility)
-    random_func = functools.partial(T.random_apply, func, p = p, choice_size = choice_size, image_shape = image_shape, shape_divisor = shape_divisor, max_pad_size = max_pad_size, pad_val = pad_val, mode = mode, background = background)
-    return pipe(x_true, y_true, bbox_true, mask_true, function = random_func, dtype = dtype, tf_func = False,
-                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
-                pre_batch_size = pre_batch_size, pre_unbatch = True, pre_shuffle = pre_shuffle, pre_shuffle_size = pre_shuffle_size,
-                cache = cache, num_parallel_calls = num_parallel_calls)
+    def fail_func(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape = image_shape):
+        x_true = x_true[0]
+        y_true = y_true[0] if y_true is not None else None
+        bbox_true = bbox_true[0] if bbox_true is not None else None
+        mask_true = mask_true[0] if mask_true is not None else None
+        return T.pad(x_true, y_true, bbox_true, mask_true, image_shape = image_shape if image_shape is not None else 2, max_pad_size = 0)
+    random_func = functools.partial(T.random_apply, function = [func, fail_func], p = p)
+    return pipe(args_pipe, function = random_func,
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
+                cache = cache, num_parallel_calls = num_parallel_calls,
+                tf_func = False, dtype = dtype)
 
 def cut_mix(x_true, y_true = None, bbox_true = None, mask_true = None, 
+            sample_x_true = None, sample_y_true = None, sample_bbox_true = None, sample_mask_true = None,
             p = 0.5,
             alpha = 1., min_area = 0., min_visibility = 0., e = 1e-12,
-            image_shape = None, shape_divisor = None, max_pad_size = 100, pad_val = 114, mode = "both", background = "background",
-            dtype = None,
-            pre_batch_size = 4, pre_shuffle = False, pre_shuffle_size = None, choice_size = 2,
-            batch_size = 0, repeat = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
-            cache = None, num_parallel_calls = None):
+            batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+            cache = False, num_parallel_calls = None):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -437,23 +556,27 @@ def cut_mix(x_true, y_true = None, bbox_true = None, mask_true = None,
     bbox_true = (N, P, 4)
     mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
     mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
-        
-    #The pad will be removed.
     """
+    pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
+    dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
+    dtype = [spec.dtype for spec in dtype]
+    dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
+    
+    sample_pipe = (sample_x_true if isinstance(sample_x_true, tf.data.Dataset) else pipe(sample_x_true, sample_y_true, sample_bbox_true, sample_mask_true)) if sample_x_true is not None else pre_pipe
+    args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.batch(1), axis = 0)
+    
     func = functools.partial(T.cut_mix, alpha = alpha, min_area = min_area, min_visibility = min_visibility, e = e)
-    random_func = functools.partial(T.random_apply, func, p = p, choice_size = choice_size, image_shape = image_shape, shape_divisor = shape_divisor, max_pad_size = max_pad_size, pad_val = pad_val, mode = mode, background = background)
-    return pipe(x_true, y_true, bbox_true, mask_true, function = random_func, dtype = dtype, tf_func = False,
-                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
-                pre_batch_size = pre_batch_size, pre_unbatch = True, pre_shuffle = pre_shuffle, pre_shuffle_size = pre_shuffle_size,
-                cache = cache, num_parallel_calls = num_parallel_calls)
+    random_func = functools.partial(T.random_apply, function = func, p = p, reduce = True)
+    return pipe(args_pipe, function = random_func,
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
+                cache = cache, num_parallel_calls = num_parallel_calls,
+                tf_func = False, dtype = dtype)
 
 def cut_out(x_true, y_true = None, bbox_true = None, mask_true = None, 
             p = 0.5,
             alpha = 1., pad_val = 114, min_area = 0., min_visibility = 0., e = 1e-12,
-            image_shape = None, shape_divisor = None, max_pad_size = 100, mode = "both", background = "background",
-            dtype = None,
-            batch_size = 0, repeat = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
-            cache = None, num_parallel_calls = None):
+            batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+            cache = False, num_parallel_calls = None):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -461,24 +584,25 @@ def cut_out(x_true, y_true = None, bbox_true = None, mask_true = None,
     bbox_true = (N, P, 4)
     mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
     mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
-        
-    #The pad will be removed.
     """
+    pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
+    dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
+    dtype = [spec.dtype for spec in dtype]
+    dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
+    
     func = functools.partial(T.cut_out, alpha = alpha, pad_val = pad_val, min_area = min_area, min_visibility = min_visibility, e = e)
-    random_func = functools.partial(T.random_apply, func, p = p, choice_size = 1, image_shape = image_shape, shape_divisor = shape_divisor, max_pad_size = max_pad_size, pad_val = pad_val, mode = mode, background = background)
-    return pipe(x_true, y_true, bbox_true, mask_true, function = random_func, dtype = dtype, tf_func = False,
-                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
-                pre_batch_size = 1, pre_unbatch = True,
-                cache = cache, num_parallel_calls = num_parallel_calls)
+    random_func = functools.partial(T.random_apply, function = func, p = p, reduce = True)
+    return pipe(x_true, y_true, bbox_true, mask_true, function = random_func,
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
+                cache = cache, num_parallel_calls = num_parallel_calls,
+                tf_func = False, dtype = dtype)
 
 def mix_up(x_true, y_true = None, bbox_true = None, mask_true = None, 
+           sample_x_true = None, sample_y_true = None, sample_bbox_true = None, sample_mask_true = None,
            p = 0.15,
            alpha = 8.,
-           image_shape = None, shape_divisor = None, max_pad_size = 100, pad_val = 114, mode = "both", background = "background",
-           dtype = None,
-           pre_batch_size = 4, pre_shuffle = False, pre_shuffle_size = None, choice_size = 2,
-           batch_size = 0, repeat = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
-           cache = None, num_parallel_calls = None):
+           batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+           cache = False, num_parallel_calls = None):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -486,26 +610,34 @@ def mix_up(x_true, y_true = None, bbox_true = None, mask_true = None,
     bbox_true = (N, P, 4)
     mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
     mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
-    
-    #The pad will be removed.
     """
+    pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
+    dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
+    dtype = [spec.dtype for spec in dtype]
+    dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
+    #dtype = tuple([tf.float32] + list(dtype[1:])) if isinstance(dtype, tuple) else tf.float32
+    
+    sample_pipe = (sample_x_true if isinstance(sample_x_true, tf.data.Dataset) else pipe(sample_x_true, sample_y_true, sample_bbox_true, sample_mask_true)) if sample_x_true is not None else pre_pipe
+    args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.batch(1), axis = 0)
+    
     func = functools.partial(T.mix_up, alpha = alpha)
-    random_func = functools.partial(T.random_apply, func, p = p, choice_size = choice_size, image_shape = image_shape, shape_divisor = shape_divisor, max_pad_size = max_pad_size, pad_val = pad_val, mode = mode, background = background)
-    return pipe(x_true, y_true, bbox_true, mask_true, function = random_func, dtype = dtype, tf_func = False,
-                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
-                pre_batch_size = pre_batch_size, pre_unbatch = True, pre_shuffle = pre_shuffle, pre_shuffle_size = pre_shuffle_size,
-                cache = cache, num_parallel_calls = num_parallel_calls)
+    random_func = functools.partial(T.random_apply, function = func, p = p, reduce = True)
+    return pipe(args_pipe, function = random_func,
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
+                cache = cache, num_parallel_calls = num_parallel_calls,
+                tf_func = False, dtype = dtype)
 
 def copy_paste(x_true, y_true = None, bbox_true = None, mask_true = None, 
+               sample_x_true = None, sample_y_true = None, sample_bbox_true = None, sample_mask_true = None,
                p = 0.15,
-               max_paste_count = 20, scale_range = [0.03125, 0.75], clip_object = True, replace = True,
-               min_scale = 2, min_instance_area = 1, iou_threshold = 0.3, p_flip = 0.5, method = cv2.INTER_LINEAR,
+               max_paste_count = 100, scale_range = [0.0625, 0.75], clip_object = True, replace = True, random_count = True, label = None,
+               min_scale = 2, min_instance_area = 1, iou_threshold = 0.3,
+               copy_min_scale = 2, copy_min_instance_area = 1, copy_iou_threshold = 0.3,
+               p_flip = 0.5, pad_val = 114, method = cv2.INTER_LINEAR,
                min_area = 0., min_visibility = 0., e = 1e-12,
-               image_shape = None, shape_divisor = None, max_pad_size = 100, pad_val = 114, mode = "both", background = "background",
-               dtype = None,
-               pre_batch_size = 16, pre_shuffle = False, pre_shuffle_size = None, choice_size = 4,
-               batch_size = 0, repeat = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
-               cache = None, num_parallel_calls = None):
+               sample_size = 4, sample_cache = True,
+               batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+               cache = False, num_parallel_calls = None):
     """
     https://arxiv.org/abs/2012.07177
     
@@ -516,26 +648,39 @@ def copy_paste(x_true, y_true = None, bbox_true = None, mask_true = None,
     mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
     mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
     
-    #The pad will be removed.
+    usage > tfdet.dataset.pipeline.copy_paste(tr_pipe.cache("./train"), sample_x_true = sample_pipe.cache("./sample"))
+    
     #First image is Background image.
     #Paste object condition : min_scale[0] or min_scale <= paste_object_height and min_scale[1] or min_scale <= paste_object_width
     #Paste mask condition : min_instance_area <= paste_instance_mask_area
-    scale = np.random.beta(1, 1.3) * np.abs(scale_range[1] - scale_range[0]) + np.min(scale_range)
+    scale = np.random.beta(1, 1.4) * np.abs(scale_range[1] - scale_range[0]) + np.min(scale_range)
     clip_object = Don't crop object
     replace = np.random.choice's replace
+    random_count = change max_paste_count from 0 to max_paste_count
+    label = copy target label
+    iou_threshold = iou_threshold or [copy_iou_threshold, paste_iou_threshold]
     """
-    func = functools.partial(T.copy_paste, max_paste_count = max_paste_count, scale_range = scale_range, clip_object = clip_object, replace = replace, min_scale = min_scale, min_instance_area = min_instance_area, iou_threshold = iou_threshold, p_flip = p_flip, method = method, min_area = min_area, min_visibility = min_visibility, e = e)
-    random_func = functools.partial(T.random_apply, func, p = p, choice_size = choice_size, image_shape = image_shape, shape_divisor = shape_divisor, max_pad_size = max_pad_size, pad_val = pad_val, mode = mode, background = background)
-    return pipe(x_true, y_true, bbox_true, mask_true, function = random_func, dtype = dtype, tf_func = False,
-                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
-                pre_batch_size = pre_batch_size, pre_unbatch = True, pre_shuffle = pre_shuffle, pre_shuffle_size = pre_shuffle_size,
-                cache = cache, num_parallel_calls = num_parallel_calls)
+    pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
+    dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
+    dtype = [spec.dtype for spec in dtype]
+    dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
+    
+    sample_pipe = (sample_x_true if isinstance(sample_x_true, tf.data.Dataset) else pipe(sample_x_true, sample_y_true, sample_bbox_true, sample_mask_true)) if sample_x_true is not None else pre_pipe
+    if sample_cache and not isinstance(sample_pipe, dataset_ops.CacheDataset):
+        sample_pipe = pipe(sample_pipe, cache = sample_cache)
+    args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.repeat(max(sample_size, 1)).shuffle(max(sample_size, 1) * 10).batch(max(sample_size, 1)), axis = 0)
+        
+    func = functools.partial(T.copy_paste, max_paste_count = max_paste_count, scale_range = scale_range, clip_object = clip_object, replace = replace, random_count = random_count, label = label, min_scale = min_scale, min_instance_area = min_instance_area, iou_threshold = iou_threshold, copy_min_scale = copy_min_scale, copy_min_instance_area = copy_min_instance_area, copy_iou_threshold = copy_iou_threshold, p_flip = p_flip, pad_val = pad_val, method = method, min_area = min_area, min_visibility = min_visibility, e = e)
+    random_func = functools.partial(T.random_apply, function = func, p = p, reduce = True)
+    return pipe(args_pipe, function = random_func,
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
+                cache = cache, num_parallel_calls = num_parallel_calls,
+                tf_func = False, dtype = dtype)
 
 def remove_background(x_true, y_true = None, bbox_true = None, mask_true = None, 
                       pad_val = 114,
-                      dtype = None,
-                      batch_size = 0, repeat = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
-                      cache = None, num_parallel_calls = None):
+                      batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+                      cache = False, num_parallel_calls = None):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -544,16 +689,69 @@ def remove_background(x_true, y_true = None, bbox_true = None, mask_true = None,
     mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
     mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
     """
-    return pipe(x_true, y_true, bbox_true, mask_true, function = T.remove_background, dtype = dtype, tf_func = False,
+    pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
+    dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
+    dtype = [spec.dtype for spec in dtype]
+    dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
+    return pipe(x_true, y_true, bbox_true, mask_true, function = T.remove_background,
                 pad_val = pad_val,
-                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, shuffle_size = shuffle_size, prefetch_size = prefetch_size,
-                cache = cache, num_parallel_calls = num_parallel_calls)
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
+                cache = cache, num_parallel_calls = num_parallel_calls,
+                tf_func = False, dtype = dtype)
+
+def yolo_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
+                      sample_x_true = None, sample_y_true = None, sample_bbox_true = None, sample_mask_true = None,
+                      image_shape = None, pad_val = 114,
+                      perspective = 0., rotate = 0., translate = 0.2, scale = 0.9, shear = 0.,
+                      h = 0.015, s = 0.7, v = 0.4,
+                      max_paste_count = 20, scale_range = [0.0625, 0.75], clip_object = True, replace = True, random_count = False, label = None,
+                      min_scale = 2, min_instance_area = 1, iou_threshold = 0.3, copy_min_scale = 2, copy_min_instance_area = 1, copy_iou_threshold = 0.3, p_copy_paste_flip = 0.5, method = cv2.INTER_LINEAR,
+                      p_mosaic = 1., p_mix_up = 0.15, p_copy_paste = 0., p_flip = 0.5,
+                      min_area = 0., min_visibility = 0., e = 1e-12,
+                      sample_size = 8 + 9 + 4, sample_cache = True,
+                      batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+                      cache = False, num_parallel_calls = None):
+    """
+    https://github.com/WongKinYiu/yolov7/blob/main/utils/datasets.py
+    
+    x_true = (N, H, W, C)
+    y_true(without bbox_true) = (N, n_class)
+    y_true(with bbox_true) = (N, P, 1 or n_class)
+    bbox_true = (N, P, 4)
+    mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
+    mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
+    
+    usage > tfdet.dataset.pipeline.yolo_augmentation(tr_pipe.cache("./train"), sample_x_true = sample_pipe.cache("./sample"))
+    
+    #First image is Background image.
+    """
+    pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
+    dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
+    dtype = [spec.dtype for spec in dtype]
+    dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
+    #dtype = tuple([tf.float32] + list(dtype[1:])) if isinstance(dtype, tuple) else tf.float32
+    
+    sample_pipe = (sample_x_true if isinstance(sample_x_true, tf.data.Dataset) else pipe(sample_x_true, sample_y_true, sample_bbox_true, sample_mask_true)) if sample_x_true is not None else pre_pipe
+    if sample_cache and not isinstance(sample_pipe, dataset_ops.CacheDataset):
+        sample_pipe = pipe(sample_pipe, cache = sample_cache)
+    args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.repeat(max(sample_size, 1)).shuffle(max(sample_size, 1) * 10).batch(max(sample_size, 1)), axis = 0)
+    
+    func = functools.partial(T.yolo_augmentation, image_shape = image_shape, pad_val = pad_val,
+                             perspective = perspective, rotate = rotate, translate = translate, scale = scale, shear = shear,
+                             h = h, s = s, v = v,
+                             max_paste_count = max_paste_count, scale_range = scale_range, clip_object = clip_object, replace = replace, random_count = random_count, label = label,
+                             min_scale = min_scale, min_instance_area = min_instance_area, iou_threshold = iou_threshold, copy_min_scale = copy_min_scale, copy_min_instance_area = copy_min_instance_area, copy_iou_threshold = copy_iou_threshold, p_copy_paste_flip = p_copy_paste_flip, method = method,
+                             p_mosaic = p_mosaic, p_mix_up = p_mix_up, p_copy_paste = p_copy_paste, p_flip = p_flip,
+                             min_area = min_area, min_visibility = min_visibility, e = e)
+    return pipe(args_pipe, function = func,
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
+                cache = cache, num_parallel_calls = num_parallel_calls,
+                tf_func = False, dtype = dtype)
 
 def key_map(x_true, y_true = None, bbox_true = None, mask_true = None, 
             map = {"x_true":"x_true", "y_true":"y_true", "bbox_true":"bbox_true", "mask_true":"mask_true"},
-            dtype = None,
-            batch_size = 0, repeat = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
-            cache = None, num_parallel_calls = None):
+            batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+            cache = False, num_parallel_calls = None):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -562,15 +760,15 @@ def key_map(x_true, y_true = None, bbox_true = None, mask_true = None,
     mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
     mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
     """
-    return pipe(x_true, y_true, bbox_true, mask_true, function = T.key_map, dtype = dtype, tf_func = True,
+    return pipe(x_true, y_true, bbox_true, mask_true, function = T.key_map,
                 map = map,
-                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache,
+                tf_func = True)
 
 def collect(x_true, y_true = None, bbox_true = None, mask_true = None, 
             keys = ["x_true", "y_true", "bbox_true", "mask_true"],
-            dtype = None,
-            batch_size = 0, repeat = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
-            cache = None, num_parallel_calls = None):
+            batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+            cache = False, num_parallel_calls = None):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -579,15 +777,15 @@ def collect(x_true, y_true = None, bbox_true = None, mask_true = None,
     mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
     mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
     """
-    return pipe(x_true, y_true, bbox_true, mask_true, function = T.collect, dtype = dtype, tf_func = True,
+    return pipe(x_true, y_true, bbox_true, mask_true, function = T.collect,
                 keys = keys,
-                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache,
+                tf_func = True)
 
 def cast(x_true, y_true = None, bbox_true = None, mask_true = None, 
          map = {"x_true":tf.float32, "y_true":tf.float32, "bbox_true":tf.float32, "mask_true":tf.float32},
-         dtype = None,
-         batch_size = 0, repeat = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
-         cache = None, num_parallel_calls = None):
+         batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+         cache = False, num_parallel_calls = None):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -596,15 +794,15 @@ def cast(x_true, y_true = None, bbox_true = None, mask_true = None,
     mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
     mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
     """
-    return pipe(x_true, y_true, bbox_true, mask_true, function = T.cast, dtype = dtype, tf_func = True,
+    return pipe(x_true, y_true, bbox_true, mask_true, function = T.cast,
                 map = map,
-                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache,
+                tf_func = True)
 
 def args2dict(x_true, y_true = None, bbox_true = None, mask_true = None, 
               keys = ["x_true", "y_true", "bbox_true", "mask_true"],
-              dtype = None,
-              batch_size = 0, repeat = 1, shuffle = False, prefetch = False, shuffle_size = None, prefetch_size = None,
-              cache = None, num_parallel_calls = None):
+              batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+              cache = False, num_parallel_calls = None):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -613,6 +811,24 @@ def args2dict(x_true, y_true = None, bbox_true = None, mask_true = None,
     mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
     mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
     """
-    return pipe(x_true, y_true, bbox_true, mask_true, function = T.args2dict, dtype = dtype, tf_func = True,
+    return pipe(x_true, y_true, bbox_true, mask_true, function = T.args2dict,
                 keys = keys,
-                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache, shuffle_size = shuffle_size, prefetch_size = prefetch_size)
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache,
+                tf_func = True)
+
+def dict2args(x_true, y_true = None, bbox_true = None, mask_true = None, 
+              keys = None,
+              batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+              cache = False, num_parallel_calls = None):
+    """
+    x_true = (N, H, W, C) or pipe
+    y_true(without bbox_true) = (N, 1 or n_class)
+    y_true(with bbox_true) = (N, P, 1 or n_class)
+    bbox_true = (N, P, 4)
+    mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
+    mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
+    """
+    return pipe(x_true, y_true, bbox_true, mask_true, function = T.dict2args,
+                keys = keys,
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache,
+                tf_func = True)
