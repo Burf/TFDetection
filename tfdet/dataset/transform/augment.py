@@ -801,7 +801,7 @@ def copy_paste(x_true, y_true = None, bbox_true = None, mask_true = None, max_pa
         if bbox_true is not None:
             bbox_norm = True
             for bbox in bbox_true:
-                if np.any(np.greater_equal(bbox, 2)):
+                if 0 < len(bbox) and np.any(np.greater_equal(bbox, 2)):
                     bbox_norm = False
                     break
             
@@ -871,7 +871,7 @@ def copy_paste(x_true, y_true = None, bbox_true = None, mask_true = None, max_pa
         mask_true = (np.array(mask_true[0]) if 3 < np.ndim(mask_true[0]) else np.array(mask_true[0])) if mask_true is not None else None
         if bbox_true is not None:
             indices = np.where(np.max(0 < bbox_true, axis = -1, keepdims = True) != 0)[0]
-            bbox_true = bbox_true[indices]
+            bbox_true = np.round(np.multiply(bbox_true[indices], np.tile(np.shape(x_true)[:2][::-1], 2))).astype(int) if bbox_norm else np.array(bbox_true[indices], dtype = int)
             y_true = y_true[indices] if y_true is not None else None
             mask_true = mask_true[indices] if mask_true is not None and 3 < np.ndim(mask_true) else mask_true
         #elif mask_true is not None and 3 < np.ndim(mask_true):
@@ -929,8 +929,8 @@ def copy_paste(x_true, y_true = None, bbox_true = None, mask_true = None, max_pa
                                 mask_true = np.concatenate([mask_true, np.expand_dims(new_mask, axis = 0)], axis = 0)
                             else:
                                 mask_true[bbox[1]:bbox[3], bbox[0]:bbox[2]][region] = mask[region]
-            if bbox_true is not None:
-                bbox_true = np.divide(new_bbox, [w, h, w, h]) if bbox_norm else new_bbox
+        if bbox_true is not None:
+            bbox_true = np.divide(new_bbox, [w, h, w, h]) if bbox_norm else new_bbox
     else:
         x_true = x_true[0]
         y_true = y_true[0] if y_true is not None else None

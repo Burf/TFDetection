@@ -57,6 +57,8 @@ def yolo_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
         out = [out] if not isinstance(out, tuple) else out
         out = random_perspective(*out, image_shape = image_shape, perspective = perspective, rotate = rotate, translate = translate, scale = scale, shear = shear, pad_val = pad_val, min_area = min_area, min_visibility = min_visibility, e = e)
         out = [out] if not isinstance(out, tuple) else out
+        out = filter_annotation(*out, min_scale = min_scale, min_instance_area = min_instance_area)
+        out = [out] if not isinstance(out, tuple) else out
         
         if np.random.random() < p_mix_up:
             if np.random.random() < 0.8:
@@ -76,12 +78,16 @@ def yolo_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
             out2 = [out2] if not isinstance(out2, tuple) else out2
             out2 = random_perspective(*out2, image_shape = image_shape, perspective = perspective, rotate = rotate, translate = translate, scale = scale, shear = shear, pad_val = pad_val, min_area = min_area, min_visibility = min_visibility, e = e)
             out2 = [out2] if not isinstance(out2, tuple) else out2
+            out2 = filter_annotation(*out2, min_scale = min_scale, min_instance_area = min_instance_area)
+            out2 = [out2] if not isinstance(out2, tuple) else out2
             out = mix_up(*[[o, o2] for o, o2 in zip(out, out2)])
             out = [out] if not isinstance(out, tuple) else out
     else:
         out = pad(image, y, bbox, mask, image_shape = image_shape, max_pad_size = 0, pad_val = pad_val)
         out = [out] if not isinstance(out, tuple) else out
         out = random_perspective(*out, image_shape = image_shape, perspective = perspective, rotate = rotate, translate = translate, scale = scale, shear = shear, pad_val = pad_val, min_area = min_area, min_visibility = min_visibility, e = e)
+        out = [out] if not isinstance(out, tuple) else out
+        out = filter_annotation(*out, min_scale = min_scale, min_instance_area = min_instance_area)
         out = [out] if not isinstance(out, tuple) else out
         
     out = yolo_hsv(*out, h = h, s = s, v = v)
