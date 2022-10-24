@@ -1,1 +1,2 @@
 from .object_detection import MeanAveragePrecision, CoCoMeanAveragePrecision
+from .segmentation import MeanIoU
