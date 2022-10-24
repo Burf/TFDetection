@@ -157,3 +157,49 @@ def select_device(gpu = None, limit = None):
             strategy = tf.distribute.MirroredStrategy(["/gpu:{0}".format(device) for device in range(len(gpu))], cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
             device = strategy.scope()
         return device
+    
+class EMA:
+    """
+    https://www.tensorflow.org/api_docs/python/tf/train/ExponentialMovingAverage
+    https://github.com/WongKinYiu/yolov7/blob/main/utils/torch_utils.py
+    
+    1) ema = EMA(model, decay = 0.9999)
+    2) update_callback = tf.keras.callbacks.LambdaCallback(on_train_batch_end = lambda step, logs: ema.update() if (step + 1) % 4 == 0 else None)
+    3) apply_callback = tf.keras.callbacks.LambdaCallback(on_epoch_end = lambda epoch, logs:ema.apply(), on_epoch_begin = lambda epoch, logs:ema.restroe())
+    3) model.fit(...,
+                 callbacks=[...,
+                            update_callback,
+                            apply_callback])
+    """
+    def __init__(self, model, decay = 0.9999, n_update = 0, ramp = 2000):
+        self.model = model
+        self.decay = ((lambda x: decay * (1 - np.exp(-x / ramp))) if isinstance(ramp, (int, float)) and ramp != 0 else (lambda x: decay))
+        self.n_update = n_update
+        
+        self.weights = {}
+        self.backup = {}
+        self.reset()
+    
+    def reset(self):
+        self.weights = {}
+        self.backup = {}
+        for w in self.model.trainable_weights:
+            self.weights[w.name] = np.array(w)
+            
+    def update(self):
+        self.n_update += 1
+        decay = self.decay(self.n_update)
+        for w in self.model.trainable_weights:
+            self.weights[w.name] = (1 - decay) * np.array(w) + (decay * self.weights[w.name])
+
+    def apply(self, model = None):
+        for w in (model if isinstance(model, tf.keras.Model) else self.model).trainable_weights:
+            self.backup[w.name] = np.array(w)
+            tf.keras.backend.set_value(w, self.weights[w.name])
+            
+    def restore(self, model = None):
+        if 0 < len(self.backup):
+            for w in (model if isinstance(model, tf.keras.Model) else self.model).trainable_weights:
+                if w.name in self.backup:
+                    tf.keras.backend.set_value(w, self.backup[w.name])
+            self.backup = {}
