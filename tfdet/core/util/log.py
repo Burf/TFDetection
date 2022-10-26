@@ -18,3 +18,25 @@ def metric2text(info = {}, summary = None, label = None, decimal = 4):
                       summary,
                       line])
     return form
+
+def concat_text(text, axis = 1, n_blank = 1):
+    text = [text] if np.ndim(text) == 0 else text
+    if axis == 0:
+        new_text = ("\n" * (n_blank + 1)).join(text)
+    else:
+        text = [t.split("\n") for t in text]
+        max_row = max([len(t) for t in text])
+        max_cols = [max([len(t) for t in t]) for t in text]
+        
+        blank = " " * n_blank
+        new_text = []
+        for i in range(max_row):
+            new_line = []
+            for max_col, t in zip(max_cols, text):
+                line = " " * max_col
+                if i < len(t):
+                    line = t[i] + line[len(t[i]):]
+                new_line.append(line)
+            new_text.append(blank.join(new_line))
+        new_text = "\n".join(new_text)
+    return new_text
