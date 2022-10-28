@@ -74,7 +74,7 @@ def train_model(input, rpn_score = None, rpn_regress = None, anchors = None, cls
                                                                                                         assign = rpn_assign, sampling_count = sampling_count, positive_ratio = rpn_positive_ratio, valid = valid, mean = rpn_mean, std = rpn_std), name = "rpn_target")([bbox_true, rpn_score, rpn_regress, anchors])
         
         rpn_score_accuracy = tf.keras.layers.Lambda(lambda args: score_accuracy(*args, threshold = threshold, missing_value = missing_value), name = "rpn_score_accuracy")([rpn_match, rpn_score])
-        rpn_score_loss = tf.keras.layers.Lambda(lambda args: score_loss(*args, missing_value = missing_value), name = "rpn_score_loss")([rpn_match, rpn_score])
+        rpn_score_loss = tf.keras.layers.Lambda(lambda args: score_loss(*args, focal = focal, missing_value = missing_value), name = "rpn_score_loss")([rpn_match, rpn_score])
         rpn_regress_loss = tf.keras.layers.Lambda(lambda args: regress_loss(*args, sigma = sigma, missing_value = missing_value), name = "rpn_regress_loss")([rpn_match, rpn_bbox_true, rpn_bbox_pred])
         metric["rpn_score_accuracy"] = rpn_score_accuracy
         loss["rpn_score_loss"] = rpn_score_loss

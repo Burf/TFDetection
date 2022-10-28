@@ -7,12 +7,10 @@ def score_accuracy(match, score, threshold = 0.5, missing_value = 0.):
     match = -1 : negative / 0 : neutral / 1 : positive #(batch_size, sampling_count, 1)
     score = score for FG/BG #(batch_size, sampling_count, 1)
     """
-    match_score = tf.cast(tf.equal(match, 1), tf.int32)
-    indices = tf.where(tf.not_equal(match, 0))
+    indices = tf.where(tf.equal(match, 1))
     score = tf.gather_nd(score, indices)
-    match_score = tf.gather_nd(match_score, indices)
+    match_score = tf.ones_like(score)
     
-    match_score = tf.expand_dims(tf.cast(match_score, score.dtype), axis = -1)
     score = tf.expand_dims(tf.clip_by_value(score, tf.keras.backend.epsilon(), 1 - tf.keras.backend.epsilon()), axis = -1)
     score = tf.cast(tf.greater_equal(score, threshold), score.dtype)
     
@@ -20,7 +18,7 @@ def score_accuracy(match, score, threshold = 0.5, missing_value = 0.):
     accuracy = tf.where(tf.math.is_nan(accuracy), missing_value, accuracy)
     return accuracy
 
-def score_loss(match, score, missing_value = 0.):
+def score_loss(match, score, focal = True, missing_value = 0.):
     """
     match = -1 : negative / 0 : neutral / 1 : positive #(batch_size, sampling_count, 1)
     score = score for FG/BG #(batch_size, sampling_count, 1)
@@ -34,6 +32,8 @@ def score_loss(match, score, missing_value = 0.):
     score = tf.expand_dims(tf.clip_by_value(score, tf.keras.backend.epsilon(), 1 - tf.keras.backend.epsilon()), axis = -1)
     
     loss = tf.keras.losses.binary_crossentropy(match_score, score)
+    if focal:
+        loss = tf.expand_dims(loss, axis = -1) * tf.pow(match_score - score, 2)
     
     true_count = tf.reduce_sum(match_score)
     loss = tf.reduce_sum(loss) / tf.maximum(true_count, 1.)

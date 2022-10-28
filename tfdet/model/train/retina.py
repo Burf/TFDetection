@@ -11,7 +11,7 @@ def train_model(input, logits, regress, anchors,
                 assign = max_iou, sampling_count = None, positive_ratio = 0.5,
                 proposal_count = 100, iou_threshold = 0.5, score_threshold = 0.05, soft_nms = False, valid = False, performance_count = 5000,
                 batch_size = 1, mean = [0., 0., 0., 0.], std = [1., 1., 1., 1.], clip_ratio = 16 / 1000,
-                regularize = True, weight_decay = 1e-4, focal = True, alpha = .25, gamma = 1.5, sigma = 3, class_weight = None, missing_value = 0.):
+                regularize = True, weight_decay = 1e-4, focal = True, alpha = .25, gamma = 1.5, sigma = 3, class_weight = None, background = False, missing_value = 0.):
     y_true = tf.keras.layers.Input(shape = (None, None), name = "y_true", dtype = logits.dtype)
     bbox_true = tf.keras.layers.Input(shape = (None, 4), name = "bbox_true", dtype = regress.dtype)
     
@@ -20,7 +20,7 @@ def train_model(input, logits, regress, anchors,
                                                                                                                   assign = assign, sampling_count = sampling_count, positive_ratio = positive_ratio, valid = valid, mean = mean, std = std), name = "anchor_target")([y_true, bbox_true, logits, regress, tile_anchors])
     
     score_accuracy = tf.keras.layers.Lambda(lambda args: classnet_accuracy(*args, missing_value = missing_value), name = "score_accuracy")([target_y_true, target_y_pred])
-    score_loss = tf.keras.layers.Lambda(lambda args: classnet_loss(*args, focal = focal, alpha = alpha, gamma = gamma, weight = class_weight, missing_value = missing_value), name = "score_loss")([target_y_true, target_y_pred])
+    score_loss = tf.keras.layers.Lambda(lambda args: classnet_loss(*args, focal = focal, alpha = alpha, gamma = gamma, weight = class_weight, background = background, missing_value = missing_value), name = "score_loss")([target_y_true, target_y_pred])
     regress_loss = tf.keras.layers.Lambda(lambda args: boxnet_loss(*args, sigma = sigma, missing_value = missing_value), name = "regress_loss")([target_y_true, target_bbox_true, target_bbox_pred])
     
     score_accuracy = tf.expand_dims(score_accuracy, axis = -1)

@@ -11,7 +11,7 @@ def train_model(input, logits, regress, points, centerness = None,
                 assign = point, sampling_count = None, positive_ratio = 0.5,
                 proposal_count = 100, iou_threshold = 0.5, score_threshold = 0.05, soft_nms = False, performance_count = 5000,
                 batch_size = 1, 
-                regularize = True, weight_decay = 1e-4, focal = True, alpha = .25, gamma = 2., sigma = 3, class_weight = None, missing_value = 0.):
+                regularize = True, weight_decay = 1e-4, focal = True, alpha = .25, gamma = 2., sigma = 3, class_weight = None, background = False, missing_value = 0.):
     if not isinstance(logits, list):
         logits, regress, points = [logits], [regress], [points]
         if centerness is not None:
@@ -41,7 +41,7 @@ def train_model(input, logits, regress, points, centerness = None,
         target_y_true, target_bbox_true, target_y_pred, target_bbox_pred = tf.keras.layers.Lambda(lambda args: map_fn(fcos_target, *args, dtype = (y_true.dtype, bbox_true.dtype, concat_logits.dtype, concat_regress.dtype), batch_size = batch_size, assign = assign, sampling_count = sampling_count, positive_ratio = positive_ratio), name = "fcos_target")([y_true, bbox_true, concat_logits, concat_regress, tile_points, regress_range])
     
     score_accuracy = tf.keras.layers.Lambda(lambda args: classnet_accuracy(*args, missing_value = missing_value), name = "score_accuracy")([target_y_true, target_y_pred])
-    score_loss = tf.keras.layers.Lambda(lambda args: classnet_loss(*args, focal = focal, alpha = alpha, gamma = gamma, weight = class_weight, missing_value = missing_value), name = "score_loss")([target_y_true, target_y_pred])
+    score_loss = tf.keras.layers.Lambda(lambda args: classnet_loss(*args, focal = focal, alpha = alpha, gamma = gamma, weight = class_weight, background = background, missing_value = missing_value), name = "score_loss")([target_y_true, target_y_pred])
     regress_loss = tf.keras.layers.Lambda(lambda args: boxnet_loss(*args, sigma = sigma, missing_value = missing_value), name = "regress_loss")([target_y_true, target_bbox_true, target_bbox_pred])
     loss = {"score_loss":score_loss, "regress_loss":regress_loss}
     if centerness is not None:

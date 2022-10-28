@@ -7,12 +7,10 @@ def score_accuracy(score_true, score_pred, threshold = 0.5, missing_value = 0.):
     score_true = -1 : negative / 0 : neutral / 1 : positive #(batch_size, sampling_count, 1)
     score_pred = confidence score for FG/BG #(batch_size, sampling_count, 1)
     """
-    match_score = tf.cast(tf.equal(score_true, 1), tf.int32)
-    indices = tf.where(tf.not_equal(score_true, 0))
+    indices = tf.where(tf.equal(score_true, 1))
     score = tf.gather_nd(score_pred, indices)
-    match_score = tf.gather_nd(match_score, indices)
+    match_score = tf.ones_like(score)
 
-    match_score = tf.expand_dims(tf.cast(match_score, score_pred.dtype), axis = -1)
     score = tf.expand_dims(tf.clip_by_value(score, tf.keras.backend.epsilon(), 1 - tf.keras.backend.epsilon()), axis = -1)
     score = tf.cast(tf.greater_equal(score, threshold), score.dtype)
   
