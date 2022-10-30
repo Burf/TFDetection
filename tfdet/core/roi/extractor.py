@@ -21,13 +21,12 @@ def roi_align(feature, bbox_pred, image_shape = [1024, 1024], pool_size = 7, met
     pool_size = [pool_size, pool_size] if isinstance(pool_size, int) else [pool_size, pool_size]
     
     max_size = tf.shape(bbox_pred)[0]
-    valid_indices = tf.where(0 < tf.reduce_max(bbox_pred, axis = -1))
-    bbox_pred = tf.gather_nd(bbox_pred, valid_indices)
+    valid_indices = tf.where(0 < tf.reduce_max(bbox_pred, axis = -1))[:, 0]
+    bbox_pred = tf.gather(bbox_pred, valid_indices)
     
     if 2 <= tf.reduce_max(bbox_pred):
         bbox_pred = tf.divide(bbox_pred, tf.cast(tf.tile(image_shape[::-1], [2]), bbox_pred.dtype))
     
-    bbox_pred = tf.expand_dims(bbox_pred, axis = 0)
     roi_level = roi2level(bbox_pred, len(feature), image_shape)
     x1, y1, x2, y2 = tf.split(bbox_pred, 4, axis = -1)
     bbox_pred = tf.concat([y1, x1, y2, x2], axis = -1)
@@ -35,14 +34,14 @@ def roi_align(feature, bbox_pred, image_shape = [1024, 1024], pool_size = 7, met
     indices = []
     result = []
     for level, x in enumerate(feature):
-        level_indices = tf.where(tf.equal(roi_level, level))
-        bbox = tf.gather_nd(bbox_pred, level_indices)
+        level_indices = tf.where(tf.equal(roi_level, level))[:, 0]
+        bbox = tf.gather(bbox_pred, level_indices)
 
         bbox = tf.stop_gradient(bbox)
-        bbox_indices = tf.stop_gradient(tf.cast(level_indices[:, 0], tf.int32))
+        bbox_indices = tf.stop_gradient(tf.zeros(tf.shape(level_indices)[0], tf.int32))
         out = tf.image.crop_and_resize(image = tf.expand_dims(x, axis = 0), boxes = bbox, box_indices = bbox_indices, crop_size = pool_size, method = method)
 
-        indices.append(level_indices[:, 1])
+        indices.append(level_indices)
         result.append(out)
     indices = tf.concat(indices, axis = 0)
     result = tf.concat(result, axis = 0)
@@ -51,7 +50,7 @@ def roi_align(feature, bbox_pred, image_shape = [1024, 1024], pool_size = 7, met
     indices = tf.gather(indices, sorted_indices)
     result = tf.gather(result, indices)
     
-    pad_size = max_size - tf.shape(bbox_pred)[1]
+    pad_size = max_size - tf.shape(bbox_pred)[0]
     result = tf.pad(result, [[0, pad_size], [0, 0], [0, 0], [0, 0]])
     result = tf.reshape(result, [max_size, *pool_size, tf.shape(feature[0])[-1]])
     return result

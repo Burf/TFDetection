@@ -13,9 +13,9 @@ def classnet_accuracy(y_true, y_pred, missing_value = 0.):
     y_pred = tf.reshape(y_pred, (-1, n_pred_class))
     
     y_true = tf.cond(tf.equal(n_true_class, 1), true_fn = lambda: y_true[..., 0], false_fn = lambda: tf.cast(tf.argmax(y_true, axis = -1), y_true.dtype))
-    true_indices = tf.where(0 < y_true)
-    y_true = tf.gather_nd(y_true, true_indices)
-    y_pred = tf.gather_nd(y_pred, true_indices)
+    true_indices = tf.where(0 < y_true)[:, 0]
+    y_true = tf.gather(y_true, true_indices)
+    y_pred = tf.gather(y_pred, true_indices)
     
     dtype = y_pred.dtype
     y_pred = tf.argmax(y_pred, axis = -1)
@@ -36,9 +36,9 @@ def classnet_loss(y_true, y_pred, focal = True, alpha = .25, gamma = 1.5, weight
     y_pred = tf.reshape(y_pred, (-1, n_pred_class))
     
     if background:
-        pred_indices = tf.where(0 < tf.reduce_max(y_pred, axis = -1))
-        y_true = tf.gather_nd(y_true, pred_indices)
-        y_pred = tf.gather_nd(y_pred, pred_indices)
+        pred_indices = tf.where(0 < tf.reduce_max(y_pred, axis = -1))[:, 0]
+        y_true = tf.gather(y_true, pred_indices)
+        y_pred = tf.gather(y_pred, pred_indices)
     
     y_true = tf.cond(tf.equal(n_true_class, 1), true_fn = lambda: tf.one_hot(tf.cast(y_true, tf.int32), n_pred_class)[:, 0], false_fn = lambda: y_true)
     true_flag = tf.not_equal(tf.expand_dims(tf.argmax(y_true, axis = -1), axis = -1), 0)
@@ -75,9 +75,9 @@ def boxnet_loss(y_true, bbox_true, bbox_pred, sigma = 3, missing_value = 0.):
     bbox_true = tf.reshape(bbox_true, (-1, 4))
     bbox_pred = tf.reshape(bbox_pred, (-1, 4))
     
-    true_indices = tf.where(0 < y_true)
-    bbox_true = tf.gather_nd(bbox_true, true_indices)
-    bbox_pred = tf.gather_nd(bbox_pred, true_indices)
+    true_indices = tf.where(0 < y_true)[:, 0]
+    bbox_true = tf.gather(bbox_true, true_indices)
+    bbox_pred = tf.gather(bbox_pred, true_indices)
     
     loss = smooth_l1(bbox_true, bbox_pred, sigma)
     loss = tf.reduce_sum(loss, axis = -1)

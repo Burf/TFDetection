@@ -5,7 +5,7 @@ from tfdet.core.bbox import delta2bbox
 from tfdet.core.util import map_fn, multiclass_nms
 
 class FilterDetection(tf.keras.layers.Layer):
-    def __init__(self, proposal_count = 100, iou_threshold = 0.5, score_threshold = 0.05, soft_nms = False, ensemble = True, valid = False, performance_count = 5000,
+    def __init__(self, proposal_count = 100, iou_threshold = 0.5, score_threshold = 0.05, soft_nms = False, ensemble = True, valid = False, ignore_label = 0, performance_count = 5000,
                  batch_size = 1, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, **kwargs):
         super(FilterDetection, self).__init__(**kwargs)
         self.proposal_count = proposal_count
@@ -14,6 +14,7 @@ class FilterDetection(tf.keras.layers.Layer):
         self.soft_nms = soft_nms
         self.ensemble = ensemble
         self.valid = valid
+        self.ignore_label = ignore_label
         self.performance_count = performance_count
         self.batch_size = batch_size
         self.mean = mean
@@ -53,7 +54,7 @@ class FilterDetection(tf.keras.layers.Layer):
             dtype += (mask_regress.dtype,)
         args = [l for l in [cls_logits, cls_regress, proposals, mask_regress] if l is not None]
         out = map_fn(multiclass_nms, *args, dtype = dtype, batch_size = self.batch_size, 
-                     proposal_count = self.proposal_count, iou_threshold = self.iou_threshold, score_threshold = self.score_threshold, soft_nms = self.soft_nms, performance_count = self.performance_count,
+                     proposal_count = self.proposal_count, iou_threshold = self.iou_threshold, score_threshold = self.score_threshold, soft_nms = self.soft_nms, ignore_label = self.ignore_label, performance_count = self.performance_count,
                      coder_func = delta2bbox, mean = self.mean, std = std, clip_ratio = self.clip_ratio)
         return out
         
@@ -65,6 +66,7 @@ class FilterDetection(tf.keras.layers.Layer):
         config["soft_nms"] = self.soft_nms
         config["ensemble"] = self.ensemble
         config["valid"] = self.valid
+        config["ignore_label"] = self.ignore_label
         config["performance_count"] = self.performance_count
         config["batch_size"] = self.batch_size
         config["mean"] = self.mean

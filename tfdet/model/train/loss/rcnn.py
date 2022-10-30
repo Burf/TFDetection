@@ -7,8 +7,8 @@ def score_accuracy(match, score, threshold = 0.5, missing_value = 0.):
     match = -1 : negative / 0 : neutral / 1 : positive #(batch_size, sampling_count, 1)
     score = score for FG/BG #(batch_size, sampling_count, 1)
     """
-    indices = tf.where(tf.equal(match, 1))
-    score = tf.gather_nd(score, indices)
+    indices = tf.where(tf.equal(match, 1))[:, 0]
+    score = tf.gather(score, indices)
     match_score = tf.ones_like(score)
     
     score = tf.expand_dims(tf.clip_by_value(score, tf.keras.backend.epsilon(), 1 - tf.keras.backend.epsilon()), axis = -1)
@@ -24,9 +24,9 @@ def score_loss(match, score, focal = True, missing_value = 0.):
     score = score for FG/BG #(batch_size, sampling_count, 1)
     """
     match_score = tf.cast(tf.equal(match, 1), tf.int32)
-    indices = tf.where(tf.not_equal(match, 0))
-    score = tf.gather_nd(score, indices)
-    match_score = tf.gather_nd(match_score, indices)
+    indices = tf.where(tf.not_equal(match, 0))[:, 0]
+    score = tf.gather(score, indices)
+    match_score = tf.gather(match_score, indices)
     
     match_score = tf.expand_dims(tf.cast(match_score, score.dtype), axis = -1)
     score = tf.expand_dims(tf.clip_by_value(score, tf.keras.backend.epsilon(), 1 - tf.keras.backend.epsilon()), axis = -1)
@@ -50,9 +50,9 @@ def logits_accuracy(y_true, y_pred, missing_value = 0.):
     y_true = tf.reshape(y_true, (-1, n_true_class))
     y_pred = tf.reshape(y_pred, (-1, n_pred_class))
     
-    pred_indices = tf.where(0 < tf.reduce_max(y_pred, axis = -1))
-    y_true = tf.gather_nd(y_true, pred_indices)
-    y_pred = tf.gather_nd(y_pred, pred_indices)
+    pred_indices = tf.where(0 < tf.reduce_max(y_pred, axis = -1))[:, 0]
+    y_true = tf.gather(y_true, pred_indices)
+    y_pred = tf.gather(y_pred, pred_indices)
     
     dtype = y_pred.dtype
     y_true = tf.cond(tf.equal(n_true_class, 1), true_fn = lambda: y_true[..., 0], false_fn = lambda: tf.cast(tf.argmax(y_true, axis = -1), y_true.dtype))
@@ -73,9 +73,9 @@ def logits_loss(y_true, y_pred, focal = True, alpha = 1., gamma = 2., weight = N
     y_true = tf.reshape(y_true, (-1, n_true_class))
     y_pred = tf.reshape(y_pred, (-1, n_pred_class))
     
-    pred_indices = tf.where(0 < tf.reduce_max(y_pred, axis = -1))
-    y_true = tf.gather_nd(y_true, pred_indices)
-    y_pred = tf.gather_nd(y_pred, pred_indices)
+    pred_indices = tf.where(0 < tf.reduce_max(y_pred, axis = -1))[:, 0]
+    y_true = tf.gather(y_true, pred_indices)
+    y_pred = tf.gather(y_pred, pred_indices)
     
     y_true = tf.cond(tf.equal(n_true_class, 1), true_fn = lambda: tf.one_hot(tf.cast(y_true, tf.int32), n_pred_class)[:, 0], false_fn = lambda: y_true)
     y_true = tf.cast(y_true, y_pred.dtype)
@@ -106,9 +106,9 @@ def regress_loss(match_or_y_true, bbox_true, bbox_pred, sigma = 1, missing_value
     bbox_true = tf.reshape(bbox_true, (-1, 4))
     bbox_pred = tf.reshape(bbox_pred, (-1, 4))
     
-    true_indices = tf.where(0 < match_or_y_true)
-    bbox_true = tf.gather_nd(bbox_true, true_indices)
-    bbox_pred = tf.gather_nd(bbox_pred, true_indices)
+    true_indices = tf.where(0 < match_or_y_true)[:, 0]
+    bbox_true = tf.gather(bbox_true, true_indices)
+    bbox_pred = tf.gather(bbox_pred, true_indices)
     
     loss = smooth_l1(bbox_true, bbox_pred, sigma)
     loss = tf.reduce_sum(loss, axis = -1)
@@ -131,9 +131,9 @@ def mask_loss(y_true, mask_true, mask_pred, missing_value = 0.):
     #true_indices = tf.where(0 < tf.reduce_max(mask_true, axis = [-1, -2]))
     y_true = tf.cond(tf.equal(tf.shape(y_true)[-1], 1), true_fn = lambda: y_true, false_fn = lambda: tf.expand_dims(tf.cast(tf.argmax(y_true, -1), y_true.dtype), axis = -1))
     y_true = tf.reshape(y_true, (-1,))
-    true_indices = tf.where(0 < y_true)
-    mask_true = tf.gather_nd(mask_true, true_indices)
-    mask_pred = tf.gather_nd(mask_pred, true_indices)
+    true_indices = tf.where(0 < y_true)[:, 0]
+    mask_true = tf.gather(mask_true, true_indices)
+    mask_pred = tf.gather(mask_pred, true_indices)
     mask_true = tf.expand_dims(mask_true, axis = -1)
     mask_pred = tf.expand_dims(mask_pred, axis = -1)
     

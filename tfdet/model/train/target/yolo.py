@@ -12,9 +12,9 @@ def yolo_target(y_true, bbox_true, score_pred, logit_pred, bbox_pred, anchors, a
     bbox_pred = classifier regress #(num_anchors, delta)
     anchors = [[x1, y1, x2, y2], ...] #(num_anchors, bbox)
     """
-    valid_indices = tf.where(0 < tf.reduce_max(bbox_true, axis = -1))
-    y_true = tf.gather_nd(y_true, valid_indices)
-    bbox_true = tf.gather_nd(bbox_true, valid_indices)
+    valid_indices = tf.where(0 < tf.reduce_max(bbox_true, axis = -1))[:, 0]
+    y_true = tf.gather(y_true, valid_indices)
+    bbox_true = tf.gather(bbox_true, valid_indices)
     if valid:
         valid_flags = tf.logical_and(tf.less_equal(anchors[..., 2], 1),
                                  tf.logical_and(tf.less_equal(anchors[..., 3], 1),

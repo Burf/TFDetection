@@ -24,7 +24,7 @@ def train_model(input, rpn_score = None, rpn_regress = None, anchors = None, cls
                 sampling_tag = None, sampling_count = 256,
                 rpn_assign = rpn_assign, rpn_positive_ratio = 0.5,
                 cls_assign = [cls_assign, cls_assign2, cls_assign3], cls_positive_ratio = 0.25,
-                proposal_count = 100, iou_threshold = 0.5, score_threshold = 0.05, soft_nms = False, ensemble = True, valid = False, performance_count = 5000,
+                proposal_count = 100, iou_threshold = 0.5, score_threshold = 0.05, soft_nms = False, ensemble = True, valid = False, ignore_label = 0, performance_count = 5000,
                 batch_size = 1, 
                 rpn_mean = [0., 0., 0., 0.], rpn_std = [1., 1., 1., 1.], rpn_clip_ratio = 16 / 1000, 
                 cls_mean = [0., 0., 0., 0.], cls_std = [0.1, 0.1, 0.2, 0.2], cls_clip_ratio = 16 / 1000,
@@ -150,7 +150,7 @@ def train_model(input, rpn_score = None, rpn_regress = None, anchors = None, cls
     loss = {k:tf.expand_dims(v, axis = -1) for k, v in loss.items()}
 
     input = [input] + [l for l in [y_true, bbox_true, mask_true] if l is not None]
-    output = FilterDetection(proposal_count = proposal_count, iou_threshold = iou_threshold, score_threshold = score_threshold, soft_nms = soft_nms, ensemble = ensemble, valid = valid, performance_count = performance_count,
+    output = FilterDetection(proposal_count = proposal_count, iou_threshold = iou_threshold, score_threshold = score_threshold, soft_nms = soft_nms, ensemble = ensemble, valid = valid, ignore_label = ignore_label, performance_count = performance_count,
                              batch_size = batch_size, mean = cls_mean, std = cls_std, clip_ratio = cls_clip_ratio)(args)
     model = tf.keras.Model(input, list(output))
 

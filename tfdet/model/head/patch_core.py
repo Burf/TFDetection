@@ -40,7 +40,8 @@ class Head(tf.keras.layers.Layer):
         score = tf.sort(euclidean_matrix(feature, self.feature_vector), axis = -1)[..., :self.k]
         mask = tf.reshape(score[..., 0], [b, h, w, 1])
         score = tf.reshape(score, [b, h * w, -1])
-        conf = tf.gather_nd(score, tf.stack([tf.range(b), tf.cast(tf.argmax(score[..., 0], axis = -1), tf.int32)], axis = -1))
+        #conf = tf.gather_nd(score, tf.stack([tf.range(b), tf.cast(tf.argmax(score[..., 0], axis = -1), tf.int32)], axis = -1))
+        conf = tf.gather(score, tf.argmax(score[..., 0], axis = -1), batch_dims = 1)
         exp_conf = tf.exp(conf)
         weight = 1 - tf.reduce_max(exp_conf, axis = -1) / tf.reduce_sum(exp_conf, axis = -1)
         score = tf.reduce_max(score[..., 0], axis = -1) * weight

@@ -7,8 +7,8 @@ def score_accuracy(score_true, score_pred, threshold = 0.5, missing_value = 0.):
     score_true = -1 : negative / 0 : neutral / 1 : positive #(batch_size, sampling_count, 1)
     score_pred = confidence score for FG/BG #(batch_size, sampling_count, 1)
     """
-    indices = tf.where(tf.equal(score_true, 1))
-    score = tf.gather_nd(score_pred, indices)
+    indices = tf.where(tf.equal(score_true, 1))[:, 0]
+    score = tf.gather(score_pred, indices)
     match_score = tf.ones_like(score)
 
     score = tf.expand_dims(tf.clip_by_value(score, tf.keras.backend.epsilon(), 1 - tf.keras.backend.epsilon()), axis = -1)
@@ -24,9 +24,9 @@ def score_loss(score_true, score_pred, focal = True, missing_value = 0.):
     score_pred = confidence score for FG/BG #(batch_size, sampling_count, 1)
     """
     match_score = tf.cast(tf.equal(score_true, 1), tf.int32)
-    indices = tf.where(tf.not_equal(score_true, 0))
-    score = tf.gather_nd(score_pred, indices)
-    match_score = tf.gather_nd(match_score, indices)
+    indices = tf.where(tf.not_equal(score_true, 0))[:, 0]
+    score = tf.gather(score_pred, indices)
+    match_score = tf.gather(match_score, indices)
 
     match_score = tf.expand_dims(tf.cast(match_score, score_pred.dtype), axis = -1)
     score = tf.expand_dims(tf.clip_by_value(score, tf.keras.backend.epsilon(), 1 - tf.keras.backend.epsilon()), axis = -1)
@@ -52,9 +52,9 @@ def logits_accuracy(score_true, logit_true, logit_pred, missing_value = 0.):
     logit_true = tf.reshape(logit_true, (-1, n_true_class))
     logit_pred = tf.reshape(logit_pred, (-1, n_pred_class))
     
-    true_indices = tf.where(0 < score_true)
-    logit_true = tf.gather_nd(logit_true, true_indices)
-    logit_pred = tf.gather_nd(logit_pred, true_indices)
+    true_indices = tf.where(0 < score_true)[:, 0]
+    logit_true = tf.gather(logit_true, true_indices)
+    logit_pred = tf.gather(logit_pred, true_indices)
 
     dtype = logit_pred.dtype
     logit_true = tf.cond(tf.equal(n_true_class, 1), true_fn = lambda: logit_true[..., 0], false_fn = lambda: tf.cast(tf.argmax(logit_true, axis = -1), logit_true.dtype))
@@ -77,9 +77,9 @@ def logits_loss(score_true, logit_true, logit_pred, focal = True, alpha = .25, g
     logit_true = tf.reshape(logit_true, (-1, n_true_class))
     logit_pred = tf.reshape(logit_pred, (-1, n_pred_class))
     
-    true_indices = tf.where(0 < score_true)
-    logit_true = tf.gather_nd(logit_true, true_indices)
-    logit_pred = tf.gather_nd(logit_pred, true_indices)
+    true_indices = tf.where(0 < score_true)[:, 0]
+    logit_true = tf.gather(logit_true, true_indices)
+    logit_pred = tf.gather(logit_pred, true_indices)
 
     logit_true = tf.cond(tf.equal(n_true_class, 1), true_fn = lambda: tf.one_hot(tf.cast(logit_true, tf.int32), n_pred_class)[:, 0], false_fn = lambda: logit_true)
     logit_true = tf.cast(logit_true, logit_pred.dtype)
@@ -111,9 +111,9 @@ def regress_loss(score_true, bbox_true, bbox_pred, mode = "general", missing_val
     bbox_true = tf.reshape(bbox_true, (-1, 4))
     bbox_pred = tf.reshape(bbox_pred, (-1, 4))
     
-    true_indices = tf.where(0 < score_true)
-    bbox_true = tf.gather_nd(bbox_true, true_indices)
-    bbox_pred = tf.gather_nd(bbox_pred, true_indices)
+    true_indices = tf.where(0 < score_true)[:, 0]
+    bbox_true = tf.gather(bbox_true, true_indices)
+    bbox_pred = tf.gather(bbox_pred, true_indices)
 
     overlaps = overlap_bbox(bbox_pred, bbox_true, mode = mode) #(P, T)
     max_iou = tf.reduce_max(overlaps, axis = 1)

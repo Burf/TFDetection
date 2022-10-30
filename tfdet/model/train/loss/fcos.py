@@ -13,9 +13,9 @@ def centernessnet_loss(y_true, centerness_true, centerness_pred, missing_value =
     centerness_true = tf.reshape(centerness_true, (-1, 1))
     centerness_pred = tf.reshape(centerness_pred, (-1, 1))
     
-    true_indices = tf.where(0 < y_true)
-    centerness_true = tf.gather_nd(centerness_true, true_indices)
-    centerness_pred = tf.gather_nd(centerness_pred, true_indices)
+    true_indices = tf.where(0 < y_true)[:, 0]
+    centerness_true = tf.gather(centerness_true, true_indices)
+    centerness_pred = tf.gather(centerness_pred, true_indices)
     
     loss = tf.keras.losses.binary_crossentropy(centerness_true, centerness_pred)
     loss = tf.reduce_mean(loss)

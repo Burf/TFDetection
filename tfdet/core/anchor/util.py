@@ -5,8 +5,8 @@ from ..bbox import overlap_bbox_numpy as overlap_bbox
 
 def generate_hist_scale(bbox_true, count = 5, decimal = 4):
     bbox_true = tf.reshape(bbox_true, (-1, 4))
-    indices = tf.where(tf.reduce_max(tf.cast(0 < bbox_true, tf.int32), axis = -1))
-    bbox_true = tf.gather_nd(bbox_true, indices)
+    indices = tf.where(tf.reduce_max(tf.cast(0 < bbox_true, tf.int32), axis = -1))[:, 0]
+    bbox_true = tf.gather(bbox_true, indices)
 
     h = bbox_true[:, 3] - bbox_true[:, 1]
     w = bbox_true[:, 2] - bbox_true[:, 0]

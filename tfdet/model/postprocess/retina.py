@@ -4,7 +4,7 @@ from tfdet.core.bbox import delta2bbox
 from tfdet.core.util import map_fn, multiclass_nms
 
 class FilterDetection(tf.keras.layers.Layer):
-    def __init__(self, proposal_count = 100, iou_threshold = 0.5, score_threshold = 0.05, soft_nms = False, valid = False, performance_count = 5000,
+    def __init__(self, proposal_count = 100, iou_threshold = 0.5, score_threshold = 0.05, soft_nms = False, valid = False, ignore_label = 0, performance_count = 5000,
                  batch_size = 1, mean = [0., 0., 0., 0.], std = [1., 1., 1., 1.], clip_ratio = 16 / 1000, **kwargs):
         super(FilterDetection, self).__init__(**kwargs)
         self.proposal_count = proposal_count
@@ -12,6 +12,7 @@ class FilterDetection(tf.keras.layers.Layer):
         self.score_threshold = score_threshold
         self.soft_nms = soft_nms
         self.valid = valid
+        self.ignore_label = ignore_label
         self.performance_count = performance_count
         self.batch_size = batch_size
         self.mean = mean
@@ -39,7 +40,7 @@ class FilterDetection(tf.keras.layers.Layer):
         anchors = tf.tile(tf.expand_dims(anchors, axis = 0), [tf.shape(logits)[0], 1, 1])
         
         out = map_fn(multiclass_nms, logits, regress, anchors, dtype = (logits.dtype, regress.dtype), batch_size = self.batch_size,
-                     proposal_count = self.proposal_count, soft_nms = self.soft_nms, iou_threshold = self.iou_threshold, score_threshold = self.score_threshold, performance_count = self.performance_count,
+                     proposal_count = self.proposal_count, soft_nms = self.soft_nms, iou_threshold = self.iou_threshold, score_threshold = self.score_threshold, ignore_label = self.ignore_label, performance_count = self.performance_count,
                      coder_func = delta2bbox, mean = self.mean, std = self.std, clip_ratio = self.clip_ratio)
         return out
         
@@ -50,6 +51,7 @@ class FilterDetection(tf.keras.layers.Layer):
         config["score_threshold"] = self.score_threshold
         config["soft_nms"] = self.soft_nms
         config["valid"] = self.valid
+        config["ignore_label"] = self.ignore_label
         config["performance_count"] = self.performance_count
         config["batch_size"] = self.batch_size
         config["mean"] = self.mean

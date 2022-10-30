@@ -9,7 +9,7 @@ from ..postprocess.retina import FilterDetection
 
 def train_model(input, logits, regress, anchors,
                 assign = max_iou, sampling_count = None, positive_ratio = 0.5,
-                proposal_count = 100, iou_threshold = 0.5, score_threshold = 0.05, soft_nms = False, valid = False, performance_count = 5000,
+                proposal_count = 100, iou_threshold = 0.5, score_threshold = 0.05, soft_nms = False, valid = False, ignore_label = 0, performance_count = 5000,
                 batch_size = 1, mean = [0., 0., 0., 0.], std = [1., 1., 1., 1.], clip_ratio = 16 / 1000,
                 regularize = True, weight_decay = 1e-4, focal = True, alpha = .25, gamma = 1.5, sigma = 3, class_weight = None, background = False, missing_value = 0.):
     y_true = tf.keras.layers.Input(shape = (None, None), name = "y_true", dtype = logits.dtype)
@@ -27,7 +27,7 @@ def train_model(input, logits, regress, anchors,
     score_loss = tf.expand_dims(score_loss, axis = -1)
     regress_loss = tf.expand_dims(regress_loss, axis = -1)
     
-    y_pred, bbox_pred = FilterDetection(proposal_count = proposal_count, iou_threshold = iou_threshold, score_threshold = score_threshold, soft_nms = soft_nms, valid = valid, performance_count = performance_count,
+    y_pred, bbox_pred = FilterDetection(proposal_count = proposal_count, iou_threshold = iou_threshold, score_threshold = score_threshold, soft_nms = soft_nms, valid = valid, ignore_label = ignore_label, performance_count = performance_count,
                                         batch_size = batch_size, mean = mean, std = std, clip_ratio = clip_ratio)([logits, regress, anchors])
     model = tf.keras.Model([input, y_true, bbox_true], [y_pred, bbox_pred])
     
