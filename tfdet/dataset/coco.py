@@ -45,7 +45,20 @@ COLOR = [(0, 0, 0),
          (95, 54, 80), (128, 76, 255), (201, 57, 1), (246, 0, 122),
          (191, 162, 208)]
 
-def load_data(path, data_path, mask = False, crowd = False, label = LABEL, shuffle = False):
+memory = {}
+
+def clear(path = None):
+    global memory
+    if isinstance(path, str):
+        key = os.path.basename(path)
+        if key in memory:
+            del memory[key]
+    else:
+        memory.clear()
+    return memory
+    
+
+def load_data(path, data_path, mask = False, crowd = False, label = LABEL, refresh = False, shuffle = False):
     """
     https://cocodataset.org
     
@@ -62,7 +75,14 @@ def load_data(path, data_path, mask = False, crowd = False, label = LABEL, shuff
         print("If you want to use 'load_coco', please install 'pycocotools'")
         raise e
 
-    coco = COCO(path)
+    global memory
+    key = os.path.basename(path)
+    if refresh:
+        coco = COCO(path)
+    else:
+        coco = memory[key] if key in memory else COCO(path)
+    memory[key] = coco
+        
     cat_ids = coco.getCatIds(label)
     cat2label = {cat_id: i for i, cat_id in enumerate(cat_ids)}
     ids = coco.getImgIds()
@@ -110,7 +130,7 @@ def load_data(path, data_path, mask = False, crowd = False, label = LABEL, shuff
             result = (x_true, y_true, bbox_true, mask_true)
         yield result
         
-def load_pipe(path, data_path, mask = False, crowd = False, label = LABEL, shuffle = False,
+def load_pipe(path, data_path, mask = False, crowd = False, label = LABEL, refresh = False, shuffle = False,
               batch_size = 0, repeat = 1, prefetch = False,
               cache = None, num_parallel_calls = None):
     """
@@ -122,7 +142,7 @@ def load_pipe(path, data_path, mask = False, crowd = False, label = LABEL, shuff
     mask = with instance mask_true
     crowd = iscrowd
     """
-    generator = functools.partial(load_data, path, data_path, mask = mask, crowd = crowd, label = label, shuffle = shuffle)
+    generator = functools.partial(load_data, path, data_path, mask = mask, crowd = crowd, label = label, refresh = refresh, shuffle = shuffle)
     dtype = (tf.string, tf.string, tf.int32, tf.float32) if mask else (tf.string, tf.string, tf.int32)
     pipe = tf.data.Dataset.from_generator(generator, dtype)
     return pipeline(pipe, batch_size = batch_size, repeat = repeat, shuffle = False, prefetch = prefetch,

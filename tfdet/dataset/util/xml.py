@@ -36,7 +36,7 @@ def xml2dict(data, attrib_prf = "@", unknown_text = "#text"):
     parse(element, result)
     return result
 
-def dict2xml(data, path = None):
+def dict2xml(data, save_path = None):
     key, val = list(data.items())[0]
     root = xml.etree.ElementTree.Element(key)
     
@@ -51,7 +51,7 @@ def dict2xml(data, path = None):
             element.text = data
     push(val, root)
     
-    if isinstance(path, str):
+    if isinstance(save_path, str):
         tree = xml.etree.ElementTree.ElementTree(root)
-        tree.write(path, "utf-8")
+        tree.write(save_path, "utf-8")
     return root

@@ -6,6 +6,11 @@ def load_image(path, bgr2rgb = True):
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) if bgr2rgb else image
     return image
 
+def save_image(image, path, rgb2bgr = True):
+    image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR) if rgb2bgr else image
+    image = cv2.imwrite(path, image)
+    return path
+
 def instance2semantic(y_true, mask_true, label = None):
     """
     y_true = (P, 1)
@@ -43,6 +48,11 @@ def instance2bbox(mask_true, normalize = False):
     return bbox_true
 
 def trim_bbox(x_true, image_shape = None, pad_val = 0, mode = "both", decimal = 4):
+    """
+    mode = ("left", "right", "both")
+    """
+    if mode not in ("left", "right", "both"):
+        raise ValueError("unknown mode '{0}'".format(mode))
     h, w = np.shape(x_true)[:2]
     if image_shape is not None:
         l = r = [0, 0]

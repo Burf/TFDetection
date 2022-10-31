@@ -31,20 +31,24 @@ def draw_bbox(x_true, bbox_true, y_true = None, mask_true = None, label = None, 
                 y_index = np.argmax(y, axis = -1)
                 score = np.max(y, axis = -1)
             else:
-                y_index = y[..., 0].astype(int)
+                y_index = y[..., 0]
                 score = np.ones_like(y_index, dtype = np.float32)
         
         for index, rect in enumerate(bbox):
             bbox_color = color
-            if color is None:
+            if color is None or (not np.issubdtype(y_index.dtype, np.number) and not (label and np.ndim(bbox_color) == 2)):
                 bbox_color = np.random.random(size = 3) if normalize_flag else np.random.randint(0, 256, size = 3).astype(float)
             if np.max(rect) < 2:
                 rect = np.round(np.multiply(rect, [w, h, w, h]))
             rect = tuple(rect.astype(int))
             
             if y_true is not None:
-                name = label[y_index[index]] if label is not None else y_index[index]
-                bbox_color = bbox_color[y_index[index]] if np.ndim(bbox_color) == 2 else bbox_color
+                if not np.issubdtype(y_index.dtype, np.number):
+                    name = y_index[index]
+                    bbox_color = bbox_color[np.argmax(np.isin(label, name))] if np.ndim(bbox_color) == 2 and label is not None else bbox_color
+                else:
+                    name = label[int(y_index[index])] if label is not None else int(y_index[index])
+                    bbox_color = bbox_color[y_index[index]] if np.ndim(bbox_color) == 2 else bbox_color
                 msg = "{0}{1}".format(prefix, name)
                 if probability:
                     msg = "{0}:{1:.2f}".format(msg, score[index])

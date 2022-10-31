@@ -56,7 +56,8 @@ def pipe(x_true, y_true = None, bbox_true = None, mask_true = None, function = N
                         dtype = [dtype] * len(x_true.element_spec)
                 else:
                     dtype = [dtype] * len(x_true if isinstance(x_true, dict) else [arg for arg in [x_true, y_true, bbox_true, mask_true] if arg is not None])
-            dtype = dtype[0] if 0 < np.ndim(dtype) and len(dtype) == 1 else tuple(dtype)
+            if 0 < np.ndim(dtype):        
+                dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
             func = functools.partial(py_func, function, Tout = dtype, **kwargs) if callable(function) else None
     return pipeline(args, function = func,
                     batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,

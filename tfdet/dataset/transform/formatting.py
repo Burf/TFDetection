@@ -29,11 +29,11 @@ def cast(x_true, y_true = None, bbox_true = None, mask_true = None, map = {"x_tr
     else:
         if "x_true" in map:
             x_true = tf.cast(x_true, map["x_true"])
-        if y_true is None and "y_true" in map:
+        if y_true is not None and "y_true" in map:
             y_true = tf.cast(y_true, map["y_true"])
-        if bbox_true is None and "bbox_true" in map:
+        if bbox_true is not None and "bbox_true" in map:
             bbox_true = tf.cast(bbox_true, map["bbox_true"])
-        if mask_true is None and "mask_true" in map:
+        if mask_true is not None and "mask_true" in map:
             mask_true = tf.cast(mask_true, map["mask_true"])
     result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
     result = result[0] if len(result) == 1 else tuple(result)
