@@ -70,14 +70,18 @@ def sampling_target(y_true, bbox_true, proposal, mask_true = None, assign = cls_
     """
     y_true = label #(padded_num_true, 1 or num_class)
     bbox_true = [[x1, y1, x2, y2], ...] #(padded_num_true, bbox)
-    mask_true = mask #(padded_num_true, h, w)
+    mask_true = mask #(padded_num_true, h, w, 1)
     proposal = [[x1, y1, x2, y2], ...] #(num_proposals, bbox)
 
     y_true = targeted label #(sampling_count, 1 or num_class) 
     bbox_true = [[x1, y1, x2, y2], ...] #(sampling_count, bbox)
-    mask_true = targeted mask true #(sampling_count, h, w)
+    mask_true = targeted mask true #(sampling_count, h, w, 1)
     proposal = [[x1, y1, x2, y2], ...] #(sampling_count, bbox)
     """
+    if mask_true is not None:
+        if tf.keras.backend.ndim(mask_true) == 3:
+            mask_true = tf.expand_dims(mask_true, axis = -1)
+            
     pred_count = tf.shape(proposal)[0]
     valid_true_indices = tf.where(0 < tf.reduce_max(bbox_true, axis = -1))[:, 0]
     y_true = tf.gather(y_true, valid_true_indices)
@@ -116,7 +120,7 @@ def sampling_target(y_true, bbox_true, proposal, mask_true = None, assign = cls_
     proposal = tf.pad(proposal, [[0, pad_count], [0, 0]])
     result = y_true, bbox_true, proposal
     if mask_true is not None:
-        mask_true = tf.pad(mask_true, [[0, negative_count + pad_count], [0, 0], [0, 0]])
+        mask_true = tf.pad(mask_true, [[0, negative_count + pad_count], [0, 0], [0, 0], [0, 0]])
         result = y_true, bbox_true, mask_true, proposal
     return result
 
@@ -153,14 +157,13 @@ def sampling_postprocess(y_true, bbox_true, cls_logits, cls_regress, proposal, m
             mask_bbox = tf.concat([y1, x1, y2, x2], axis = -1)
             mask_shape = tf.shape(mask_pred)
             mask_true = tf.image.crop_and_resize(image = tf.cast(mask_true, mask_pred.dtype), boxes = mask_bbox, box_indices = tf.range(0, positive_count), crop_size = mask_shape[1:3], method = method)
-            mask_true = mask_true[..., 0]
             mask_true = tf.clip_by_value(tf.round(mask_true), 0., 1.)
             mask_pred = tf.transpose(mask_pred, [0, 3, 1, 2])
             mask_pred = tf.gather(mask_pred, indices, batch_dims = 1)
+            mask_pred = tf.expand_dims(mask_pred, axis = -1)
     else:
         bbox_pred = bbox_pred[:, 0]
         if mask_true is not None and mask_regress is not None:
-            mask_pred = mask_pred[..., 0]
             mask_true = tf.zeros_like(mask_pred, dtype = mask_pred.dtype)
     
     pred_count = tf.shape(pred_indices)[0]
@@ -172,8 +175,8 @@ def sampling_postprocess(y_true, bbox_true, cls_logits, cls_regress, proposal, m
     bbox_pred = tf.pad(bbox_pred, [[0, negative_count + pad_count], [0, 0]])
     result = y_true, bbox_true, y_pred, bbox_pred
     if mask_true is not None and mask_regress is not None:
-        mask_true = tf.pad(mask_true, [[0, negative_count + pad_count], [0, 0], [0, 0]])
-        mask_pred = tf.pad(mask_pred, [[0, negative_count + pad_count], [0, 0], [0, 0]])
+        mask_true = tf.pad(mask_true, [[0, negative_count + pad_count], [0, 0], [0, 0], [0, 0]])
+        mask_pred = tf.pad(mask_pred, [[0, negative_count + pad_count], [0, 0], [0, 0], [0, 0]])
         result = y_true, bbox_true, mask_true, y_pred, bbox_pred, mask_pred
     return result
 
@@ -181,7 +184,7 @@ def cls_target(y_true, bbox_true, cls_logit, cls_regress, proposal, mask_true = 
     """
     y_true = label #(padded_num_true, 1 or num_class)
     bbox_true = [[x1, y1, x2, y2], ...] #(padded_num_true, bbox)
-    mask_true = mask #(padded_num_true, h, w)
+    mask_true = mask #(padded_num_true, h, w, 1)
     cls_logit = classifier logit #(num_proposals, num_class)
     cls_regress = classifier regress #(num_proposals, num_class, delta)
     mask_regress = mask regress #(num_proposals, h, w, num_class)
@@ -189,10 +192,10 @@ def cls_target(y_true, bbox_true, cls_logit, cls_regress, proposal, mask_true = 
 
     y_true = targeted label #(sampling_count, 1 or num_class) 
     bbox_true = [[x1, y1, x2, y2], ...] #(sampling_count, delta)
-    mask_true = targeted mask true #(sampling_count, h, w)
+    mask_true = targeted mask true #(sampling_count, h, w, 1)
     y_pred = targeted logit #(sampling_count, num_class)
     bbox_pred = [[x1, y1, x2, y2], ...] #(sampling_count, delta)
-    mask_pred = targeted mask regress #(sampling_count, h, w)
+    mask_pred = targeted mask regress #(sampling_count, h, w, 1)
     """
     if mask_true is not None and mask_regress is not None:
         if tf.keras.backend.ndim(mask_true) == 3:
@@ -249,14 +252,13 @@ def cls_target(y_true, bbox_true, cls_logit, cls_regress, proposal, mask_true = 
             mask_bbox = tf.concat([y1, x1, y2, x2], axis = -1)
             mask_shape = tf.shape(mask_pred)
             mask_true = tf.image.crop_and_resize(image = tf.cast(mask_true, mask_pred.dtype), boxes = mask_bbox, box_indices = tf.range(0, tf.cast(positive_count, tf.int32)), crop_size = mask_shape[1:3], method = method)
-            mask_true = mask_true[..., 0]
             mask_true = tf.clip_by_value(tf.round(mask_true), 0., 1.)
             mask_pred = tf.transpose(mask_pred, [0, 3, 1, 2])
             mask_pred = tf.gather(mask_pred, indices, batch_dims = 1)
+            mask_pred = tf.expand_dims(mask_pred, axis = -1)
     else:
         bbox_pred = bbox_pred[:, 0]
         if mask_true is not None and mask_regress is not None:
-            mask_pred = mask_pred[..., 0]
             mask_true = tf.zeros_like(mask_pred, dtype = mask_pred.dtype)
     
     negative_count = tf.shape(negative_indices)[0]
@@ -267,7 +269,7 @@ def cls_target(y_true, bbox_true, cls_logit, cls_regress, proposal, mask_true = 
     bbox_pred = tf.pad(bbox_pred, [[0, negative_count + pad_count], [0, 0]])
     result = y_true, bbox_true, y_pred, bbox_pred
     if mask_true is not None and mask_regress is not None:
-        mask_true = tf.pad(mask_true, [[0, negative_count + pad_count], [0, 0], [0, 0]])
-        mask_pred = tf.pad(mask_pred, [[0, negative_count + pad_count], [0, 0], [0, 0]])
+        mask_true = tf.pad(mask_true, [[0, negative_count + pad_count], [0, 0], [0, 0], [0, 0]])
+        mask_pred = tf.pad(mask_pred, [[0, negative_count + pad_count], [0, 0], [0, 0], [0, 0]])
         result = y_true, bbox_true, mask_true, y_pred, bbox_pred, mask_pred
     return result

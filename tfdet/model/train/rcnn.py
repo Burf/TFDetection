@@ -102,7 +102,7 @@ def train_model(input, rpn_score = None, rpn_regress = None, anchors = None, cls
             cls_y_true = y_true = tf.keras.layers.Input(shape = (None, None), name = "y_true", dtype = cls_logits[0].dtype)
             cls_bbox_true = bbox_true
             if mask_regress[-1] is not None or semantic_regress is not None:
-                cls_mask_true = mask_true = tf.keras.layers.Input(shape = (None, None, None), name = "mask_true", dtype = [l for l in [mask_regress[-1], semantic_regress] if l is not None][0].dtype)
+                cls_mask_true = mask_true = tf.keras.layers.Input(shape = (None, None, None, 1), name = "mask_true", dtype = [l for l in [mask_regress[-1], semantic_regress] if l is not None][0].dtype)
         
         cls_dtype = (y_true.dtype, bbox_true.dtype, cls_logits[0].dtype, cls_regress[0].dtype)
         sampling_func = lambda args, **kwargs: map_fn(sampling_postprocess, *args, dtype = cls_dtype, batch_size = batch_size, **kwargs)

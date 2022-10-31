@@ -51,7 +51,7 @@ def rcnn(feature, neck = neck, rpn_head = rpn_head, bbox_head = bbox_head, mask_
     if isinstance(sampling_count, int) and 0 < sampling_count:
         sampling_y_true = y_true = tf.keras.layers.Input(shape = (None, None), name = "y_true", dtype = rpn_score.dtype) #(batch_size, padded_num_true, 1 or n_class)
         sampling_bbox_true = bbox_true = tf.keras.layers.Input(shape = (None, 4), name = "bbox_true", dtype = rpn_regress.dtype) #(batch_size, padded_num_true, 4)
-        sampling_mask_true = mask_true = tf.keras.layers.Input(shape = (None, None, None), name = "mask_true", dtype = rpn_score.dtype) if mask_head is not None or semantic_head is not None else None #(batch_size, padded_num_true, h, w)
+        sampling_mask_true = mask_true = tf.keras.layers.Input(shape = (None, None, None, 1), name = "mask_true", dtype = rpn_score.dtype) if mask_head is not None or semantic_head is not None else None #(batch_size, padded_num_true, h, w)
         
         sampling_func = lambda args, **kwarg: map_fn(sampling_target, *args, dtype = (sampling_y_true.dtype, sampling_bbox_true.dtype, sampling_bbox_true.dtype), batch_size = batch_size, **kwargs)
         sampling_mask_func = lambda args, **kwarg: map_fn(sampling_target, *args, dtype = (sampling_y_true.dtype, sampling_bbox_true.dtype, sampling_mask_true.dtype, sampling_bbox_true.dtype), batch_size = batch_size, **kwargs)
