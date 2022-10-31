@@ -386,6 +386,8 @@ def multi_scale_flip(x_true, y_true = None, bbox_true = None, mask_true = None,
     image_shape = [h, w](single apply) or [[h, w], ...](multi apply)
     mode = ("horizontal", "vertical", "both")(single apply) or [mode, ...](multi apply)
     """
+    pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
+    
     aug_pipes = []
     for shape in ([image_shape] if np.ndim(image_shape) < 2 else image_shape):
         resize_pipe = resize(pre_pipe, image_shape = shape, keep_ratio = keep_ratio) if shape is not None else pre_pipe
