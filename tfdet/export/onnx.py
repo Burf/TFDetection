@@ -1,16 +1,25 @@
 import os
 
+import numpy as np
 import tensorflow as tf
 
 def tf2onnx(model, path, opset = 13):
+    """
+    - opset
+    default = 13
+    tflite = 16
+    saved_model = 17
+    """
     try:
         import tf2onnx as onnx_converter
     except Exception as e:
         print("If you want to use 'tf2onnx', please install 'tf2onnx'")
         raise e
+    
     name, ext = os.path.splitext(path)
     if len(ext) < 2:
         path = "{0}{1}".format(name, ".onnx")
+    
     if isinstance(model, tf.keras.Model):
         model_proto, _ = onnx_converter.convert.from_keras(model, opset = opset, output_path = path)
     elif isinstance(model, str):
@@ -52,9 +61,11 @@ def onnx2quantize(path, save_path, data = None):
     except Exception as e:
         print("If you want to use 'onnx2quantize', please install 'onnxruntime'")
         raise e
+    
     name, ext = os.path.splitext(save_path)
     if len(ext) < 2:
         save_path = "{0}{1}".format(name, ".onnx")
+    
     if data is None:
         onnxruntime.quantization.quantize_dynamic(path, save_path)
     else:
@@ -68,6 +79,11 @@ def load_onnx(path, gpu = None, n_thread = None, tensorrt = False, predict = Tru
     except Exception as e:
         print("If you want to use 'load_onnx', please install 'onnxruntime'")
         raise e
+    
+    name, ext = os.path.splitext(path)
+    if len(ext) < 2:
+        path = "{0}{1}".format(name, ".onnx")
+        
     avaliable_providers = onnxruntime.get_available_providers()
     provider = ["CPUExecutionProvider"]
     if gpu is not None:
@@ -92,6 +108,10 @@ def load_onnx(path, gpu = None, n_thread = None, tensorrt = False, predict = Tru
             args = {k:v for k, v in zip(input_keys[:len(args)], args)}
             kwargs.update(args)
             pred = session.run(None, kwargs)
+            if len(pred) == 0:
+                pred = None
+            elif len(pred) == 1:
+                pred = pred[0]
             return pred
         return predict
     else:

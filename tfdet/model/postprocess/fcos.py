@@ -5,7 +5,8 @@ from tfdet.core.util import map_fn, multiclass_nms
 
 class FilterDetection(tf.keras.layers.Layer):
     def __init__(self, proposal_count = 100, iou_threshold = 0.5, score_threshold = 0.05, soft_nms = False, ignore_label = 0, performance_count = 5000, 
-                 batch_size = 1, **kwargs):
+                 batch_size = 1,
+                 tensorrt = False, **kwargs):
         super(FilterDetection, self).__init__(**kwargs)
         self.proposal_count = proposal_count
         self.iou_threshold = iou_threshold
@@ -14,6 +15,7 @@ class FilterDetection(tf.keras.layers.Layer):
         self.ignore_label = ignore_label
         self.performance_count = performance_count
         self.batch_size = batch_size
+        self.tensorrt = tensorrt
 
     def call(self, inputs):
         logits, regress, points = inputs[:3]
@@ -28,10 +30,15 @@ class FilterDetection(tf.keras.layers.Layer):
         if centerness is not None:
             logits = tf.multiply(logits, centerness)
             logits = tf.sqrt(logits)
-        points = tf.tile(tf.expand_dims(points, axis = 0), [tf.shape(logits)[0], 1, 1])
-        
-        out = map_fn(multiclass_nms, logits, regress, points, dtype = (logits.dtype, regress.dtype), batch_size = self.batch_size,
-                     proposal_count = self.proposal_count, soft_nms = self.soft_nms, iou_threshold = self.iou_threshold, score_threshold = self.score_threshold, ignore_label = self.ignore_label, performance_count = self.performance_count, coder_func = offset2bbox)
+            
+        if not self.tensorrt:
+            points = tf.tile(tf.expand_dims(points, axis = 0), [tf.shape(logits)[0], 1, 1])
+            out = map_fn(multiclass_nms, logits, regress, points, dtype = (logits.dtype, regress.dtype), batch_size = self.batch_size,
+                         proposal_count = self.proposal_count, soft_nms = self.soft_nms, iou_threshold = self.iou_threshold, score_threshold = self.score_threshold, ignore_label = self.ignore_label, performance_count = self.performance_count, coder_func = offset2bbox)
+        else:
+            regress = offset2bbox(points, regress)
+            regress = tf.clip_by_value(regress, 0, 1)
+            out = (logits, regress)
         return out
         
     def get_config(self):
@@ -43,4 +50,5 @@ class FilterDetection(tf.keras.layers.Layer):
         config["ignore_label"] = self.ignore_label
         config["performance_count"] = self.performance_count
         config["batch_size"] = self.batch_size
+        config["tensorrt"] = self.tensorrt
         return config

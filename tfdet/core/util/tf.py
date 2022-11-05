@@ -7,7 +7,24 @@ import numpy as np
 from .wrapper import dict_function
 
 def map_fn(function, *args, dtype = tf.float32, batch_size = 1, name = None, **kwargs):
-    return tf.map_fn(lambda args: functools.partial(function, **kwargs)(*args), args, dtype = dtype, parallel_iterations = batch_size, name = name)
+    func = functools.partial(function, **kwargs)
+    batch_shape = [tf.keras.backend.int_shape(arg)[0] for arg in args]
+    if np.all([isinstance(b, int) for b in batch_shape]):
+        out = []
+        for i in range(np.min(batch_shape)):
+            x = [arg[i] for arg in args]
+            o = func(*x)
+            o = (o,) if not isinstance(o, (tuple, list)) else o
+            out.append(o)
+        out = list(zip(*out))
+        out = [tf.stack(o, axis = 0, name = (name if len(out) == 1 else "{0}_{1}".format(name, i + 1)) if name is not None else None) for i, o in enumerate(out)]
+        #out = tf.keras.layers.Lambda(lambda args: [tf.stack(arg, axis = 0) for arg in args], name = name)(out)
+        if len(out) == 1:
+            out = out[0]
+        return out
+    else:
+        #return tf.map_fn(lambda args: functools.partial(function, **kwargs)(*args), args, dtype = dtype, parallel_iterations = batch_size, name = name)
+        return tf.map_fn(lambda args: func(*args), args, fn_output_signature = dtype, parallel_iterations = batch_size, name = name)
 
 def convert_to_numpy(*args, return_tuple = False):
     if args and isinstance(args[0], dict):
@@ -135,14 +152,14 @@ def get_device(type = None):
     return result
 
 def select_device(gpu = None, limit = None):
+    if not isinstance(gpu, list):
+        gpu = [gpu]
+    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+    os.environ["CUDA_VISIBLE_DEVICES"] = ",".join([str(device) for device in gpu])
+    
     if len(get_device("GPU")) == 0:
         return tf.device("/cpu:0")
     else:
-        if not isinstance(gpu, list):
-            gpu = [gpu]
-        os.environ["CUDA_VISIBLE_DEVICES"] = ",".join([str(device) for device in gpu])
-        os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-
         for device in get_device("GPU"):
             try:
                 tf.config.experimental.set_memory_growth(device, True)
@@ -150,11 +167,10 @@ def select_device(gpu = None, limit = None):
                     tf.config.experimental.set_virtual_device_configuration(device, [tf.config.experimental.VirtualDeviceConfiguration(memory_limit = limit)])
             except:
                 pass
-
         if len(gpu) == 1:
             device = tf.device("/gpu:0")
         else:
-            strategy = tf.distribute.MirroredStrategy(["/gpu:{0}".format(device) for device in range(len(gpu))], cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
+            strategy = tf.distribute.MirroredStrategy(["/gpu:{0}".format(device) for device in range(len(gpu))], cross_device_ops = tf.distribute.HierarchicalCopyAllReduce())
             device = strategy.scope()
         return device
     

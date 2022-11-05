@@ -6,7 +6,8 @@ from tfdet.core.util import map_fn, multiclass_nms
 
 class FilterDetection(tf.keras.layers.Layer):
     def __init__(self, proposal_count = 100, iou_threshold = 0.5, score_threshold = 0.05, soft_nms = False, ensemble = True, valid = False, ignore_label = 0, performance_count = 5000,
-                 batch_size = 1, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, **kwargs):
+                 batch_size = 1, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000,
+                 tensorrt = False, **kwargs):
         super(FilterDetection, self).__init__(**kwargs)
         self.proposal_count = proposal_count
         self.iou_threshold = iou_threshold
@@ -20,6 +21,7 @@ class FilterDetection(tf.keras.layers.Layer):
         self.mean = mean
         self.std = std
         self.clip_ratio = clip_ratio
+        self.tensorrt = tensorrt
 
     def call(self, inputs):
         if 5 < len(inputs):
@@ -47,15 +49,19 @@ class FilterDetection(tf.keras.layers.Layer):
                 cls_logits = tf.gather(cls_logits, valid_indices, axis = 1)
                 cls_regress = tf.gather(cls_regress, valid_indices, axis = 1)
                 proposals = tf.gather(proposals, valid_indices)
-            proposals = tf.tile(tf.expand_dims(proposals, axis = 0), [tf.shape(cls_logits)[0], 1, 1])
+            if not self.tensorrt:
+                proposals = tf.tile(tf.expand_dims(proposals, axis = 0), [tf.shape(cls_logits)[0], 1, 1])
         
         dtype = (cls_logits.dtype, cls_regress.dtype)
         if mask_regress is not None:
             dtype += (mask_regress.dtype,)
         args = [l for l in [cls_logits, cls_regress, proposals, mask_regress] if l is not None]
-        out = map_fn(multiclass_nms, *args, dtype = dtype, batch_size = self.batch_size, 
-                     proposal_count = self.proposal_count, iou_threshold = self.iou_threshold, score_threshold = self.score_threshold, soft_nms = self.soft_nms, ignore_label = self.ignore_label, performance_count = self.performance_count,
-                     coder_func = delta2bbox, mean = self.mean, std = std, clip_ratio = self.clip_ratio)
+        if not self.tensorrt:
+            out = map_fn(multiclass_nms, *args, dtype = dtype, batch_size = self.batch_size, 
+                         proposal_count = self.proposal_count, iou_threshold = self.iou_threshold, score_threshold = self.score_threshold, soft_nms = self.soft_nms, ignore_label = self.ignore_label, performance_count = self.performance_count,
+                         coder_func = delta2bbox, mean = self.mean, std = std, clip_ratio = self.clip_ratio)
+        else:
+            raise ValueError("Conversion of rcnn is not yet supported.")
         return out
         
     def get_config(self):
@@ -72,4 +78,5 @@ class FilterDetection(tf.keras.layers.Layer):
         config["mean"] = self.mean
         config["std"] = self.std
         config["clip_ratio"] = self.clip_ratio
+        config["tensorrt"] = self.tensorrt
         return config

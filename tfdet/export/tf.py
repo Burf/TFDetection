@@ -18,11 +18,10 @@ def tf2lite(model, path, dtype = [tf.float32], optimizations = [tf.lite.Optimize
         converter.optimizations = optimizations
     if data is None:
         if dtype is not None:
-            if not isinstance(dtype, list):
-                dtype = [dtype]
-            converter.target_spec.supported_types = dtype
+            converter.target_spec.supported_types = [dtype] if not isinstance(dtype, list) else dtype
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS, tf.lite.OpsSet.SELECT_TF_OPS]
     else:
-        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8, tf.lite.OpsSet.SELECT_TF_OPS]
         converter.inference_input_type = tf.int8 #tf.uint8
         converter.inference_output_type = tf.int8 #tf.uint8
         data = data if isinstance(data, list) or isinstance(data, tuple) else [data]
@@ -38,17 +37,29 @@ def tf2lite(model, path, dtype = [tf.float32], optimizations = [tf.lite.Optimize
     with open(path, "wb") as file:
         file.write(tflite_model)
     return path
-
+    
 def load_tflite(path, n_thread = None, content = None, predict = True):
+    name, ext = os.path.splitext(path)
+    if len(ext) < 2:
+        path = "{0}{1}".format(name, ".tflite")
     interpreter = tf.lite.Interpreter(path, model_content = content, num_threads = n_thread)
     if predict:
-        signature_runner = interpreter.get_signature_runner()
+        interpreter.allocate_tensors()
         info = interpreter.get_signature_list()["serving_default"]
-        input_keys = info["inputs"]
+        input_keys, output_keys = info["inputs"], info["outputs"]
+        input_details, output_details = interpreter.get_input_details(), interpreter.get_output_details()
         def predict(*args, **kwargs):
             args = {k:v for k, v in zip(input_keys[:len(args)], args)}
             kwargs.update(args)
-            pred = signature_runner(**{k:v if tf.is_tensor(v) else tf.convert_to_tensor(v) for k, v in kwargs.items()})
+            #kwargs = {k:v if tf.is_tensor(v) else tf.convert_to_tensor(v) for k, v in kwargs.items()}
+            for key, detail in zip(input_keys, input_details):
+                interpreter.set_tensor(detail["index"], kwargs[key])
+            interpreter.invoke()
+            pred = [interpreter.get_tensor(detail["index"]) for key, detail in zip(output_keys, output_details)]
+            if len(pred) == 0:
+                pred = None
+            elif len(pred) == 1:
+                pred = pred[0]
             return pred
         return predict
     else:

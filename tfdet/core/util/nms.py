@@ -71,7 +71,7 @@ def multiclass_nms(y_pred, bbox_pred, anchors = None, mask_pred = None, proposal
             mask_pred = tf.gather(mask_pred, label_indices, batch_dims = 1)
             mask_pred = tf.expand_dims(mask_pred, axis = -1)
         
-    if callable(coder_func):
+    if anchors is not None and callable(coder_func):
         bbox_pred = coder_func(anchors, bbox_pred, **kwargs)
         bbox_pred = tf.clip_by_value(bbox_pred, 0, 1)
     x1, y1, x2, y2 = tf.split(bbox_pred, 4, axis = -1)

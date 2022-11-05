@@ -5,7 +5,8 @@ from tfdet.core.util import map_fn, multiclass_nms
 
 class FilterDetection(tf.keras.layers.Layer):
     def __init__(self, proposal_count = 100, iou_threshold = 0.5, score_threshold = 0.05, soft_nms = False, valid = False, ignore_label = 0, performance_count = 5000,
-                 batch_size = 1, mean = [0., 0., 0., 0.], std = [1., 1., 1., 1.], clip_ratio = 16 / 1000, **kwargs):
+                 batch_size = 1, mean = [0., 0., 0., 0.], std = [1., 1., 1., 1.], clip_ratio = 16 / 1000, 
+                 tensorrt = False, **kwargs):
         super(FilterDetection, self).__init__(**kwargs)
         self.proposal_count = proposal_count
         self.iou_threshold = iou_threshold
@@ -18,6 +19,7 @@ class FilterDetection(tf.keras.layers.Layer):
         self.mean = mean
         self.std = std
         self.clip_ratio = clip_ratio
+        self.tensorrt = tensorrt
 
     def call(self, inputs):
         logits, regress, anchors = inputs[:3]
@@ -37,11 +39,16 @@ class FilterDetection(tf.keras.layers.Layer):
                 confs = tf.gather(confs, valid_indices, axis = 1)
         if confs is not None:
             logits = tf.multiply(logits, confs)
-        anchors = tf.tile(tf.expand_dims(anchors, axis = 0), [tf.shape(logits)[0], 1, 1])
         
-        out = map_fn(multiclass_nms, logits, regress, anchors, dtype = (logits.dtype, regress.dtype), batch_size = self.batch_size,
-                     proposal_count = self.proposal_count, soft_nms = self.soft_nms, iou_threshold = self.iou_threshold, score_threshold = self.score_threshold, ignore_label = self.ignore_label, performance_count = self.performance_count,
-                     coder_func = delta2bbox, mean = self.mean, std = self.std, clip_ratio = self.clip_ratio)
+        if not self.tensorrt:
+            anchors = tf.tile(tf.expand_dims(anchors, axis = 0), [tf.shape(logits)[0], 1, 1])
+            out = map_fn(multiclass_nms, logits, regress, anchors, dtype = (logits.dtype, regress.dtype), batch_size = self.batch_size,
+                         proposal_count = self.proposal_count, soft_nms = self.soft_nms, iou_threshold = self.iou_threshold, score_threshold = self.score_threshold, ignore_label = self.ignore_label, performance_count = self.performance_count,
+                         coder_func = delta2bbox, mean = self.mean, std = self.std, clip_ratio = self.clip_ratio)
+        else:
+            regress = delta2bbox(anchors, regress, mean = self.mean, std = self.std, clip_ratio = self.clip_ratio)
+            regress = tf.clip_by_value(regress, 0, 1)
+            out = (logits, regress)
         return out
         
     def get_config(self):
@@ -57,4 +64,5 @@ class FilterDetection(tf.keras.layers.Layer):
         config["mean"] = self.mean
         config["std"] = self.std
         config["clip_ratio"] = self.clip_ratio
+        config["tensorrt"] = self.tensorrt
         return config
