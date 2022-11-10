@@ -191,7 +191,7 @@ class MeanIoU(tf.keras.callbacks.Callback):
                 data = next(iterator)
                 if not isinstance(data, dict):
                     x = data[:input_cnt]
-                    mask_true = list(data[input_cnt:])[:1]
+                    mask_true = list(data[input_cnt:])[0]
                 else:
                     x = [data[k] for k in input_key if k in data]
                     mask_true = data["mask_true"] if "mask_true" in data else data["y_true"]
