@@ -378,6 +378,44 @@ def crop(x_true, y_true = None, bbox_true = None, mask_true = None, bbox = None,
     result = result[0] if len(result) == 1 else tuple(result)
     return result
 
+def flip(x_true, y_true = None, bbox_true = None, mask_true = None, mode = "horizontal"):
+    """
+    x_true = (H, W, C)
+    y_true(without bbox_true) = (1 or n_class)
+    y_true(with bbox_true) = (P, 1 or n_class)
+    bbox_true = (P, 4)
+    mask_true(with bbox_true & instance mask_true) = (P, H, W, 1)
+    mask_true(semantic mask_true) = (H, W, 1 or n_class)
+    
+    mode = ("horizontal", "vertical")
+    """
+    if mode not in ("horizontal", "vertical", "both"):
+        raise ValueError("unknown mode '{0}'".format(mode))
+        
+    shape = np.shape(x_true)[:2]
+    func = np.fliplr if mode == "horizontal" else np.flipud
+    x_true = func(x_true)
+    if bbox_true is not None:
+        bbox_true = np.array(bbox_true)
+        if not np.any(np.greater_equal(bbox_true, 2)): #bbox_norm
+            shape = [1, 1]
+        x1, y1, x2, y2 = np.split(bbox_true, 4, axis = -1)
+        w, h = x2 - x1, y2 - y1
+        x, y = x1 + (0.5 * w), y1 + (0.5 * h)
+        if mode == "horizontal":
+            x = shape[1] - x
+        else:
+            y = shape[0] - y
+        x1, y1 = x - (0.5 * w), y - (0.5 * h)
+        x2, y2 = x1 + w, y1 + h
+        bbox_true = np.concatenate([x1, y1, x2, y2], axis = -1)
+    if mask_true is not None:
+        mask_true = np.array([func(m) for m in mask_true]) if 3 < np.ndim(mask_true) else func(mask_true)
+    
+    result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
+    result = result[0] if len(result) == 1 else tuple(result)
+    return result
+
 def random_apply(x_true, y_true = None, bbox_true = None, mask_true = None, function = None, p = 0.5, reduce = False, **kwargs):
     """
     x_true = (H, W, C) or (N, H, W, C)

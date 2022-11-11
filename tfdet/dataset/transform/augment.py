@@ -1,99 +1,106 @@
 import random
 
-import albumentations as A
 import cv2
 import numpy as np
 
 from tfdet.core.bbox import random_bbox, overlap_bbox_numpy as overlap_bbox
+from .common import crop, flip
 from ..util.image import instance2bbox
 
-def albumentations(x_true, y_true = None, bbox_true = None, mask_true = None,
-                   transform = [A.Blur(p = 0.01),
-                                A.MedianBlur(p = 0.01),
-                                A.ToGray(p = 0.01),
-                                A.CLAHE(p = 0.01, clip_limit = 4., tile_grid_size = (8, 8)),
-                                A.RandomBrightnessContrast(p = 0.01, brightness_limit = 0.2, contrast_limit = 0.2),
-                                A.RGBShift(p = 0.01, r_shift_limit = 10, g_shift_limit = 10, b_shift_limit = 10),
-                                A.HueSaturationValue(p = 0.01, hue_shift_limit = 10, sat_shift_limit = 40, val_shift_limit = 50),
-                                A.ChannelShuffle(p = 0.01),
-                                A.ShiftScaleRotate(p = 0.01, rotate_limit = 30, shift_limit = 0.0625, scale_limit = 0.1, interpolation = cv2.INTER_LINEAR, border_mode = cv2.BORDER_CONSTANT),
-                                #A.RandomResizedCrop(p = 0.01, height = 512, width = 512, scale = [0.5, 1.]),
-                                A.ImageCompression(p = 0.01, quality_lower = 75),
-                               ],
-                   min_area = 0., min_visibility = 0.):
-    """
-    x_true = (H, W, C)
-    y_true(without bbox_true) = (1 or n_class)
-    y_true(with bbox_true) = (P, 1 or n_class)
-    bbox_true = (P, 4)
-    mask_true(with bbox_true & instance mask_true) = (P, H, W, 1)
-    mask_true(semantic mask_true) = (H, W, 1 or n_class)
-    
-    #The pad will be removed.
-    """
-    if 0 < len(transform):
-        method = A.Compose(transform, bbox_params = {"format":"albumentations", "label_fields":["class_labels"], "min_area":min_area, "min_visibility":min_visibility})
-        
-        h, w = np.shape(x_true)[:2]
-        class_labels = None
-        if bbox_true is not None:
-            bbox_true = np.array(bbox_true)
-            indices = np.where(np.max(0 < bbox_true, axis = -1, keepdims = True) != 0)[0]
-            bbox_true = bbox_true[indices]
-            bbox_norm = not np.any(np.greater_equal(bbox_true, 2))
-            if not bbox_norm:
-                bbox_true = np.divide(bbox_true, [w, h, w, h])
-            area = (bbox_true[..., 3] - bbox_true[..., 1]) * (bbox_true[..., 2] - bbox_true[..., 0])
-            indices2 = np.where(0 < area)[0]
-            bbox_true = bbox_true[indices2]
-            if y_true is not None:
-                y_true = np.array(y_true)[indices[indices2]]
-            class_labels = np.arange(len(bbox_true))
-        if mask_true is not None and 3 < np.ndim(mask_true):
+try:
+    import albumentations as A
+
+    def albumentations(x_true, y_true = None, bbox_true = None, mask_true = None,
+                       transform = [A.CLAHE(p = 0.1, clip_limit = 4., tile_grid_size = (8, 8)),
+                                    A.RandomBrightnessContrast(p = 0.01, brightness_limit = 0.2, contrast_limit = 0.2),
+                                    A.RandomGamma(p = 0.1, gamma_limit = [80, 120]),
+                                    A.Blur(p = 0.1),
+                                    A.MedianBlur(p = 0.1),
+                                    A.ToGray(p = 0.1),
+                                    A.RGBShift(p = 0.1, r_shift_limit = 10, g_shift_limit = 10, b_shift_limit = 10),
+                                    A.HueSaturationValue(p = 0.1, hue_shift_limit = 10, sat_shift_limit = 40, val_shift_limit = 50),
+                                    A.ChannelShuffle(p = 0.1),
+                                    #A.ShiftScaleRotate(p = 0.1, rotate_limit = 30, shift_limit = 0.0625, scale_limit = 0.1, interpolation = cv2.INTER_LINEAR, border_mode = cv2.BORDER_CONSTANT),
+                                    #A.RandomResizedCrop(p = 0.1, height = 512, width = 512, scale = [0.8, 1.0], ratio = [0.9, 1.11]),
+                                    A.ImageCompression(p = 0.1, quality_lower = 75),
+                                   ],
+                       min_area = 0., min_visibility = 0.):
+        """
+        x_true = (H, W, C)
+        y_true(without bbox_true) = (1 or n_class)
+        y_true(with bbox_true) = (P, 1 or n_class)
+        bbox_true = (P, 4)
+        mask_true(with bbox_true & instance mask_true) = (P, H, W, 1)
+        mask_true(semantic mask_true) = (H, W, 1 or n_class)
+
+        #The pad will be removed.
+        """
+        if 0 < len(transform):
+            method = A.Compose(transform, bbox_params = {"format":"albumentations", "label_fields":["class_labels"], "min_area":min_area, "min_visibility":min_visibility})
+
+            h, w = np.shape(x_true)[:2]
+            class_labels = None
             if bbox_true is not None:
-                mask_true = np.array(mask_true)[indices[indices2]]
-            if 0 < len(mask_true):
-                mask_true = [np.array(m) for m in mask_true]
-        
-        args = {"image":x_true, "class_labels":class_labels if class_labels is not None else [0]}
-        args["bboxes"] = bbox_true if bbox_true is not None else [[0, 0, 1, 1]]
-        if mask_true is not None:
-            if np.ndim(mask_true) < 4 or 0 < len(mask_true):
-                args["masks" if 3 < np.ndim(mask_true) else "mask"] = mask_true
-        
-        aug_result = method(**args)
-        indices = aug_result["class_labels"] if class_labels is not None else (np.arange(len(y_true)) if y_true is not None else [])
-        x_true = aug_result["image"]
-        ori_bbox_true = bbox_true
-        if y_true is not None:
-            y_true = np.array(y_true)[indices]
-        if mask_true is not None:
-            if np.ndim(mask_true) < 4 or 0 < len(mask_true):
-                mask_true = np.array(aug_result["masks" if 3 < np.ndim(mask_true) else "mask"])
-            if 3 < np.ndim(mask_true):
+                bbox_true = np.array(bbox_true)
+                indices = np.where(np.max(0 < bbox_true, axis = -1, keepdims = True) != 0)[0]
+                bbox_true = bbox_true[indices]
+                bbox_norm = not np.any(np.greater_equal(bbox_true, 2))
+                if not bbox_norm:
+                    bbox_true = np.divide(bbox_true, [w, h, w, h])
+                area = (bbox_true[..., 3] - bbox_true[..., 1]) * (bbox_true[..., 2] - bbox_true[..., 0])
+                indices2 = np.where(0 < area)[0]
+                bbox_true = bbox_true[indices2]
+                if y_true is not None:
+                    y_true = np.array(y_true)[indices[indices2]]
+                class_labels = np.arange(len(bbox_true))
+            if mask_true is not None and 3 < np.ndim(mask_true):
                 if bbox_true is not None:
-                    mask_true = mask_true[indices]
-                #else:
-                #    mask_true = mask_true[0 < np.max(mask_true, axis = (-3, -2, -1))]
-        if bbox_true is not None:
-            new_bbox_true = aug_result["bboxes"]
-            if len(new_bbox_true) == 0:
-                bbox_true = np.zeros((0, 4), dtype = bbox_true.dtype)
-            else:
-                bbox_true = np.clip(new_bbox_true, 0, 1)
-                #area = (bbox_true[..., 3] - bbox_true[..., 1]) * (bbox_true[..., 2] - bbox_true[..., 0])
-                #indices = np.where(0 < area)[0]
-                #bbox_true = bbox_true[indices]
-                bbox_true = bbox_true if bbox_norm else np.round(np.multiply(new_bbox_true, np.tile(np.shape(x_true)[:2][::-1], 2))).astype(int)
-                #if y_true is not None:
-                #    y_true = y_true[indices]
-                #if mask_True is not None and 3 < np.ndim(mask_true):
-                #    mask_true = mask_true[indices]
-    result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
-    result = result[0] if len(result) == 1 else tuple(result)
-    return result
-    
-def random_crop(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape = None, min_area = 0., min_visibility = 0.):
+                    mask_true = np.array(mask_true)[indices[indices2]]
+                if 0 < len(mask_true):
+                    mask_true = [np.array(m) for m in mask_true]
+
+            args = {"image":x_true, "class_labels":class_labels if class_labels is not None else [0]}
+            args["bboxes"] = bbox_true if bbox_true is not None else [[0, 0, 1, 1]]
+            if mask_true is not None:
+                if np.ndim(mask_true) < 4 or 0 < len(mask_true):
+                    args["masks" if 3 < np.ndim(mask_true) else "mask"] = mask_true
+
+            aug_result = method(**args)
+            indices = aug_result["class_labels"] if class_labels is not None else (np.arange(len(y_true)) if y_true is not None else [])
+            x_true = aug_result["image"]
+            ori_bbox_true = bbox_true
+            if y_true is not None:
+                y_true = np.array(y_true)[indices]
+            if mask_true is not None:
+                if np.ndim(mask_true) < 4 or 0 < len(mask_true):
+                    mask_true = np.array(aug_result["masks" if 3 < np.ndim(mask_true) else "mask"])
+                if 3 < np.ndim(mask_true):
+                    if bbox_true is not None:
+                        mask_true = mask_true[indices]
+                    #else:
+                    #    mask_true = mask_true[0 < np.max(mask_true, axis = (-3, -2, -1))]
+            if bbox_true is not None:
+                new_bbox_true = aug_result["bboxes"]
+                if len(new_bbox_true) == 0:
+                    bbox_true = np.zeros((0, 4), dtype = bbox_true.dtype)
+                else:
+                    bbox_true = np.clip(new_bbox_true, 0, 1)
+                    #area = (bbox_true[..., 3] - bbox_true[..., 1]) * (bbox_true[..., 2] - bbox_true[..., 0])
+                    #indices = np.where(0 < area)[0]
+                    #bbox_true = bbox_true[indices]
+                    bbox_true = bbox_true if bbox_norm else np.round(np.multiply(new_bbox_true, np.tile(np.shape(x_true)[:2][::-1], 2))).astype(int)
+                    #if y_true is not None:
+                    #    y_true = y_true[indices]
+                    #if mask_True is not None and 3 < np.ndim(mask_true):
+                    #    mask_true = mask_true[indices]
+        result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
+        result = result[0] if len(result) == 1 else tuple(result)
+        return result
+
+except:
+    print("If you want to use 'albumentations', please install 'albumentations'")
+
+def random_crop(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape = None, min_area = 0., min_visibility = 0., e = 1e-12):
     """
     x_true = (H, W, C)
     y_true(without bbox_true) = (1 or n_class)
@@ -101,19 +108,22 @@ def random_crop(x_true, y_true = None, bbox_true = None, mask_true = None, image
     bbox_true = (P, 4)
     mask_true(with bbox_true & instance mask_true) = (P, H, W, 1)
     mask_true(semantic mask_true) = (H, W, 1 or n_class)
-    
+
     #The pad will be removed.
     """
     if image_shape is not None:
         if np.ndim(image_shape) == 0:
             image_shape = np.round(np.multiply(np.shape(x_true)[:2], image_shape)).astype(int)
-        result = albumentations(x_true, y_true, bbox_true, mask_true, min_area = min_area, min_visibility = min_visibility,
-                                transform = [A.RandomCrop(*image_shape[:2], always_apply = True)])
+        image_shape = image_shape[:2][::-1]
+        ori_image_shape = np.shape(x_true)[:2][::-1]
+        xy = np.random.randint(np.subtract(ori_image_shape, image_shape) + 1)
+        bbox = np.concatenate([xy, xy + image_shape], axis = 0)
+        result = crop(x_true, y_true, bbox_true, mask_true, bbox = bbox, min_area = min_area, min_visibility = min_visibility, e = e)
     else:
         result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
         result = result[0] if len(result) == 1 else tuple(result)
     return result
-
+    
 def random_flip(x_true, y_true = None, bbox_true = None, mask_true = None, p = 0.5, mode = "horizontal"):
     """
     x_true = (H, W, C)
@@ -122,19 +132,13 @@ def random_flip(x_true, y_true = None, bbox_true = None, mask_true = None, p = 0
     bbox_true = (P, 4)
     mask_true(with bbox_true & instance mask_true) = (P, H, W, 1)
     mask_true(semantic mask_true) = (H, W, 1 or n_class)
-    
-    mode = ("horizontal", "vertical", "both")
+
+    mode = ("horizontal", "vertical")
     """
-    if mode not in ("horizontal", "vertical", "both"):
+    if mode not in ("horizontal", "vertical"):
         raise ValueError("unknown mode '{0}'".format(mode))
-    if 0 < p:
-        if mode == "horizontal":
-            transform = [A.HorizontalFlip(p = p)]
-        elif mode == "vertical":
-            transform = [A.VerticalFlip(p = p)]
-        else:
-            transform = [A.HorizontalFlip(p = p), A.VerticalFlip(p = p)]
-        result = albumentations(x_true, y_true, bbox_true, mask_true, transform = transform)
+    if np.random.random() < p:
+        result = flip(x_true, y_true, bbox_true, mask_true, mode = mode)
     else:
         result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
         result = result[0] if len(result) == 1 else tuple(result)
@@ -906,8 +910,8 @@ def copy_paste(x_true, y_true = None, bbox_true = None, mask_true = None, max_pa
                             x = cv2.resize(x, scale[::-1], interpolation = method)
                             mask = cv2.resize(mask, scale[::-1], interpolation = method) if mask is not None else None
                         if np.random.random() < p_flip:
-                            x = cv2.flip(x, 1)
-                            mask = cv2.flip(mask, 1) if mask is not None else None
+                            x = np.fliplr(x)
+                            mask = np.fliplr(mask) if mask is not None else None
                         x = x[pad[1]:scale[0] - pad[3], pad[0]:scale[1] - pad[2]]
                         if mask is not None:
                             mask = mask[pad[1]:scale[0] - pad[3], pad[0]: scale[1] - pad[2]]
