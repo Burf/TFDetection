@@ -185,6 +185,31 @@ def label_decode(x_true, y_true = None, bbox_true = None, mask_true = None,
                 batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
                 cache = cache, num_parallel_calls = num_parallel_calls,
                 tf_func = False, dtype = dtype)
+                
+def compose(x_true, y_true = None, bbox_true = None, mask_true = None,
+            transform = [], dtype = None,
+            batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+            cache = False, num_parallel_calls = None,
+            **kwargs):
+    
+    """
+    x_true = (N, H, W, C) or pipe
+    y_true(without bbox_true) = (N, 1 or n_class)
+    y_true(with bbox_true) = (N, P, 1 or n_class)
+    bbox_true = (N, P, 4)
+    mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
+    mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
+    """
+    if dtype is None:
+        pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
+        dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
+        dtype = [spec.dtype for spec in dtype]
+        dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
+    func = functools.partial(T.compose, transform = transform, **kwargs)
+    return pipe(x_true, y_true, bbox_true, mask_true, function = func,
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
+                cache = cache, num_parallel_calls = num_parallel_calls,
+                tf_func = False, dtype = dtype)
     
 def resize(x_true, y_true = None, bbox_true = None, mask_true = None, 
            image_shape = None, keep_ratio = True,
@@ -285,50 +310,8 @@ def crop(x_true, y_true = None, bbox_true = None, mask_true = None,
                 cache = cache, num_parallel_calls = num_parallel_calls,
                 tf_func = False, dtype = dtype)
 
-try:
-    import albumentations as A
-    
-    def albumentations(x_true, y_true = None, bbox_true = None, mask_true = None,
-                       transform = [A.CLAHE(p = 0.1, clip_limit = 4., tile_grid_size = (8, 8)),
-                                    A.RandomBrightnessContrast(p = 0.1, brightness_limit = 0.2, contrast_limit = 0.2),
-                                    A.RandomGamma(p = 0.1, gamma_limit = [80, 120]),
-                                    A.Blur(p = 0.1),
-                                    A.MedianBlur(p = 0.1),
-                                    A.ToGray(p = 0.1),
-                                    A.RGBShift(p = 0.1, r_shift_limit = 10, g_shift_limit = 10, b_shift_limit = 10),
-                                    A.HueSaturationValue(p = 0.1, hue_shift_limit = 10, sat_shift_limit = 40, val_shift_limit = 50),
-                                    A.ChannelShuffle(p = 0.1),
-                                    #A.ShiftScaleRotate(p = 0.1, rotate_limit = 30, shift_limit = 0.0625, scale_limit = 0.1, interpolation = cv2.INTER_LINEAR, border_mode = cv2.BORDER_CONSTANT),
-                                    #A.RandomResizedCrop(p = 0.1, height = 512, width = 512, scale = [0.8, 1.0], ratio = [0.9, 1.11]),
-                                    A.ImageCompression(p = 0.1, quality_lower = 75),
-                                   ],
-                       min_area = 0., min_visibility = 0.,
-                       batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-                       cache = False, num_parallel_calls = None):
-        """
-        x_true = (N, H, W, C) or pipe
-        y_true(without bbox_true) = (N, 1 or n_class)
-        y_true(with bbox_true) = (N, P, 1 or n_class)
-        bbox_true = (N, P, 4)
-        mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
-        mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
-
-        #The pad will be removed.
-        """
-        pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
-        dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
-        dtype = [spec.dtype for spec in dtype]
-        dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
-        return pipe(x_true, y_true, bbox_true, mask_true, function = T.albumentations,
-                    transform = transform, min_area = min_area, min_visibility = min_visibility,
-                    batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
-                    cache = cache, num_parallel_calls = num_parallel_calls,
-                    tf_func = False, dtype = dtype)
-except:
-    pass
-
 def random_crop(x_true, y_true = None, bbox_true = None, mask_true = None,
-                image_shape = None, min_area = 0., min_visibility = 0.,
+                image_shape = None, min_area = 0., min_visibility = 0., e = 1e-12,
                 batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
                 cache = False, num_parallel_calls = None):
     """
@@ -346,7 +329,7 @@ def random_crop(x_true, y_true = None, bbox_true = None, mask_true = None,
     dtype = [spec.dtype for spec in dtype]
     dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
     return pipe(x_true, y_true, bbox_true, mask_true, function = T.random_crop,
-                image_shape = image_shape, min_area = min_area, min_visibility = min_visibility,
+                image_shape = image_shape, min_area = min_area, min_visibility = min_visibility, e = e,
                 batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
                 cache = cache, num_parallel_calls = num_parallel_calls,
                 tf_func = False, dtype = dtype)
@@ -508,7 +491,7 @@ def mosaic(x_true, y_true = None, bbox_true = None, mask_true = None,
 def mosaic9(x_true, y_true = None, bbox_true = None, mask_true = None, 
             sample_x_true = None, sample_y_true = None, sample_bbox_true = None, sample_mask_true = None,
             p = 0.5,
-            image_shape = None, pad_val = 114, min_area = 0., min_visibility = 0.,
+            image_shape = None, pad_val = 114, min_area = 0., min_visibility = 0., e = 1e-12,
             sample_cache = True,
             batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
             cache = False, num_parallel_calls = None):
@@ -536,7 +519,7 @@ def mosaic9(x_true, y_true = None, bbox_true = None, mask_true = None,
         sample_pipe = pipe(sample_pipe, cache = sample_cache)
     args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.repeat(8).shuffle(8 * 10).batch(8), axis = 0)
     
-    func = functools.partial(T.mosaic9, image_shape = image_shape, pad_val = pad_val, min_area = min_area, min_visibility = min_visibility)
+    func = functools.partial(T.mosaic9, image_shape = image_shape, pad_val = pad_val, min_area = min_area, min_visibility = min_visibility, e = e)
     def fail_func(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape = image_shape):
         x_true = x_true[0]
         y_true = y_true[0] if y_true is not None else None
@@ -753,6 +736,88 @@ def yolo_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
                 batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
                 cache = cache, num_parallel_calls = num_parallel_calls,
                 tf_func = False, dtype = dtype)
+
+try:
+    import albumentations as A
+    
+    def albumentations(x_true, y_true = None, bbox_true = None, mask_true = None,
+                       transform = [A.CLAHE(p = 0.1, clip_limit = 4., tile_grid_size = (8, 8)),
+                                    A.RandomBrightnessContrast(p = 0.1, brightness_limit = 0.2, contrast_limit = 0.2),
+                                    A.RandomGamma(p = 0.1, gamma_limit = [80, 120]),
+                                    A.Blur(p = 0.1),
+                                    A.MedianBlur(p = 0.1),
+                                    A.ToGray(p = 0.1),
+                                    A.RGBShift(p = 0.1, r_shift_limit = 10, g_shift_limit = 10, b_shift_limit = 10),
+                                    A.HueSaturationValue(p = 0.1, hue_shift_limit = 10, sat_shift_limit = 40, val_shift_limit = 50),
+                                    A.ChannelShuffle(p = 0.1),
+                                    #A.ShiftScaleRotate(p = 0.1, rotate_limit = 30, shift_limit = 0.0625, scale_limit = 0.1, interpolation = cv2.INTER_LINEAR, border_mode = cv2.BORDER_CONSTANT),
+                                    #A.RandomResizedCrop(p = 0.1, height = 512, width = 512, scale = [0.8, 1.0], ratio = [0.9, 1.11]),
+                                    A.ImageCompression(p = 0.1, quality_lower = 75),
+                                   ],
+                       min_area = 0., min_visibility = 0.,
+                       batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+                       cache = False, num_parallel_calls = None):
+        """
+        x_true = (N, H, W, C) or pipe
+        y_true(without bbox_true) = (N, 1 or n_class)
+        y_true(with bbox_true) = (N, P, 1 or n_class)
+        bbox_true = (N, P, 4)
+        mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
+        mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
+
+        #The pad will be removed.
+        """
+        pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
+        dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
+        dtype = [spec.dtype for spec in dtype]
+        dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
+        return pipe(x_true, y_true, bbox_true, mask_true, function = T.albumentations,
+                    transform = transform, min_area = min_area, min_visibility = min_visibility,
+                    batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
+                    cache = cache, num_parallel_calls = num_parallel_calls,
+                    tf_func = False, dtype = dtype)
+    
+    
+    def weak_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
+                          image_shape = None, 
+                          transform = [A.CLAHE(p = 0.1, clip_limit = 4., tile_grid_size = (8, 8)),
+                                       A.RandomBrightnessContrast(p = 0.1, brightness_limit = 0.2, contrast_limit = 0.2),
+                                       A.RandomGamma(p = 0.1, gamma_limit = [80, 120]),
+                                       A.Blur(p = 0.1),
+                                       A.MedianBlur(p = 0.1),
+                                       A.ToGray(p = 0.1),
+                                       A.RGBShift(p = 0.1, r_shift_limit = 10, g_shift_limit = 10, b_shift_limit = 10),
+                                       A.HueSaturationValue(p = 0.1, hue_shift_limit = 10, sat_shift_limit = 40, val_shift_limit = 50),
+                                       A.ChannelShuffle(p = 0.1),
+                                       #A.ShiftScaleRotate(p = 0.1, rotate_limit = 30, shift_limit = 0.0625, scale_limit = 0.1, interpolation = cv2.INTER_LINEAR, border_mode = cv2.BORDER_CONSTANT),
+                                       #A.RandomResizedCrop(p = 0.1, height = 512, width = 512, scale = [0.8, 1.0], ratio = [0.9, 1.11]),
+                                       A.ImageCompression(p = 0.1, quality_lower = 75),
+                                      ],
+                          p_flip = 0.5, mode = "horizontal",
+                          min_area = 0., min_visibility = 0., e = 1e-12,
+                          batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+                          cache = False, num_parallel_calls = None):
+        """
+        x_true = (N, H, W, C) or pipe
+        y_true(without bbox_true) = (N, 1 or n_class)
+        y_true(with bbox_true) = (N, P, 1 or n_class)
+        bbox_true = (N, P, 4)
+        mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
+        mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
+
+        #The pad will be removed.
+        """
+        pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
+        dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
+        dtype = [spec.dtype for spec in dtype]
+        dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
+        return pipe(x_true, y_true, bbox_true, mask_true, function = T.weak_augmentation,
+                    image_shape = image_shape, transform = transform, p_flip = p_flip, mode = mode, min_area = min_area, min_visibility = min_visibility, e = e,
+                    batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
+                    cache = cache, num_parallel_calls = num_parallel_calls,
+                    tf_func = False, dtype = dtype)
+except:
+    pass
 
 def key_map(x_true, y_true = None, bbox_true = None, mask_true = None, 
             map = {"x_true":"x_true", "y_true":"y_true", "bbox_true":"bbox_true", "mask_true":"mask_true"},

@@ -3,7 +3,7 @@ import random
 import cv2
 import numpy as np
 
-from tfdet.core.util import to_categorical
+from tfdet.core.util import dict_function, to_categorical
 from ..util import load_image, trim_bbox, pad as pad_numpy
 from ..pascal_voc import load_annotation, load_instance
 
@@ -203,6 +203,18 @@ def label_decode(x_true, y_true = None, bbox_true = None, mask_true = None, labe
             mask_true = np.expand_dims(np.argmax(mask_true, axis = -1), axis = -1)
     result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
     result = result[0] if len(result) == 1 else tuple(result)
+    return result
+    
+def compose(x_true, y_true = None, bbox_true = None, mask_true = None,
+            transform = [],
+            **kwargs):
+    transform = [transform] if callable(transform) else transform
+    if 0 < len(transform):
+        func = dict_function(transform, keys = ["x_true", "y_true", "bbox_true", "mask_true"])
+        result = func(x_true, y_true, bbox_true, mask_true, **kwargs)
+    else:
+        result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
+        result = result[0] if len(result) == 1 else tuple(result)
     return result
     
 def resize(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape = None, keep_ratio = True, method = cv2.INTER_LINEAR):

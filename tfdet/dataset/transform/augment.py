@@ -96,9 +96,8 @@ try:
         result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
         result = result[0] if len(result) == 1 else tuple(result)
         return result
-
 except:
-    print("If you want to use 'albumentations', please install 'albumentations'")
+    print("If you want to use 'albumentations' and 'weak_augmentation', please install 'albumentations'")
 
 def random_crop(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape = None, min_area = 0., min_visibility = 0., e = 1e-12):
     """
@@ -381,7 +380,7 @@ def mosaic(x_true, y_true = None, bbox_true = None, mask_true = None, image_shap
     result = result[0] if len(result) == 1 else tuple(result)
     return result
 
-def mosaic9(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape = None, pad_val = 114, min_area = 0., min_visibility = 0.):
+def mosaic9(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape = None, pad_val = 114, min_area = 0., min_visibility = 0., e = 1e-12):
     """
     https://github.com/WongKinYiu/yolov7/blob/main/utils/datasets.py
     
@@ -499,13 +498,13 @@ def mosaic9(x_true, y_true = None, bbox_true = None, mask_true = None, image_sha
     x_true, mask_true = image, masks
     
     if bbox_true is None and y_true is not None:
-        x_true, clsf_y_true, clsf_bbox_true = random_crop(x_true, clsf_y_true, clsf_bbox_true, mask_true, image_shape = image_shape[:2], min_visibility = 0., min_area = 0.)
+        x_true, clsf_y_true, clsf_bbox_true = random_crop(x_true, clsf_y_true, clsf_bbox_true, mask_true, image_shape = image_shape[:2], min_visibility = 0., min_area = 0., e = e)
         area = (clsf_bbox_true[..., 3] - clsf_bbox_true[..., 1]) * clsf_bbox_true[..., 2] - clsf_bbox_true[..., 0]
         ratio = np.divide(area, sum(area))
         y_true = np.sum([np.multiply(y_true[l], ratio[i]) for i, l in enumerate(clsf_y_true[:, 0])], axis = 0)
         return (x_true, y_true)
     else:
-        return random_crop(x_true, y_true, bbox_true, mask_true, image_shape = image_shape[:2], min_visibility = min_visibility, min_area = min_area)
+        return random_crop(x_true, y_true, bbox_true, mask_true, image_shape = image_shape[:2], min_visibility = min_visibility, min_area = min_area, e = e)
     
 def cut_mix(x_true, y_true = None, bbox_true = None, mask_true = None, alpha = 1., min_area = 0., min_visibility = 0., e = 1e-12):
     """
@@ -671,7 +670,8 @@ def mix_up(x_true, y_true = None, bbox_true = None, mask_true = None, alpha = 8.
             bbox_true = [np.concatenate(bbox_true[:2], axis = 0)]
         if mask_true is not None:
             if np.ndim(mask_true[0]) < 4:
-                mask_true = [np.multiply(mask_true[0], r) + np.multiply(mask_true[1], 1 - r)]
+                #mask_true = [np.multiply(mask_true[0], r) + np.multiply(mask_true[1], 1 - r)]
+                mask_true = [np.max(mask_true[:2], axis = 0)]
             elif 3 < np.ndim(mask_true[0]):
                 mask_true = [np.concatenate(mask_true[:2], axis = 0)]
     if len(x_true) == 1:

@@ -6,11 +6,11 @@ import tensorflow as tf
 from tfdet.core.util import (pipeline, convert_to_numpy, py_func, dict_function,
                              zip_pipeline as zip_pipe, concat_pipeline as concat_pipe, stack_pipeline as stack_pipe)
 
-@dict_function(extra_keys = ["y_true", "bbox_true", "mask_true"])
+@dict_function(keys = ["x_true", "y_true", "bbox_true", "mask_true"])
 def dict_py_func(function, *args, Tout = tf.float32, **kwargs):
     return py_func(function, *args, Tout = Tout, **kwargs)
 
-@dict_function(extra_keys = ["y_true", "bbox_true", "mask_true"])
+@dict_function(keys = ["x_true", "y_true", "bbox_true", "mask_true"])
 def dict_tf_func(function, *args, **kwargs):
     return function(*args, **kwargs)
 
