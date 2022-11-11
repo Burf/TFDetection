@@ -12,7 +12,7 @@ try:
 
     def albumentations(x_true, y_true = None, bbox_true = None, mask_true = None,
                        transform = [A.CLAHE(p = 0.1, clip_limit = 4., tile_grid_size = (8, 8)),
-                                    A.RandomBrightnessContrast(p = 0.01, brightness_limit = 0.2, contrast_limit = 0.2),
+                                    A.RandomBrightnessContrast(p = 0.1, brightness_limit = 0.2, contrast_limit = 0.2),
                                     A.RandomGamma(p = 0.1, gamma_limit = [80, 120]),
                                     A.Blur(p = 0.1),
                                     A.MedianBlur(p = 0.1),
