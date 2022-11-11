@@ -54,7 +54,7 @@ class MeanIoU:
     
     @property
     def f1(self):
-        return ((1 * self.beta**2) * np.multiply(self.precision, self.recall)) / np.maximum(np.add(np.multiply(self.beta**2, self.precision), self.recall), self.e)
+        return ((1 + self.beta**2) * np.multiply(self.precision, self.recall)) / np.maximum(np.add(np.multiply(self.beta**2, self.precision), self.recall), self.e)
     
     @property
     def mean_f1(self):
