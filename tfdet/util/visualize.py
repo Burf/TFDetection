@@ -36,7 +36,7 @@ def draw_bbox(x_true, bbox_true, y_true = None, mask_true = None, label = None, 
         
         for index, rect in enumerate(bbox):
             bbox_color = color
-            if color is None or (not np.issubdtype(y_index.dtype, np.number) and not (label and np.ndim(bbox_color) == 2)):
+            if color is None or (y_true is not None and not np.issubdtype(y_index.dtype, np.number) and not (label and np.ndim(bbox_color) == 2)):
                 bbox_color = np.random.random(size = 3) if normalize_flag else np.random.randint(0, 256, size = 3).astype(float)
             if np.max(rect) < 2:
                 rect = np.round(np.multiply(rect, [w, h, w, h]))
