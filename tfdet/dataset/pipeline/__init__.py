@@ -1,5 +1,5 @@
 from .transform import (load, normalize, unnormalize, filter_annotation, label_encode, label_decode, compose,
-                        resize, pad, trim, crop,
+                        resize, pad, trim, crop, flip,
                         random_crop, random_flip, multi_scale_flip,
                         yolo_hsv, random_perspective,
                         mosaic, mosaic9, cut_mix, cut_out, mix_up, 

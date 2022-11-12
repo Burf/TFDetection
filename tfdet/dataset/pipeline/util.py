@@ -3,7 +3,7 @@ import functools
 import numpy as np
 import tensorflow as tf
 
-from tfdet.core.util import (pipeline, convert_to_numpy, py_func, dict_function,
+from tfdet.core.util import (pipeline, convert_to_numpy, convert_to_ragged_tensor, py_func, dict_function,
                              zip_pipeline as zip_pipe, concat_pipeline as concat_pipe, stack_pipeline as stack_pipe)
 
 @dict_function(keys = ["x_true", "y_true", "bbox_true", "mask_true"])

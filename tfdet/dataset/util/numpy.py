@@ -1,8 +1,6 @@
 import numpy as np
 import tensorflow as tf
 
-from tfdet.core.util import convert_to_numpy
-
 def pad(data, pad_width = None, val = 0):
     if pad_width is not None and 0 < np.max(pad_width):
         data = np.array(data) if not isinstance(data, np.ndarray) else data

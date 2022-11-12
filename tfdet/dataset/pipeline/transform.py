@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.python.data.ops import dataset_ops
 
-from .util import pipe, zip_pipe, concat_pipe, stack_pipe, dict_tf_func
+from .util import pipe, zip_pipe, concat_pipe, stack_pipe, dict_tf_func, convert_to_ragged_tensor
 from ..util import load_image
 from ..pascal_voc import load_annotation
 from tfdet.dataset import transform as T
@@ -310,6 +310,30 @@ def crop(x_true, y_true = None, bbox_true = None, mask_true = None,
                 cache = cache, num_parallel_calls = num_parallel_calls,
                 tf_func = False, dtype = dtype)
 
+def flip(x_true, y_true = None, bbox_true = None, mask_true = None,
+         mode = "horizontal",
+         batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+         cache = False, num_parallel_calls = None):
+    """
+    x_true = (N, H, W, C) or pipe
+    y_true(without bbox_true) = (N, 1 or n_class)
+    y_true(with bbox_true) = (N, P, 1 or n_class)
+    bbox_true = (N, P, 4)
+    mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
+    mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
+    
+    mode = ("horizontal", "vertical")
+    """
+    pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
+    dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
+    dtype = [spec.dtype for spec in dtype]
+    dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
+    return pipe(x_true, y_true, bbox_true, mask_true, function = T.flip,
+                mode = mode,
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
+                cache = cache, num_parallel_calls = num_parallel_calls,
+                tf_func = False, dtype = dtype)
+
 def random_crop(x_true, y_true = None, bbox_true = None, mask_true = None,
                 image_shape = None, min_area = 0., min_visibility = 0., e = 1e-12,
                 batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
@@ -359,8 +383,9 @@ def random_flip(x_true, y_true = None, bbox_true = None, mask_true = None,
                 tf_func = False, dtype = dtype)
 
 def multi_scale_flip(x_true, y_true = None, bbox_true = None, mask_true = None,
-                     image_shape = None, keep_ratio = True, flip = True, mode = "horizontal",
-                     batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+                     image_shape = None, keep_ratio = True, mode = "horizontal", 
+                     pad_val = 114, pad_mode = "both",
+                     batch_size = 0, prefetch = False,
                      cache = False, num_parallel_calls = None):
     """
     x_true = (N, H, W, C) or pipe
@@ -371,27 +396,32 @@ def multi_scale_flip(x_true, y_true = None, bbox_true = None, mask_true = None,
     mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
     
     image_shape = [h, w](single apply) or [[h, w], ...](multi apply)
-    mode = ("horizontal", "vertical", "both")(single apply) or [mode, ...](multi apply)
+    mode = ("horizontal", "vertical")(single apply) or [mode, ...](multi apply)
     """
     pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
     
     aug_pipes = []
     for shape in ([image_shape] if np.ndim(image_shape) < 2 else image_shape):
-        resize_pipe = resize(pre_pipe, image_shape = shape, keep_ratio = keep_ratio) if shape is not None else pre_pipe
-        aug_pipes.append(resize_pipe)
-        if flip:
-            for m in ([mode] if np.ndim(mode) < 1 else mode):
-                flip_pipe = random_flip(resize_pipe, p = 1., mode = m)
-                aug_pipes.append(flip_pipe)
+        resize_pipe = pre_pipe
+        if shape is not None:
+            resize_pipe = resize(pre_pipe, image_shape = shape, keep_ratio = keep_ratio)
+            if keep_ratio:
+                resize_pipe = pad(resize_pipe, image_shape = shape, max_pad_size = 0, pad_val = pad_val, mode = pad_mode)
+            aug_pipes.append(resize_pipe.map(convert_to_ragged_tensor).batch(batch_size) if 0 < batch_size else resize_pipe)
+        for m in ([mode] if np.ndim(mode) < 1 else mode):
+            if m is not None:
+                flip_pipe = flip(resize_pipe, mode = m)
+                aug_pipes.append(flip_pipe.map(convert_to_ragged_tensor).batch(batch_size) if 0 < batch_size else flip_pipe)
     
     concat_pipe = pre_pipe
     if 0 < len(aug_pipes):
         concat_pipe = aug_pipes[0]
         for p in aug_pipes[1:]:
             concat_pipe = concat_pipe.concatenate(p)
+    elif 0 < batch_size:
+        concat_pipe = concat_pipe.batch(batch_size)
             
-    return pipe(concat_pipe,
-                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
+    return pipe(concat_pipe, prefetch = prefetch,
                 cache = cache, num_parallel_calls = num_parallel_calls)
 
 def yolo_hsv(x_true, y_true = None, bbox_true = None, mask_true = None, 
@@ -473,6 +503,7 @@ def mosaic(x_true, y_true = None, bbox_true = None, mask_true = None,
     sample_pipe = (sample_x_true if isinstance(sample_x_true, tf.data.Dataset) else pipe(sample_x_true, sample_y_true, sample_bbox_true, sample_mask_true)) if sample_x_true is not None else pre_pipe
     if sample_cache and not isinstance(sample_pipe, dataset_ops.CacheDataset):
         sample_pipe = pipe(sample_pipe, cache = sample_cache)
+    pre_pipe, sample_pipe = pre_pipe.map(convert_to_ragged_tensor), sample_pipe.map(convert_to_ragged_tensor)
     args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.repeat(3).shuffle(3 * 10).batch(3), axis = 0)
     
     func = functools.partial(T.mosaic, image_shape = image_shape, alpha = alpha, pad_val = pad_val, min_area = min_area, min_visibility = min_visibility, e = e)
@@ -517,6 +548,7 @@ def mosaic9(x_true, y_true = None, bbox_true = None, mask_true = None,
     sample_pipe = (sample_x_true if isinstance(sample_x_true, tf.data.Dataset) else pipe(sample_x_true, sample_y_true, sample_bbox_true, sample_mask_true)) if sample_x_true is not None else pre_pipe
     if sample_cache and not isinstance(sample_pipe, dataset_ops.CacheDataset):
         sample_pipe = pipe(sample_pipe, cache = sample_cache)
+    pre_pipe, sample_pipe = pre_pipe.map(convert_to_ragged_tensor), sample_pipe.map(convert_to_ragged_tensor)
     args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.repeat(8).shuffle(8 * 10).batch(8), axis = 0)
     
     func = functools.partial(T.mosaic9, image_shape = image_shape, pad_val = pad_val, min_area = min_area, min_visibility = min_visibility, e = e)
@@ -657,6 +689,7 @@ def copy_paste(x_true, y_true = None, bbox_true = None, mask_true = None,
     sample_pipe = (sample_x_true if isinstance(sample_x_true, tf.data.Dataset) else pipe(sample_x_true, sample_y_true, sample_bbox_true, sample_mask_true)) if sample_x_true is not None else pre_pipe
     if sample_cache and not isinstance(sample_pipe, dataset_ops.CacheDataset):
         sample_pipe = pipe(sample_pipe, cache = sample_cache)
+    pre_pipe, sample_pipe = pre_pipe.map(convert_to_ragged_tensor), sample_pipe.map(convert_to_ragged_tensor)
     args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.repeat(max(sample_size, 1)).shuffle(max(sample_size, 1) * 10).batch(max(sample_size, 1)), axis = 0)
         
     func = functools.partial(T.copy_paste, max_paste_count = max_paste_count, scale_range = scale_range, clip_object = clip_object, replace = replace, random_count = random_count, label = label, min_scale = min_scale, min_instance_area = min_instance_area, iou_threshold = iou_threshold, copy_min_scale = copy_min_scale, copy_min_instance_area = copy_min_instance_area, copy_iou_threshold = copy_iou_threshold, p_flip = p_flip, pad_val = pad_val, method = method, min_area = min_area, min_visibility = min_visibility, e = e)
@@ -695,7 +728,7 @@ def yolo_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
                       h = 0.015, s = 0.7, v = 0.4,
                       max_paste_count = 20, scale_range = [0.0625, 0.75], clip_object = True, replace = True, random_count = False, label = None,
                       min_scale = 2, min_instance_area = 1, iou_threshold = 0.3, copy_min_scale = 2, copy_min_instance_area = 1, copy_iou_threshold = 0.3, p_copy_paste_flip = 0.5, method = cv2.INTER_LINEAR,
-                      p_mosaic = 1., p_mix_up = 0.15, p_copy_paste = 0., p_flip = 0.5,
+                      p_mosaic = 1., p_mix_up = 0.15, p_copy_paste = 0., p_flip = 0.5, p_mosaic9 = 0.8,
                       min_area = 0., min_visibility = 0., e = 1e-12,
                       sample_size = 8 + 9 + 4, sample_cache = True,
                       batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
@@ -723,6 +756,7 @@ def yolo_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
     sample_pipe = (sample_x_true if isinstance(sample_x_true, tf.data.Dataset) else pipe(sample_x_true, sample_y_true, sample_bbox_true, sample_mask_true)) if sample_x_true is not None else pre_pipe
     if sample_cache and not isinstance(sample_pipe, dataset_ops.CacheDataset):
         sample_pipe = pipe(sample_pipe, cache = sample_cache)
+    pre_pipe, sample_pipe = pre_pipe.map(convert_to_ragged_tensor), sample_pipe.map(convert_to_ragged_tensor)
     args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.repeat(max(sample_size, 1)).shuffle(max(sample_size, 1) * 10).batch(max(sample_size, 1)), axis = 0)
     
     func = functools.partial(T.yolo_augmentation, image_shape = image_shape, pad_val = pad_val,
@@ -730,7 +764,7 @@ def yolo_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
                              h = h, s = s, v = v,
                              max_paste_count = max_paste_count, scale_range = scale_range, clip_object = clip_object, replace = replace, random_count = random_count, label = label,
                              min_scale = min_scale, min_instance_area = min_instance_area, iou_threshold = iou_threshold, copy_min_scale = copy_min_scale, copy_min_instance_area = copy_min_instance_area, copy_iou_threshold = copy_iou_threshold, p_copy_paste_flip = p_copy_paste_flip, method = method,
-                             p_mosaic = p_mosaic, p_mix_up = p_mix_up, p_copy_paste = p_copy_paste, p_flip = p_flip,
+                             p_mosaic = p_mosaic, p_mix_up = p_mix_up, p_copy_paste = p_copy_paste, p_flip = p_flip, p_mosaic9 = p_mosaic9,
                              min_area = min_area, min_visibility = min_visibility, e = e)
     return pipe(args_pipe, function = func,
                 batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,

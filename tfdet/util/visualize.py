@@ -3,7 +3,7 @@ import numpy as np
 
 def draw_bbox(x_true, bbox_true, y_true = None, mask_true = None, label = None, threshold = 0.5, mix_ratio = 0.5, method = cv2.INTER_LINEAR, probability = True, prefix = "", postfix = "", color = None, size_ratio = 1.):
     batch = True
-    if np.ndim(x_true) not in [1, 4]:
+    if not isinstance(x_true, (tuple, list)) and np.ndim(x_true) not in [1, 4]:
         batch = False
         x_true = [x_true]
         bbox_true = [bbox_true]
@@ -76,5 +76,8 @@ def draw_bbox(x_true, bbox_true, y_true = None, mask_true = None, label = None, 
     if not batch:# and len(x_true) == 1:
         result = result[0]
     else:
-        result = np.array(result)
+        try:
+            result = np.array(result)
+        except:
+            pass
     return result

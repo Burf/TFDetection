@@ -34,15 +34,34 @@ def convert_to_numpy(*args, return_tuple = False):
             args = args[0]
         args = list(args)
         for index in range(len(args)):
-            if tf.is_tensor(args[index]):
-                if args[index].dtype == tf.string:
-                    arg = args[index].numpy()
-                    if 0 < np.ndim(arg):
-                        args[index] = arg.astype(str).astype(np.object0)
-                    else:
-                        args[index] = arg.decode("UTF-8")
+            arg = args[index]
+            if tf.is_tensor(arg):
+                dtype, v = arg.dtype, arg.numpy()
+                if len(arg.shape) != np.ndim(v):
+                    v = [convert_to_numpy(v) for v in arg]
                 else:
-                    args[index] = args[index].numpy()
+                    v = [v]
+                for i in range(len(v)):
+                    if dtype == tf.string and not isinstance(v[i], list):
+                        v[i] = v[i].astype(str).astype(np.object0) if 0 < np.ndim(v[i]) else v[i].decode("UTF-8")
+                args[index] = v[0] if len(v) == 1 else v
+        if not return_tuple and len(args) == 1:
+            args = args[0]
+        else:
+            args = tuple(args)
+        return args
+        
+def convert_to_ragged_tensor(*args, return_tuple = False):
+    if args and isinstance(args[0], dict):
+        return {k:convert_to_ragged_tensor(v) for k, v in args[0].items()}
+    else:
+        if args and (isinstance(args[0], tuple) or isinstance(args[0], list)):
+            args = args[0]
+        args = list(args)
+        for index in range(len(args)):
+            v = args[index]
+            if not isinstance(v, tf.RaggedTensor):
+                args[index] = tf.ragged.stack([v])[0]
         if not return_tuple and len(args) == 1:
             args = args[0]
         else:

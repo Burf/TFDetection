@@ -294,8 +294,8 @@ def mosaic(x_true, y_true = None, bbox_true = None, mask_true = None, image_shap
         y_true = np.expand_dims(y_true, axis = 0) if y_true is not None else None
         bbox_true = np.expand_dims(bbox_true, axis = 0) if bbox_true is not None else None
         mask_true = np.expand_dims(mask_true, axis = 0) if mask_true is not None else None
-    if image_shape is not None and np.ndim(image_shape) == 0:
-        image_shape = np.round(np.multiply(np.shape(x_true[0])[:2], image_shape)).astype(int)
+    #if image_shape is not None and np.ndim(image_shape) == 0:
+    #    image_shape = np.round(np.multiply(np.shape(x_true[0])[:2], image_shape)).astype(int)
     
     h, w, c = np.shape(x_true[0]) if 2 < np.ndim(x_true[0]) else [*np.shape(x_true[0]), 1]
     if image_shape is not None:
@@ -399,13 +399,15 @@ def mosaic9(x_true, y_true = None, bbox_true = None, mask_true = None, image_sha
         y_true = np.expand_dims(y_true, axis = 0) if y_true is not None else None
         bbox_true = np.expand_dims(bbox_true, axis = 0) if bbox_true is not None else None
         mask_true = np.expand_dims(mask_true, axis = 0) if mask_true is not None else None
-    if image_shape is not None and np.ndim(image_shape) == 0:
-        image_shape = np.round(np.multiply(np.shape(x_true[0])[:2], image_shape)).astype(int)
-        
+    #if image_shape is not None and np.ndim(image_shape) == 0:
+    #    image_shape = np.round(np.multiply(np.shape(x_true[0])[:2], image_shape)).astype(int)
+    
     h, w, c = np.shape(x_true[0]) if 2 < np.ndim(x_true[0]) else [*np.shape(x_true[0]), 1]
     image_shape = [h * 2, w * 2] if image_shape is None else image_shape
-    if 2 < len(image_shape):
-        c = image_shape[2]
+    if len(image_shape) == 2:
+        image_shape = [*image_shape, c]
+    h, w = np.divide(image_shape[:2], 2).astype(int)
+    c = image_shape[-1]
     image = np.full([h * 3, w * 3, c], pad_val, dtype = x_true[0].dtype)
     if np.any(np.greater(image_shape[:2], np.shape(image)[:2])):
         raise ValueError("'image_shape' should be less than or equal to ({0}, {1}). : please check 'image_shape'".format(*np.shape(image)[:2]))
@@ -436,9 +438,10 @@ def mosaic9(x_true, y_true = None, bbox_true = None, mask_true = None, image_sha
             c = w - img_w, h + img_h0 - img_hp - img_h, w, h + img_h0 - img_hp
         
         padx, pady = c[:2]
-        x1, y1, x2, y2 = [max(x, 0) for x in c]  # allocate coords
-
-        image[y1:y2, x1:x2] = img[y1 - pady:, x1 - padx:]
+        x1, y1, x2, y2 = np.clip(c, 0, [w * 3, h * 3, w * 3, h * 3])
+        x2, y2 = x1 + min(x2 - x1, img_w), y1 + min(y2 - y1, img_h)
+        
+        image[y1:y2, x1:x2] = img[y1 - pady:y2 - pady, x1 - padx:x2 - padx]
         img_hp, img_wp = img_h, img_w
         pads.append([padx, pady])
         
@@ -446,13 +449,13 @@ def mosaic9(x_true, y_true = None, bbox_true = None, mask_true = None, image_sha
             if np.ndim(mask_true[i]) < 4: #semantic_mask
                 if i == 0:
                     masks = np.zeros([h * 3, w * 3, np.shape(mask_true[i])[-1]], dtype = mask_true[i].dtype)
-                masks[..., y1:y2, x1:x2, :] = mask_true[i][..., y1 - pady:, x1 - padx:, :]
+                masks[..., y1:y2, x1:x2, :] = mask_true[i][..., y1 - pady:y2 - pady, x1 - padx:x2 - padx, :]
             elif 3 < np.ndim(mask_true[i]): #instance_mask
                 mask = np.array(mask_true[i])
                 if i == 0:
                     masks = []
                 new_mask = np.zeros([len(mask), h * 3, w * 3, 1], dtype = mask.dtype)
-                new_mask[..., y1:y2, x1:x2, :] = mask[..., y1 - pady:, x1 - padx:, :]
+                new_mask[..., y1:y2, x1:x2, :] = mask[..., y1 - pady:y2 - pady, x1 - padx:x2 - padx, :]
                 #if bbox_true is None:
                 #    new_mask = new_mask[0 < np.max(new_mask, axis = (-3, -2, -1))]
                 masks.append(new_mask)
