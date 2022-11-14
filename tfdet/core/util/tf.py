@@ -67,6 +67,25 @@ def convert_to_ragged_tensor(*args, return_tuple = False):
         else:
             args = tuple(args)
         return args
+        
+def convert_to_tensor(*args, return_tuple = False):
+    if args and isinstance(args[0], dict):
+        return {k:convert_to_ragged_tensor(v) for k, v in args[0].items()}
+    else:
+        if args and (isinstance(args[0], tuple) or isinstance(args[0], list)):
+            args = args[0]
+        args = list(args)
+        for index in range(len(args)):
+            v = args[index]
+            if not tf.is_tensor(v):
+                args[index] = tf.convert_to_tensor(v)
+            elif isinstance(v, tf.RaggedTensor):
+                args[index] = v.to_tensor()
+        if not return_tuple and len(args) == 1:
+            args = args[0]
+        else:
+            args = tuple(args)
+        return args
 
 def py_func(function, *args, Tout = tf.float32, **kwargs):
     #return tf.py_function(lambda *args: functools.partial(function, **kwargs)(*convert_to_numpy(*args, return_tuple = True)), args, Tout = Tout)

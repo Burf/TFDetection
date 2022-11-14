@@ -3,4 +3,4 @@ from .image import load_image, save_image, instance2semantic, instance2bbox, tri
 from .numpy import pad
 from .xml import xml2dict, dict2xml
 
-from tfdet.core.util import convert_to_numpy, convert_to_ragged_tensor
+from tfdet.core.util import convert_to_numpy, convert_to_ragged_tensor, convert_to_tensor

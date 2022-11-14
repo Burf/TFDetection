@@ -114,7 +114,7 @@ def filter_annotation(x_true, y_true = None, bbox_true = None, mask_true = None,
     mask_true(with bbox_true & instance mask_true) = (P, H, W, 1)
     mask_true(semantic mask_true) = (H, W, 1 or n_class)
     
-    #The pad will be removed.
+    #Pad is removed.
     annotation = annotation[np.isin(y_true[..., 0], label)]
     annotation = annotation[min_scale[0] or min_scale <= bbox_height and min_scale[1] or min_scale <= bbox_width]
     annotation = annotation[min_instance_area <= instance_mask_area]
@@ -330,7 +330,7 @@ def trim(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape 
     mask_true(with bbox_true & instance mask_true) = (P, H, W, 1)
     mask_true(semantic mask_true) = (H, W, 1 or n_class)
     
-    #The pad will be removed.
+    #Pad is removed.
     pad_val = np.round(x_true, decimal)'s pad_val
     """
     if image_shape is not None and np.ndim(image_shape) == 0:
@@ -353,7 +353,7 @@ def crop(x_true, y_true = None, bbox_true = None, mask_true = None, bbox = None,
     mask_true(with bbox_true & instance mask_true) = (P, H, W, 1)
     mask_true(semantic mask_true) = (H, W, 1 or n_class)
     
-    #The pad will be removed.
+    #Pad is removed.
     bbox = [x1, y1, x2, y2]
     """
     h, w = np.shape(x_true)[:2]

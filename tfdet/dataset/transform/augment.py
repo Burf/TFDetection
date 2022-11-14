@@ -32,8 +32,8 @@ try:
         bbox_true = (P, 4)
         mask_true(with bbox_true & instance mask_true) = (P, H, W, 1)
         mask_true(semantic mask_true) = (H, W, 1 or n_class)
-
-        #The pad will be removed.
+        
+        #Pad is removed.
         """
         if 0 < len(transform):
             method = A.Compose(transform, bbox_params = {"format":"albumentations", "label_fields":["class_labels"], "min_area":min_area, "min_visibility":min_visibility})
@@ -107,8 +107,9 @@ def random_crop(x_true, y_true = None, bbox_true = None, mask_true = None, image
     bbox_true = (P, 4)
     mask_true(with bbox_true & instance mask_true) = (P, H, W, 1)
     mask_true(semantic mask_true) = (H, W, 1 or n_class)
-
-    #The pad will be removed.
+    
+    #Pad is removed.
+    #If image_shape is shape or ratio, apply random_crop.
     """
     if image_shape is not None:
         if np.ndim(image_shape) == 0:
@@ -131,7 +132,7 @@ def random_flip(x_true, y_true = None, bbox_true = None, mask_true = None, p = 0
     bbox_true = (P, 4)
     mask_true(with bbox_true & instance mask_true) = (P, H, W, 1)
     mask_true(semantic mask_true) = (H, W, 1 or n_class)
-
+    
     mode = ("horizontal", "vertical")
     """
     if mode not in ("horizontal", "vertical"):
@@ -180,7 +181,7 @@ def random_perspective(x_true, y_true = None, bbox_true = None, mask_true = None
     mask_true(with bbox_true & instance mask_true) = (P, H, W, 1)
     mask_true(semantic mask_true) = (H, W, 1 or n_class)
     
-    #The pad will be removed.
+    #Pad is removed.
     """
     if image_shape is not None and np.ndim(image_shape) == 0:
         image_shape = np.round(np.multiply(np.shape(x_true)[:2], image_shape)).astype(int)
@@ -286,7 +287,7 @@ def mosaic(x_true, y_true = None, bbox_true = None, mask_true = None, image_shap
     mask_true(with bbox_true & instance mask_true) = (4, P, H, W, 1)
     mask_true(semantic mask_true) = (4, H, W, 1 or n_class)
     
-    #The pad will be removed.
+    #Pad is removed.
     #If image_shape is None, the result is (N, 2 * H, 2 * W, C).
     """
     if np.ndim(x_true[0]) < 3:
@@ -391,7 +392,7 @@ def mosaic9(x_true, y_true = None, bbox_true = None, mask_true = None, image_sha
     mask_true(with bbox_true & instance mask_true) = (9, P, H, W, 1)
     mask_true(semantic mask_true) = (9, H, W, 1 or n_class)
     
-    #The pad will be removed.
+    #Pad is removed.
     #If image_shape is None, the result is (N, 2 * H, 2 * W, C).
     """
     if np.ndim(x_true[0]) < 3:
@@ -518,7 +519,7 @@ def cut_mix(x_true, y_true = None, bbox_true = None, mask_true = None, alpha = 1
     mask_true(with bbox_true & instance mask_true) = (2, P, H, W, 1)
     mask_true(semantic mask_true) = (2, H, W, 1 or n_class)
     
-    #The pad will be removed.
+    #Pad is removed.
     """
     if np.ndim(x_true[0]) < 3:
         x_true = np.expand_dims(x_true, axis = 0)
@@ -611,7 +612,7 @@ def cut_out(x_true, y_true = None, bbox_true = None, mask_true = None, alpha = 1
     mask_true(with bbox_true & instance mask_true) = (P, H, W, 1)
     mask_true(semantic mask_true) = (H, W, 1 or n_class)
     
-    #The pad will be removed.
+    #Pad is removed.
     """
     x_true = np.array(x_true)
     image_shape = x_true.shape[:2]
@@ -655,7 +656,7 @@ def mix_up(x_true, y_true = None, bbox_true = None, mask_true = None, alpha = 8.
     mask_true(with bbox_true & instance mask_true) = (2, P, H, W, 1)
     mask_true(semantic mask_true) = (2, H, W, 1 or n_class)
     
-    #The pad will be removed.
+    #Pad is removed.
     """
     if np.ndim(x_true[0]) < 3:
         x_true = np.expand_dims(x_true, axis = 0)
@@ -719,7 +720,7 @@ def insta_boost(x_true, y_true = None, bbox_true = None, mask_true = None,
     mask_true(with bbox_true & instance mask_true) = (P, H, W, 1)
     mask_true(semantic mask_true) = (H, W, 1 or n_class)
     
-    #The pad will be removed.
+    #Pad is removed.
     """
     if y_true is not None and bbox_true is not None and (mask_true is not None and 3 < np.ndim(mask_true)):
         try:
@@ -785,7 +786,7 @@ def copy_paste(x_true, y_true = None, bbox_true = None, mask_true = None, max_pa
     mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
     mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
     
-    #The pad will be removed.
+    #Pad is removed.
     #First image is Background image.
     #Paste object condition : min_scale[0] or min_scale <= paste_object_height and min_scale[1] or min_scale <= paste_object_width
     #Paste mask condition : min_instance_area <= paste_instance_mask_area
