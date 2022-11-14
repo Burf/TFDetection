@@ -115,7 +115,7 @@ def random_crop(x_true, y_true = None, bbox_true = None, mask_true = None, image
             image_shape = np.round(np.multiply(np.shape(x_true)[:2], image_shape)).astype(int)
         image_shape = image_shape[:2][::-1]
         ori_image_shape = np.shape(x_true)[:2][::-1]
-        xy = np.random.randint(np.subtract(ori_image_shape, image_shape) + 1)
+        xy = np.random.randint(np.maximum(np.subtract(ori_image_shape, image_shape), 0) + 1)
         bbox = np.concatenate([xy, xy + image_shape], axis = 0)
         result = crop(x_true, y_true, bbox_true, mask_true, bbox = bbox, min_area = min_area, min_visibility = min_visibility, e = e)
     else:
