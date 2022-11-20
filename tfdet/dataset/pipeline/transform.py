@@ -503,7 +503,6 @@ def mosaic(x_true, y_true = None, bbox_true = None, mask_true = None,
     if sample_cache and not isinstance(sample_pipe, dataset_ops.CacheDataset):
         sample_pipe = pipe(sample_pipe, cache = sample_cache)
     pre_pipe, sample_pipe = pre_pipe.map(convert_to_pickle), sample_pipe.map(convert_to_pickle)
-    #args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.repeat(3).shuffle(3 * 10).batch(3), axis = 0)
     args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.shuffle(3 * 10).repeat().batch(3), axis = 0)
     
     func = functools.partial(T.mosaic, image_shape = image_shape, alpha = alpha, pad_val = pad_val, min_area = min_area, min_visibility = min_visibility, e = e)
@@ -549,7 +548,6 @@ def mosaic9(x_true, y_true = None, bbox_true = None, mask_true = None,
     if sample_cache and not isinstance(sample_pipe, dataset_ops.CacheDataset):
         sample_pipe = pipe(sample_pipe, cache = sample_cache)
     pre_pipe, sample_pipe = pre_pipe.map(convert_to_pickle), sample_pipe.map(convert_to_pickle)
-    #args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.repeat(3).shuffle(3 * 10).batch(3), axis = 0)
     args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.shuffle(8 * 10).repeat().batch(8), axis = 0)
     
     func = functools.partial(T.mosaic9, image_shape = image_shape, pad_val = pad_val, min_area = min_area, min_visibility = min_visibility, e = e)
@@ -691,7 +689,6 @@ def copy_paste(x_true, y_true = None, bbox_true = None, mask_true = None,
     if sample_cache and not isinstance(sample_pipe, dataset_ops.CacheDataset):
         sample_pipe = pipe(sample_pipe, cache = sample_cache)
     pre_pipe, sample_pipe = pre_pipe.map(convert_to_pickle), sample_pipe.map(convert_to_pickle)
-    #args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.repeat(3).shuffle(3 * 10).batch(3), axis = 0)
     args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.shuffle(max(sample_size, 1) * 10).repeat().batch(max(sample_size, 1)), axis = 0)
         
     func = functools.partial(T.copy_paste, max_paste_count = max_paste_count, scale_range = scale_range, clip_object = clip_object, replace = replace, random_count = random_count, label = label, min_scale = min_scale, min_instance_area = min_instance_area, iou_threshold = iou_threshold, copy_min_scale = copy_min_scale, copy_min_instance_area = copy_min_instance_area, copy_iou_threshold = copy_iou_threshold, p_flip = p_flip, pad_val = pad_val, method = method, min_area = min_area, min_visibility = min_visibility, e = e)
@@ -760,7 +757,6 @@ def yolo_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
     if sample_cache and not isinstance(sample_pipe, dataset_ops.CacheDataset):
         sample_pipe = pipe(sample_pipe, cache = sample_cache)
     pre_pipe, sample_pipe = pre_pipe.map(convert_to_pickle), sample_pipe.map(convert_to_pickle)
-    #args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.repeat(3).shuffle(3 * 10).batch(3), axis = 0)
     args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.shuffle(max(sample_size, 1) * 10).repeat().batch(max(sample_size, 1)), axis = 0)
     
     func = functools.partial(T.yolo_augmentation, image_shape = image_shape, pad_val = pad_val,
