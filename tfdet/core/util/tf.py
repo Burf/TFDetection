@@ -1,5 +1,6 @@
 import functools
 import os
+import pickle
 
 import tensorflow as tf
 import numpy as np
@@ -30,21 +31,50 @@ def convert_to_numpy(*args, return_tuple = False):
     if args and isinstance(args[0], dict):
         return {k:convert_to_numpy(v) for k, v in args[0].items()}
     else:
-        if args and (isinstance(args[0], tuple) or isinstance(args[0], list)):
+        if args and isinstance(args[0], (tuple, list)):
             args = args[0]
         args = list(args)
         for index in range(len(args)):
             arg = args[index]
-            if tf.is_tensor(arg):
+            if tf.is_tensor(arg) and hasattr(arg, "numpy"):
                 dtype, v = arg.dtype, arg.numpy()
                 if len(arg.shape) != np.ndim(v):
                     v = [convert_to_numpy(v) for v in arg]
+                    batch = True
                 else:
                     v = [v]
+                    batch = False
                 for i in range(len(v)):
                     if dtype == tf.string and not isinstance(v[i], list):
-                        v[i] = v[i].astype(str).astype(np.object0) if 0 < np.ndim(v[i]) else v[i].decode("UTF-8")
-                args[index] = v[0] if len(v) == 1 else v
+                        try: #string
+                            v[i] = v[i].astype(str).astype(np.object0) if 0 < np.ndim(v[i]) else v[i].decode("UTF-8")
+                        except: #pickle
+                            try:
+                                v[i] = [pickle.loads(_v) for _v in v[i]] if 0 < np.ndim(v[i]) else pickle.loads(v[i])
+                            except:
+                                pass
+                args[index] = v[0] if not batch else v
+        if not return_tuple and len(args) == 1:
+            args = args[0]
+        else:
+            args = tuple(args)
+        return args
+    
+def convert_to_pickle(*args, return_tuple = False):
+    if args and isinstance(args[0], dict):
+        return {k:convert_to_pickle(v) for k, v in args[0].items()}
+    else:
+        if args and isinstance(args[0], (tuple, list)):
+            args = args[0]
+        args = list(args)
+        for index in range(len(args)):
+            v = args[index]
+            shape = v.shape
+            if tf.is_tensor(v):
+                v = convert_to_numpy(v)
+            if not tf.is_tensor(v) and not isinstance(v, bytes):
+                v = pickle.dumps(v)
+            args[index] = v
         if not return_tuple and len(args) == 1:
             args = args[0]
         else:
@@ -55,7 +85,7 @@ def convert_to_ragged_tensor(*args, return_tuple = False):
     if args and isinstance(args[0], dict):
         return {k:convert_to_ragged_tensor(v) for k, v in args[0].items()}
     else:
-        if args and (isinstance(args[0], tuple) or isinstance(args[0], list)):
+        if args and isinstance(args[0], (tuple, list)):
             args = args[0]
         args = list(args)
         for index in range(len(args)):
@@ -70,9 +100,9 @@ def convert_to_ragged_tensor(*args, return_tuple = False):
         
 def convert_to_tensor(*args, return_tuple = False):
     if args and isinstance(args[0], dict):
-        return {k:convert_to_ragged_tensor(v) for k, v in args[0].items()}
+        return {k:convert_to_tensor(v) for k, v in args[0].items()}
     else:
-        if args and (isinstance(args[0], tuple) or isinstance(args[0], list)):
+        if args and isinstance(args[0], (tuple, list)):
             args = args[0]
         args = list(args)
         for index in range(len(args)):
@@ -105,12 +135,12 @@ def to_categorical(y, n_class = None, label_smoothing = 0.1):
     
 def pipeline(dataset, function = None,
              batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-             cache = False, num_parallel_calls = None):
+             cache = False, num_parallel_calls = True):
     if not isinstance(dataset, tf.data.Dataset):
         dataset = tf.data.Dataset.from_tensor_slices(dataset)
     for func in function if 0 < np.ndim(function) else [function]:
         if callable(func):
-            dataset = dataset.map(func, num_parallel_calls = num_parallel_calls if num_parallel_calls is not None else tf.data.experimental.AUTOTUNE)
+            dataset = dataset.map(func, num_parallel_calls = num_parallel_calls if not isinstance(num_parallel_calls, bool) else tf.data.experimental.AUTOTUNE)
     if (isinstance(cache, bool) and cache) or isinstance(cache, str):
         dataset = dataset.cache(cache) if isinstance(cache, str) else dataset.cache()
     if shuffle:
@@ -123,7 +153,7 @@ def pipeline(dataset, function = None,
         dataset = dataset.prefetch(buffer_size = prefetch if not isinstance(prefetch, bool) else tf.data.experimental.AUTOTUNE)
     return dataset
 
-def zip_pipeline(*args, function = None, num_parallel_calls = 1, **kwargs):
+def zip_pipeline(*args, function = None, num_parallel_calls = True, **kwargs):
     if len(args) == 1 and 0 < np.ndim(args[0]):
         args = tuple(args[0])
     new_pipe = tf.data.Dataset.zip(args)
@@ -144,13 +174,13 @@ def zip_pipeline(*args, function = None, num_parallel_calls = 1, **kwargs):
                 new_args = new_args[0]
             return new_args
         map_func = functools.partial(func, function = functools.partial(function, **kwargs))
-        new_pipe = new_pipe.map(map_func, num_parallel_calls = num_parallel_calls if num_parallel_calls is not None else tf.data.experimental.AUTOTUNE)
+        new_pipe = new_pipe.map(map_func, num_parallel_calls = num_parallel_calls if not isinstance(num_parallel_calls, bool) else tf.data.experimental.AUTOTUNE)
     return new_pipe
 
-def concat_pipeline(*args, axis = 0, num_parallel_calls = 1):
+def concat_pipeline(*args, axis = 0, num_parallel_calls = True):
     return zip_pipeline(*args, function = tf.concat, axis = axis, num_parallel_calls = num_parallel_calls)
 
-def stack_pipeline(*args, axis = 0, num_parallel_calls = 1):
+def stack_pipeline(*args, axis = 0, num_parallel_calls = True):
     return zip_pipeline(*args, function = tf.stack, axis = axis, num_parallel_calls = num_parallel_calls)
 
 def save_model(model, path, graph = True, weight = True, mode = "w"):

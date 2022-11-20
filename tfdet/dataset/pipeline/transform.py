@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.python.data.ops import dataset_ops
 
-from .util import pipe, zip_pipe, concat_pipe, stack_pipe, dict_tf_func, convert_to_ragged_tensor, convert_to_tensor
+from .util import pipe, zip_pipe, concat_pipe, stack_pipe, dict_tf_func, convert_to_pickle
 from ..util import load_image
 from ..pascal_voc import load_annotation
 from tfdet.dataset import transform as T
@@ -14,7 +14,7 @@ def load(x_true, y_true = None, bbox_true = None, mask_true = None,
          load_func = load_image, anno_func = load_annotation, mask_func = None,
          dtype = None,
          batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-         cache = False, num_parallel_calls = None):
+         cache = False, num_parallel_calls = True):
     """
     x_true = [path, ...] or (N, H, W, C) or pipe
     y_true = [path, ...] or [annotation, ...]
@@ -31,7 +31,7 @@ def normalize(x_true, y_true = None, bbox_true = None, mask_true = None,
               rescale = 1., mean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375],
               bbox_normalize = True,
               batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-              cache = False, num_parallel_calls = None):
+              cache = False, num_parallel_calls = True):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -64,7 +64,7 @@ def unnormalize(x_true, y_true = None, bbox_true = None, mask_true = None,
                 rescale = 1., mean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375],
                 bbox_normalize = True,
                 batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-                cache = False, num_parallel_calls = None):
+                cache = False, num_parallel_calls = True):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -96,7 +96,7 @@ def unnormalize(x_true, y_true = None, bbox_true = None, mask_true = None,
 def filter_annotation(x_true, y_true = None, bbox_true = None, mask_true = None, 
                       label = None, min_scale = 2, min_instance_area = 1,
                       batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-                      cache = False, num_parallel_calls = None):
+                      cache = False, num_parallel_calls = True):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -123,7 +123,7 @@ def filter_annotation(x_true, y_true = None, bbox_true = None, mask_true = None,
 def label_encode(x_true, y_true = None, bbox_true = None, mask_true = None, 
                  label = None, one_hot = False, label_smoothing = 0.1,
                  batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-                 cache = False, num_parallel_calls = None):
+                 cache = False, num_parallel_calls = True):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -158,7 +158,7 @@ def label_encode(x_true, y_true = None, bbox_true = None, mask_true = None,
 def label_decode(x_true, y_true = None, bbox_true = None, mask_true = None, 
                  label = None,
                  batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-                 cache = False, num_parallel_calls = None):
+                 cache = False, num_parallel_calls = True):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -189,7 +189,7 @@ def label_decode(x_true, y_true = None, bbox_true = None, mask_true = None,
 def compose(x_true, y_true = None, bbox_true = None, mask_true = None,
             transform = [], dtype = None,
             batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-            cache = False, num_parallel_calls = None,
+            cache = False, num_parallel_calls = True,
             **kwargs):
     
     """
@@ -214,7 +214,7 @@ def compose(x_true, y_true = None, bbox_true = None, mask_true = None,
 def resize(x_true, y_true = None, bbox_true = None, mask_true = None, 
            image_shape = None, keep_ratio = True,
            batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-           cache = False, num_parallel_calls = None):
+           cache = False, num_parallel_calls = True):
     
     """
     x_true = (N, H, W, C) or pipe
@@ -239,7 +239,7 @@ def resize(x_true, y_true = None, bbox_true = None, mask_true = None,
 def pad(x_true, y_true = None, bbox_true = None, mask_true = None, 
         image_shape = None, shape_divisor = None, max_pad_size = 100, pad_val = 114, mode = "both", background = "background",
         batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-        cache = False, num_parallel_calls = None):
+        cache = False, num_parallel_calls = True):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -263,7 +263,7 @@ def pad(x_true, y_true = None, bbox_true = None, mask_true = None,
 def trim(x_true, y_true = None, bbox_true = None, mask_true = None, 
          image_shape = None, pad_val = 114, mode = "both", min_area = 0., min_visibility = 0., e = 1e-12, decimal = 4,
          batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-         cache = False, num_parallel_calls = None):
+         cache = False, num_parallel_calls = True):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -288,7 +288,7 @@ def trim(x_true, y_true = None, bbox_true = None, mask_true = None,
 def crop(x_true, y_true = None, bbox_true = None, mask_true = None, 
          bbox = None, min_area = 0., min_visibility = 0., e = 1e-12,
          batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-         cache = False, num_parallel_calls = None):
+         cache = False, num_parallel_calls = True):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -313,7 +313,7 @@ def crop(x_true, y_true = None, bbox_true = None, mask_true = None,
 def flip(x_true, y_true = None, bbox_true = None, mask_true = None,
          mode = "horizontal",
          batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-         cache = False, num_parallel_calls = None):
+         cache = False, num_parallel_calls = True):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -337,7 +337,7 @@ def flip(x_true, y_true = None, bbox_true = None, mask_true = None,
 def random_crop(x_true, y_true = None, bbox_true = None, mask_true = None,
                 image_shape = None, min_area = 0., min_visibility = 0., e = 1e-12,
                 batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-                cache = False, num_parallel_calls = None):
+                cache = False, num_parallel_calls = True):
     """
     x_true = (N, H, W, C)
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -362,7 +362,7 @@ def random_crop(x_true, y_true = None, bbox_true = None, mask_true = None,
 def random_flip(x_true, y_true = None, bbox_true = None, mask_true = None, 
                 p = 0.5, mode = "horizontal",
                 batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-                cache = False, num_parallel_calls = None):
+                cache = False, num_parallel_calls = True):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -386,9 +386,8 @@ def random_flip(x_true, y_true = None, bbox_true = None, mask_true = None,
 def multi_scale_flip(x_true, y_true = None, bbox_true = None, mask_true = None,
                      image_shape = None, keep_ratio = True, mode = "horizontal", 
                      shape_divisor = None, max_pad_size = 100, pad_val = 114, pad_mode = "both", background = "background",
-                     ragged_tensor = False,
                      batch_size = 0, prefetch = False,
-                     cache = False, num_parallel_calls = None):
+                     cache = False, num_parallel_calls = True):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -399,7 +398,6 @@ def multi_scale_flip(x_true, y_true = None, bbox_true = None, mask_true = None,
     
     image_shape = [h, w](single apply) or [[h, w], ...](multi apply)
     mode = ("horizontal", "vertical")(single apply) or [mode, ...](multi apply)
-    #If ragged_tensor is True, support dynamic shape, but is is so slowly.
     """
     pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
     
@@ -409,18 +407,17 @@ def multi_scale_flip(x_true, y_true = None, bbox_true = None, mask_true = None,
         if shape is not None:
             resize_pipe = resize(pre_pipe, image_shape = shape, keep_ratio = keep_ratio, num_parallel_calls = num_parallel_calls)
             resize_pipe = pad(resize_pipe, image_shape = shape, shape_divisor = shape_divisor, max_pad_size = max_pad_size, pad_val = pad_val, mode = pad_mode, background = background, num_parallel_calls = num_parallel_calls)
-            aug_pipes.append((resize_pipe.map(convert_to_ragged_tensor) if ragged_tensor else resize_pipe).batch(batch_size) if 0 < batch_size else resize_pipe)
+            aug_pipes.append(resize_pipe.batch(batch_size) if 0 < batch_size else resize_pipe)
         for m in ([mode] if np.ndim(mode) < 1 else mode):
             if m is not None:
                 flip_pipe = flip(resize_pipe, mode = m, num_parallel_calls = num_parallel_calls)
-                aug_pipes.append((flip_pipe.map(convert_to_ragged_tensor) if ragged_tensor else flip_pipe).batch(batch_size) if 0 < batch_size else flip_pipe)
+                aug_pipes.append(flip_pipe.batch(batch_size) if 0 < batch_size else flip_pipe)
     
     concat_pipe = pre_pipe
     if 0 < len(aug_pipes):
         concat_pipe = aug_pipes[0]
         for p in aug_pipes[1:]:
             concat_pipe = concat_pipe.concatenate(p)
-        concat_pipe = (concat_pipe.map(convert_to_tensor) if ragged_tensor else concat_pipe) if 0 < batch_size else concat_pipe
     elif 0 < batch_size:
         concat_pipe = concat_pipe.batch(batch_size)
     return pipe(concat_pipe, prefetch = prefetch,
@@ -429,7 +426,7 @@ def multi_scale_flip(x_true, y_true = None, bbox_true = None, mask_true = None,
 def yolo_hsv(x_true, y_true = None, bbox_true = None, mask_true = None, 
              h = 0.015, s = 0.7, v = 0.4,
              batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-             cache = False, num_parallel_calls = None):
+             cache = False, num_parallel_calls = True):
     """
     https://github.com/WongKinYiu/yolov7/blob/main/utils/datasets.py
     
@@ -453,7 +450,7 @@ def yolo_hsv(x_true, y_true = None, bbox_true = None, mask_true = None,
 def random_perspective(x_true, y_true = None, bbox_true = None, mask_true = None, 
                        image_shape = None, perspective = 0., rotate = 0., translate = 0.2, scale = 0.9, shear = 0., pad_val = 114, min_area = 0., min_visibility = 0., e = 1e-12,
                        batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-                       cache = False, num_parallel_calls = None):
+                       cache = False, num_parallel_calls = True):
     """
     https://github.com/WongKinYiu/yolov7/blob/main/utils/datasets.py
     
@@ -480,9 +477,9 @@ def mosaic(x_true, y_true = None, bbox_true = None, mask_true = None,
            sample_x_true = None, sample_y_true = None, sample_bbox_true = None, sample_mask_true = None,
            p = 0.5,
            image_shape = None, alpha = 0.25, pad_val = 114, min_area = 0., min_visibility = 0., e = 1e-12,
-           sample_cache = True, ragged_tensor = False,
+           sample_cache = True,
            batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-           cache = False, num_parallel_calls = None):
+           cache = False, num_parallel_calls = True):
     """
     https://github.com/WongKinYiu/yolov7/blob/main/utils/datasets.py
     
@@ -496,7 +493,6 @@ def mosaic(x_true, y_true = None, bbox_true = None, mask_true = None,
     usage > tfdet.dataset.pipeline.mosaic(tr_pipe.cache("./train"), sample_x_true = sample_pipe.cache("./sample"))
     
     #If image_shape is None, the result is (N, 2 * H, 2 * W, C).
-    #If ragged_tensor is True, support dynamic shape, but is is so slowly.
     """
     pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
     dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
@@ -506,9 +502,9 @@ def mosaic(x_true, y_true = None, bbox_true = None, mask_true = None,
     sample_pipe = (sample_x_true if isinstance(sample_x_true, tf.data.Dataset) else pipe(sample_x_true, sample_y_true, sample_bbox_true, sample_mask_true)) if sample_x_true is not None else pre_pipe
     if sample_cache and not isinstance(sample_pipe, dataset_ops.CacheDataset):
         sample_pipe = pipe(sample_pipe, cache = sample_cache)
-    if ragged_tensor:
-        pre_pipe, sample_pipe = pre_pipe.map(convert_to_ragged_tensor), sample_pipe.map(convert_to_ragged_tensor)
-    args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.repeat(3).shuffle(3 * 10).batch(3), axis = 0)
+    pre_pipe, sample_pipe = pre_pipe.map(convert_to_pickle), sample_pipe.map(convert_to_pickle)
+    #args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.repeat(3).shuffle(3 * 10).batch(3), axis = 0)
+    args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.shuffle(3 * 10).repeat().batch(3), axis = 0)
     
     func = functools.partial(T.mosaic, image_shape = image_shape, alpha = alpha, pad_val = pad_val, min_area = min_area, min_visibility = min_visibility, e = e)
     def fail_func(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape = image_shape):
@@ -527,9 +523,9 @@ def mosaic9(x_true, y_true = None, bbox_true = None, mask_true = None,
             sample_x_true = None, sample_y_true = None, sample_bbox_true = None, sample_mask_true = None,
             p = 0.5,
             image_shape = None, pad_val = 114, min_area = 0., min_visibility = 0., e = 1e-12,
-            sample_cache = True, ragged_tensor = False,
+            sample_cache = True,
             batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-            cache = False, num_parallel_calls = None):
+            cache = False, num_parallel_calls = True):
     """
     https://github.com/WongKinYiu/yolov7/blob/main/utils/datasets.py
     
@@ -543,7 +539,6 @@ def mosaic9(x_true, y_true = None, bbox_true = None, mask_true = None,
     usage > tfdet.dataset.pipeline.mosaic9(tr_pipe.cache("./train"), sample_x_true = sample_pipe.cache("./sample"))
     
     #If image_shape is None, the result is (N, 2 * H, 2 * W, C).
-    #If ragged_tensor is True, support dynamic shape, but is is so slowly.
     """
     pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
     dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
@@ -553,9 +548,9 @@ def mosaic9(x_true, y_true = None, bbox_true = None, mask_true = None,
     sample_pipe = (sample_x_true if isinstance(sample_x_true, tf.data.Dataset) else pipe(sample_x_true, sample_y_true, sample_bbox_true, sample_mask_true)) if sample_x_true is not None else pre_pipe
     if sample_cache and not isinstance(sample_pipe, dataset_ops.CacheDataset):
         sample_pipe = pipe(sample_pipe, cache = sample_cache)
-    if ragged_tensor:
-        pre_pipe, sample_pipe = pre_pipe.map(convert_to_ragged_tensor), sample_pipe.map(convert_to_ragged_tensor)
-    args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.repeat(8).shuffle(8 * 10).batch(8), axis = 0)
+    pre_pipe, sample_pipe = pre_pipe.map(convert_to_pickle), sample_pipe.map(convert_to_pickle)
+    #args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.repeat(3).shuffle(3 * 10).batch(3), axis = 0)
+    args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.shuffle(8 * 10).repeat().batch(8), axis = 0)
     
     func = functools.partial(T.mosaic9, image_shape = image_shape, pad_val = pad_val, min_area = min_area, min_visibility = min_visibility, e = e)
     def fail_func(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape = image_shape):
@@ -575,7 +570,7 @@ def cut_mix(x_true, y_true = None, bbox_true = None, mask_true = None,
             p = 0.5,
             alpha = 1., min_area = 0., min_visibility = 0., e = 1e-12,
             batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-            cache = False, num_parallel_calls = None):
+            cache = False, num_parallel_calls = True):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -603,7 +598,7 @@ def cut_out(x_true, y_true = None, bbox_true = None, mask_true = None,
             p = 0.5,
             alpha = 1., pad_val = 114, min_area = 0., min_visibility = 0., e = 1e-12,
             batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-            cache = False, num_parallel_calls = None):
+            cache = False, num_parallel_calls = True):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -629,7 +624,7 @@ def mix_up(x_true, y_true = None, bbox_true = None, mask_true = None,
            p = 0.15,
            alpha = 8.,
            batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-           cache = False, num_parallel_calls = None):
+           cache = False, num_parallel_calls = True):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -662,9 +657,9 @@ def copy_paste(x_true, y_true = None, bbox_true = None, mask_true = None,
                copy_min_scale = 2, copy_min_instance_area = 1, copy_iou_threshold = 0.3,
                p_flip = 0.5, pad_val = 114, method = cv2.INTER_LINEAR,
                min_area = 0., min_visibility = 0., e = 1e-12,
-               sample_size = 4, sample_cache = True, ragged_tensor = False,
+               sample_size = 4, sample_cache = True,
                batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-               cache = False, num_parallel_calls = None):
+               cache = False, num_parallel_calls = True):
     """
     https://arxiv.org/abs/2012.07177
     
@@ -686,7 +681,6 @@ def copy_paste(x_true, y_true = None, bbox_true = None, mask_true = None,
     random_count = change max_paste_count from 0 to max_paste_count
     label = copy target label
     iou_threshold = iou_threshold or [copy_iou_threshold, paste_iou_threshold]
-    #If ragged_tensor is True, support dynamic shape, but is is so slowly.
     """
     pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
     dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
@@ -696,9 +690,9 @@ def copy_paste(x_true, y_true = None, bbox_true = None, mask_true = None,
     sample_pipe = (sample_x_true if isinstance(sample_x_true, tf.data.Dataset) else pipe(sample_x_true, sample_y_true, sample_bbox_true, sample_mask_true)) if sample_x_true is not None else pre_pipe
     if sample_cache and not isinstance(sample_pipe, dataset_ops.CacheDataset):
         sample_pipe = pipe(sample_pipe, cache = sample_cache)
-    if ragged_tensor:
-        pre_pipe, sample_pipe = pre_pipe.map(convert_to_ragged_tensor), sample_pipe.map(convert_to_ragged_tensor)
-    args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.repeat(max(sample_size, 1)).shuffle(max(sample_size, 1) * 10).batch(max(sample_size, 1)), axis = 0)
+    pre_pipe, sample_pipe = pre_pipe.map(convert_to_pickle), sample_pipe.map(convert_to_pickle)
+    #args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.repeat(3).shuffle(3 * 10).batch(3), axis = 0)
+    args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.shuffle(max(sample_size, 1) * 10).repeat().batch(max(sample_size, 1)), axis = 0)
         
     func = functools.partial(T.copy_paste, max_paste_count = max_paste_count, scale_range = scale_range, clip_object = clip_object, replace = replace, random_count = random_count, label = label, min_scale = min_scale, min_instance_area = min_instance_area, iou_threshold = iou_threshold, copy_min_scale = copy_min_scale, copy_min_instance_area = copy_min_instance_area, copy_iou_threshold = copy_iou_threshold, p_flip = p_flip, pad_val = pad_val, method = method, min_area = min_area, min_visibility = min_visibility, e = e)
     random_func = functools.partial(T.random_apply, function = func, p = p, reduce = True)
@@ -710,7 +704,7 @@ def copy_paste(x_true, y_true = None, bbox_true = None, mask_true = None,
 def remove_background(x_true, y_true = None, bbox_true = None, mask_true = None, 
                       pad_val = 114,
                       batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-                      cache = False, num_parallel_calls = None):
+                      cache = False, num_parallel_calls = True):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -738,9 +732,9 @@ def yolo_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
                       min_scale = 2, min_instance_area = 1, iou_threshold = 0.3, copy_min_scale = 2, copy_min_instance_area = 1, copy_iou_threshold = 0.3, p_copy_paste_flip = 0.5, method = cv2.INTER_LINEAR,
                       p_mosaic = 1., p_mix_up = 0.15, p_copy_paste = 0., p_flip = 0.5, p_mosaic9 = 0.8,
                       min_area = 0., min_visibility = 0., e = 1e-12,
-                      sample_size = 8 + 9 + 4, sample_cache = True, ragged_tensor = False,
+                      sample_size = 8 + 9 + 4, sample_cache = True,
                       batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-                      cache = False, num_parallel_calls = None):
+                      cache = False, num_parallel_calls = True):
     """
     https://github.com/WongKinYiu/yolov7/blob/main/utils/datasets.py
     
@@ -755,7 +749,6 @@ def yolo_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
     
     #First image is Background image.
     #If image_shape is shape or ratio, apply random_crop.
-    #If ragged_tensor is True, support dynamic shape, but is is so slowly.
     """
     pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
     dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
@@ -766,9 +759,9 @@ def yolo_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
     sample_pipe = (sample_x_true if isinstance(sample_x_true, tf.data.Dataset) else pipe(sample_x_true, sample_y_true, sample_bbox_true, sample_mask_true)) if sample_x_true is not None else pre_pipe
     if sample_cache and not isinstance(sample_pipe, dataset_ops.CacheDataset):
         sample_pipe = pipe(sample_pipe, cache = sample_cache)
-    if ragged_tensor:
-        pre_pipe, sample_pipe = pre_pipe.map(convert_to_ragged_tensor), sample_pipe.map(convert_to_ragged_tensor)
-    args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.repeat(max(sample_size, 1)).shuffle(max(sample_size, 1) * 10).batch(max(sample_size, 1)), axis = 0)
+    pre_pipe, sample_pipe = pre_pipe.map(convert_to_pickle), sample_pipe.map(convert_to_pickle)
+    #args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.repeat(3).shuffle(3 * 10).batch(3), axis = 0)
+    args_pipe = concat_pipe(pre_pipe.batch(1), sample_pipe.shuffle(max(sample_size, 1) * 10).repeat().batch(max(sample_size, 1)), axis = 0)
     
     func = functools.partial(T.yolo_augmentation, image_shape = image_shape, pad_val = pad_val,
                              perspective = perspective, rotate = rotate, translate = translate, scale = scale, shear = shear,
@@ -801,7 +794,7 @@ try:
                                    ],
                        min_area = 0., min_visibility = 0.,
                        batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-                       cache = False, num_parallel_calls = None):
+                       cache = False, num_parallel_calls = True):
         """
         x_true = (N, H, W, C) or pipe
         y_true(without bbox_true) = (N, 1 or n_class)
@@ -841,7 +834,7 @@ try:
                           p_flip = 0.5, mode = "horizontal",
                           min_area = 0., min_visibility = 0., e = 1e-12,
                           batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-                          cache = False, num_parallel_calls = None):
+                          cache = False, num_parallel_calls = True):
         """
         x_true = (N, H, W, C) or pipe
         y_true(without bbox_true) = (N, 1 or n_class)
@@ -868,7 +861,7 @@ except:
 def key_map(x_true, y_true = None, bbox_true = None, mask_true = None, 
             map = {"x_true":"x_true", "y_true":"y_true", "bbox_true":"bbox_true", "mask_true":"mask_true"},
             batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-            cache = False, num_parallel_calls = None):
+            cache = False, num_parallel_calls = True):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -885,7 +878,7 @@ def key_map(x_true, y_true = None, bbox_true = None, mask_true = None,
 def collect(x_true, y_true = None, bbox_true = None, mask_true = None, 
             keys = ["x_true", "y_true", "bbox_true", "mask_true"],
             batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-            cache = False, num_parallel_calls = None):
+            cache = False, num_parallel_calls = True):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -902,7 +895,7 @@ def collect(x_true, y_true = None, bbox_true = None, mask_true = None,
 def cast(x_true, y_true = None, bbox_true = None, mask_true = None, 
          map = {"x_true":tf.float32, "y_true":tf.float32, "bbox_true":tf.float32, "mask_true":tf.float32},
          batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-         cache = False, num_parallel_calls = None):
+         cache = False, num_parallel_calls = True):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -919,7 +912,7 @@ def cast(x_true, y_true = None, bbox_true = None, mask_true = None,
 def args2dict(x_true, y_true = None, bbox_true = None, mask_true = None, 
               keys = ["x_true", "y_true", "bbox_true", "mask_true"],
               batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-              cache = False, num_parallel_calls = None):
+              cache = False, num_parallel_calls = True):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
@@ -936,7 +929,7 @@ def args2dict(x_true, y_true = None, bbox_true = None, mask_true = None,
 def dict2args(x_true, y_true = None, bbox_true = None, mask_true = None, 
               keys = None,
               batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
-              cache = False, num_parallel_calls = None):
+              cache = False, num_parallel_calls = True):
     """
     x_true = (N, H, W, C) or pipe
     y_true(without bbox_true) = (N, 1 or n_class)
