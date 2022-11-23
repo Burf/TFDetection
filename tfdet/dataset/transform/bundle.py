@@ -22,7 +22,7 @@ try:
                                        #A.RandomResizedCrop(p = 0.1, height = 512, width = 512, scale = [0.8, 1.0], ratio = [0.9, 1.11]),
                                        A.ImageCompression(p = 0.1, quality_lower = 75),
                                       ],
-                          p_flip = 0.5, mode = "horizontal",
+                          p_flip = 0.5, flip_mode = "horizontal",
                           min_area = 0., min_visibility = 0., e = 1e-12):
         """
         x_true = (H, W, C)
@@ -36,7 +36,7 @@ try:
         #If image_shape is shape or ratio, apply random_crop.
         """
         func_transform = [functools.partial(albumentations, transform = transform, min_area = min_area, min_visibility = min_visibility),
-                          functools.partial(random_flip, p = p_flip, mode = mode)]
+                          functools.partial(random_flip, p = p_flip, mode = flip_mode)]
         if image_shape is not None:
             func_transform.append(functools.partial(random_crop, image_shape = image_shape, min_area = min_area, min_visibility = min_visibility, e = e))
         return compose(x_true, y_true, bbox_true, mask_true, transform = func_transform)
@@ -126,3 +126,28 @@ def yolo_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
     result = list([target_kwargs[key] for key in keys if key in target_kwargs])
     result = result[0] if len(result) == 1 else tuple(result)
     return result
+
+def mmdet_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
+                       resize_range = [1333, 800], keep_ratio = True, image_shape = None, p_flip = 0.5,
+                       flip_mode = "horizontal", method = cv2.INTER_LINEAR, resize_mode = "range",
+                       shape_divisor = 32, max_pad_size = 100, pad_val = 114, pad_mode = "both", background = "background",
+                       min_area = 0., min_visibility = 0., e = 1e-12):
+    """
+    https://github.com/open-mmlab/mmdetection/blob/master/configs/_base_/datasets/coco_detection.py
+    
+    x_true = (H, W, C)
+    y_true(without bbox_true) = (1 or n_class)
+    y_true(with bbox_true) = (P, 1 or n_class)
+    bbox_true = (P, 4)
+    mask_true(with bbox_true & instance mask_true) = (P, H, W, 1)
+    mask_true(semantic mask_true) = (H, W, 1 or n_class)
+    
+    #If image_shape is shape or ratio, apply random_crop.
+    #Pad is removed.(by random crop)
+    """
+    func_transform = [functools.partial(resize, image_shape = resize_range, keep_ratio = keep_ratio, method = method, mode = resize_mode)]
+    if image_shape is not None:
+        func_transform.append(functools.partial(random_crop, image_shape = image_shape, min_area = min_area, min_visibility = min_visibility, e = e))
+    func_transform.append(functools.partial(random_flip, p = p_flip, mode = flip_mode))
+    func_transform.append(functools.partial(pad, shape_divisor = shape_divisor, max_pad_size = max_pad_size, pad_val = pad_val, mode = pad_mode, background = background))
+    return compose(x_true, y_true, bbox_true, mask_true, transform = func_transform)

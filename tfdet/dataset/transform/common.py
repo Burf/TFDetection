@@ -217,7 +217,7 @@ def compose(x_true, y_true = None, bbox_true = None, mask_true = None,
         result = result[0] if len(result) == 1 else tuple(result)
     return result
     
-def resize(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape = None, keep_ratio = True, method = cv2.INTER_LINEAR):
+def resize(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape = None, keep_ratio = True, method = cv2.INTER_LINEAR, mode = "value"):
     """
     x_true = (H, W, C)
     y_true(without bbox_true) = (1 or n_class)
@@ -226,15 +226,23 @@ def resize(x_true, y_true = None, bbox_true = None, mask_true = None, image_shap
     mask_true(with bbox_true & instance mask_true) = (P, H, W, 1)
     mask_true(semantic mask_true) = (H, W, 1 or n_class)
     
-    image_shape = [h, w] or [[h, w], ...](random choice)
+    image_shape = [h, w] or [[h, w], ...] for value mode, [min_scale, max_scale] or [[min_scale, max_scale], ...] for range mode
+    mode = ("value", "range")
     """
+    if mode not in ("value", "range"):
+        raise ValueError("unknown mode '{0}'".format(mode))
+    
     if image_shape is not None:
-        if 1 < np.ndim(image_shape):
-            if 1 < choice_size:
-                #image_shape = random.choice(image_shape)
-                image_shape = image_shape[np.random.choice(np.arange(len(image_shape)))] #for numpy seed
-        elif np.ndim(image_shape) == 0:
+        if np.ndim(image_shape) == 0:
             image_shape = np.round(np.multiply(np.shape(x_true)[:2], image_shape)).astype(int)
+        else:
+            if 1 < np.ndim(image_shape):
+                #image_shape = random.choice(image_shape)
+                image_shape = np.array(image_shape)[np.random.choice(np.arange(len(image_shape)))] #for numpy seed
+            if mode == "range":
+                min_val, max_val = sorted(image_shape[:2])
+                image_shape = [np.random.randint(min_val, max_val + 1)] * 2
+        
         target_size = tuple(image_shape[:2])
         size = np.shape(x_true)[:2]
         if keep_ratio:

@@ -212,7 +212,7 @@ def compose(x_true, y_true = None, bbox_true = None, mask_true = None,
                 tf_func = False, dtype = dtype)
     
 def resize(x_true, y_true = None, bbox_true = None, mask_true = None, 
-           image_shape = None, keep_ratio = True,
+           image_shape = None, keep_ratio = True, method = cv2.INTER_LINEAR, mode = "value",
            batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
            cache = False, num_parallel_calls = True):
     
@@ -224,14 +224,15 @@ def resize(x_true, y_true = None, bbox_true = None, mask_true = None,
     mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
     mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
     
-    image_shape = [h, w] or [[h, w], ...](random choice)
+    image_shape = [h, w] or [[h, w], ...] for value mode, [min_scale, max_scale] or [[min_scale, max_scale], ...] for range mode
+    mode = ("value", "range")
     """
     pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
     dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
     dtype = [spec.dtype for spec in dtype]
     dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
     return pipe(x_true, y_true, bbox_true, mask_true, function = T.resize,
-                image_shape = image_shape, keep_ratio = keep_ratio,
+                image_shape = image_shape, keep_ratio = keep_ratio, method = method, mode = mode,
                 batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
                 cache = cache, num_parallel_calls = num_parallel_calls,
                 tf_func = False, dtype = dtype)
@@ -384,9 +385,9 @@ def random_flip(x_true, y_true = None, bbox_true = None, mask_true = None,
                 tf_func = False, dtype = dtype)
 
 def multi_scale_flip(x_true, y_true = None, bbox_true = None, mask_true = None,
-                     image_shape = None, keep_ratio = True, mode = "horizontal", 
+                     image_shape = None, keep_ratio = True, flip_mode = "horizontal", method = cv2.INTER_LINEAR, resize_mode = "value",
                      shape_divisor = None, max_pad_size = 100, pad_val = 114, pad_mode = "both", background = "background",
-                     batch_size = 0, prefetch = False,
+                     batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
                      cache = False, num_parallel_calls = True):
     """
     x_true = (N, H, W, C) or pipe
@@ -396,19 +397,20 @@ def multi_scale_flip(x_true, y_true = None, bbox_true = None, mask_true = None,
     mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
     mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
     
-    image_shape = [h, w](single apply) or [[h, w], ...](multi apply)
-    mode = ("horizontal", "vertical")(single apply) or [mode, ...](multi apply)
+    image_shape = [h, w](single apply) or [[h, w], ...](multi apply) for value mode, [min_scale, max_scale](single apply) or [[min_scale, max_scale], ...](multi apply) for range mode
+    flip_mode = ("horizontal", "vertical", None)(single apply) or [mode, ...](multi apply)
     """
     pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
+    pre_pipe = pipe(pre_pipe, shuffle = shuffle, repeat = repeat)
     
     aug_pipes = []
     for shape in ([image_shape] if np.ndim(image_shape) < 2 else image_shape):
         resize_pipe = pre_pipe
         if shape is not None:
-            resize_pipe = resize(pre_pipe, image_shape = shape, keep_ratio = keep_ratio, num_parallel_calls = num_parallel_calls)
+            resize_pipe = resize(pre_pipe, image_shape = shape, keep_ratio = keep_ratio, method = method, mode = resize_mode, num_parallel_calls = num_parallel_calls)
             resize_pipe = pad(resize_pipe, image_shape = shape, shape_divisor = shape_divisor, max_pad_size = max_pad_size, pad_val = pad_val, mode = pad_mode, background = background, num_parallel_calls = num_parallel_calls)
             aug_pipes.append(resize_pipe.batch(batch_size) if 0 < batch_size else resize_pipe)
-        for m in ([mode] if np.ndim(mode) < 1 else mode):
+        for m in ([flip_mode] if np.ndim(flip_mode) < 1 else flip_mode):
             if m is not None:
                 flip_pipe = flip(resize_pipe, mode = m, num_parallel_calls = num_parallel_calls)
                 aug_pipes.append(flip_pipe.batch(batch_size) if 0 < batch_size else flip_pipe)
@@ -771,6 +773,39 @@ def yolo_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
                 cache = cache, num_parallel_calls = num_parallel_calls,
                 tf_func = False, dtype = dtype)
 
+def mmdet_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
+                       resize_range = [1333, 800], keep_ratio = True, image_shape = None, p_flip = 0.5,
+                       flip_mode = "horizontal", method = cv2.INTER_LINEAR, resize_mode = "range",
+                       shape_divisor = 32, max_pad_size = 100, pad_val = 114, pad_mode = "both", background = "background",
+                       min_area = 0., min_visibility = 0., e = 1e-12,
+                       batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+                       cache = False, num_parallel_calls = True):
+    """
+    https://github.com/open-mmlab/mmdetection/blob/master/configs/_base_/datasets/coco_detection.py
+    
+    x_true = (N, H, W, C)
+    y_true(without bbox_true) = (N, n_class)
+    y_true(with bbox_true) = (N, P, 1 or n_class)
+    bbox_true = (N, P, 4)
+    mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
+    mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
+    
+    #If image_shape is shape or ratio, apply random_crop.
+    #Pad is removed.(by random crop)
+    """
+    pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
+    dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
+    dtype = [spec.dtype for spec in dtype]
+    dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
+    return pipe(x_true, y_true, bbox_true, mask_true, function = T.mmdet_augmentation,
+                resize_range = resize_range, keep_ratio = keep_ratio, p_flip = p_flip, image_shape = image_shape,
+                flip_mode = flip_mode, method = method, resize_mode = resize_mode,
+                shape_divisor = shape_divisor, max_pad_size = max_pad_size, pad_val = pad_val, pad_mode = pad_mode, background = background,
+                min_area = min_area, min_visibility = min_visibility, e = e,
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
+                cache = cache, num_parallel_calls = num_parallel_calls,
+                tf_func = False, dtype = dtype)
+
 try:
     import albumentations as A
     
@@ -827,7 +862,7 @@ try:
                                        #A.RandomResizedCrop(p = 0.1, height = 512, width = 512, scale = [0.8, 1.0], ratio = [0.9, 1.11]),
                                        A.ImageCompression(p = 0.1, quality_lower = 75),
                                       ],
-                          p_flip = 0.5, mode = "horizontal",
+                          p_flip = 0.5, flip_mode = "horizontal",
                           min_area = 0., min_visibility = 0., e = 1e-12,
                           batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
                           cache = False, num_parallel_calls = True):
@@ -847,7 +882,7 @@ try:
         dtype = [spec.dtype for spec in dtype]
         dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
         return pipe(x_true, y_true, bbox_true, mask_true, function = T.weak_augmentation,
-                    image_shape = image_shape, transform = transform, p_flip = p_flip, mode = mode, min_area = min_area, min_visibility = min_visibility, e = e,
+                    image_shape = image_shape, transform = transform, p_flip = p_flip, flip_mode = flip_mode, min_area = min_area, min_visibility = min_visibility, e = e,
                     batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
                     cache = cache, num_parallel_calls = num_parallel_calls,
                     tf_func = False, dtype = dtype)
