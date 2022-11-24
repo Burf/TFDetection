@@ -8,7 +8,7 @@ from .common import *
 
 try:
     def weak_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
-                          image_shape = None, 
+                          crop_shape = None, 
                           transform = [A.CLAHE(p = 0.1, clip_limit = 4., tile_grid_size = (8, 8)),
                                        A.RandomBrightnessContrast(p = 0.1, brightness_limit = 0.2, contrast_limit = 0.2),
                                        A.RandomGamma(p = 0.1, gamma_limit = [80, 120]),
@@ -34,12 +34,12 @@ try:
 
         #albumentations > random_flip > random_crop(optional)
         #Pad is removed.
-        #If image_shape is shape or ratio, apply random_crop.
+        #If crop_shape is shape or ratio, apply random_crop.
         """
         func_transform = [functools.partial(albumentations, transform = transform, min_area = min_area, min_visibility = min_visibility),
                           functools.partial(random_flip, p = p_flip, mode = flip_mode)]
-        if image_shape is not None:
-            func_transform.append(functools.partial(random_crop, image_shape = image_shape, min_area = min_area, min_visibility = min_visibility, e = e))
+        if crop_shape is not None:
+            func_transform.append(functools.partial(random_crop, image_shape = crop_shape, min_area = min_area, min_visibility = min_visibility, e = e))
         return compose(x_true, y_true, bbox_true, mask_true, transform = func_transform)
 except:
     pass    
@@ -130,8 +130,8 @@ def yolo_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
     return result
 
 def mmdet_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
-                       resize_range = [1333, 800], keep_ratio = True, image_shape = None, p_flip = 0.5,
-                       flip_mode = "horizontal", method = cv2.INTER_LINEAR, resize_mode = "range",
+                       image_shape = [1333, 800], keep_ratio = True, crop_shape = None, p_flip = 0.5,
+                       flip_mode = "horizontal", method = cv2.INTER_LINEAR, resize_mode = "jitter",
                        shape_divisor = 32, max_pad_size = 100, pad_val = 114, pad_mode = "both", background = "background",
                        min_area = 0., min_visibility = 0., e = 1e-12):
     """
@@ -145,12 +145,12 @@ def mmdet_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None
     mask_true(semantic mask_true) = (H, W, 1 or n_class)
     
     #random_resize > random_crop(optional) > random_flip > pad(by shape_divisor)
-    #If image_shape is shape or ratio, apply random_crop.
+    #If crop_shape is shape or ratio, apply random_crop.
     #Pad is removed.(by random crop)
     """
-    func_transform = [functools.partial(resize, image_shape = resize_range, keep_ratio = keep_ratio, method = method, mode = resize_mode)]
-    if image_shape is not None:
-        func_transform.append(functools.partial(random_crop, image_shape = image_shape, min_area = min_area, min_visibility = min_visibility, e = e))
+    func_transform = [functools.partial(resize, image_shape = image_shape, keep_ratio = keep_ratio, method = method, mode = resize_mode)]
+    if crop_shape is not None:
+        func_transform.append(functools.partial(random_crop, image_shape = crop_shape, min_area = min_area, min_visibility = min_visibility, e = e))
     func_transform.append(functools.partial(random_flip, p = p_flip, mode = flip_mode))
     func_transform.append(functools.partial(pad, shape_divisor = shape_divisor, max_pad_size = max_pad_size, pad_val = pad_val, mode = pad_mode, background = background))
     return compose(x_true, y_true, bbox_true, mask_true, transform = func_transform)

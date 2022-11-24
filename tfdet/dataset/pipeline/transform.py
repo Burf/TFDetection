@@ -224,8 +224,8 @@ def resize(x_true, y_true = None, bbox_true = None, mask_true = None,
     mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
     mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
     
-    image_shape = [h, w] or [[h, w], ...] for value mode, [min_scale, max_scale] or [[min_scale, max_scale], ...] for range mode
-    mode = ("value", "range")
+    image_shape = [h, w] or [[h, w], ...] for value mode, [min_scale, max_scale] or [[min_scale, max_scale], ...] for range / jitter mode
+    mode = ("value", "range", "jitter")
     """
     pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
     dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
@@ -397,7 +397,7 @@ def multi_scale_flip(x_true, y_true = None, bbox_true = None, mask_true = None,
     mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
     mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
     
-    image_shape = [h, w](single apply) or [[h, w], ...](multi apply) for value mode, [min_scale, max_scale](single apply) or [[min_scale, max_scale], ...](multi apply) for range mode
+    image_shape = [h, w](single apply) or [[h, w], ...](multi apply) for value mode, [min_scale, max_scale](single apply) or [[min_scale, max_scale], ...](multi apply) for range / jitter mode
     flip_mode = ("horizontal", "vertical", None)(single apply) or [mode, ...](multi apply)
     """
     pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
@@ -775,8 +775,8 @@ def yolo_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
                 tf_func = False, dtype = dtype)
 
 def mmdet_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
-                       resize_range = [1333, 800], keep_ratio = True, image_shape = None, p_flip = 0.5,
-                       flip_mode = "horizontal", method = cv2.INTER_LINEAR, resize_mode = "range",
+                       image_shape = [1333, 800], keep_ratio = True, crop_shape = None, p_flip = 0.5,
+                       flip_mode = "horizontal", method = cv2.INTER_LINEAR, resize_mode = "jitter",
                        shape_divisor = 32, max_pad_size = 100, pad_val = 114, pad_mode = "both", background = "background",
                        min_area = 0., min_visibility = 0., e = 1e-12,
                        batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
@@ -792,7 +792,7 @@ def mmdet_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None
     mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
     
     #random_resize > random_crop(optional) > random_flip > pad(by shape_divisor)
-    #If image_shape is shape or ratio, apply random_crop.
+    #If crop_shape is shape or ratio, apply random_crop.
     #Pad is removed.(by random crop)
     """
     pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
@@ -800,7 +800,7 @@ def mmdet_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None
     dtype = [spec.dtype for spec in dtype]
     dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
     return pipe(x_true, y_true, bbox_true, mask_true, function = T.mmdet_augmentation,
-                resize_range = resize_range, keep_ratio = keep_ratio, p_flip = p_flip, image_shape = image_shape,
+                image_shape = image_shape, keep_ratio = keep_ratio, p_flip = p_flip, crop_shape = crop_shape,
                 flip_mode = flip_mode, method = method, resize_mode = resize_mode,
                 shape_divisor = shape_divisor, max_pad_size = max_pad_size, pad_val = pad_val, pad_mode = pad_mode, background = background,
                 min_area = min_area, min_visibility = min_visibility, e = e,
@@ -850,7 +850,7 @@ try:
     
     
     def weak_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
-                          image_shape = None, 
+                          crop_shape = None, 
                           transform = [A.CLAHE(p = 0.1, clip_limit = 4., tile_grid_size = (8, 8)),
                                        A.RandomBrightnessContrast(p = 0.1, brightness_limit = 0.2, contrast_limit = 0.2),
                                        A.RandomGamma(p = 0.1, gamma_limit = [80, 120]),
@@ -878,14 +878,14 @@ try:
 
         #albumentations > random_flip > random_crop(optional)
         #Pad is removed.
-        #If image_shape is shape or ratio, apply random_crop.
+        #If crop_shape is shape or ratio, apply random_crop.
         """
         pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
         dtype = list(pre_pipe.element_spec.values()) if isinstance(pre_pipe.element_spec, dict) else (pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))
         dtype = [spec.dtype for spec in dtype]
         dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
         return pipe(x_true, y_true, bbox_true, mask_true, function = T.weak_augmentation,
-                    image_shape = image_shape, transform = transform, p_flip = p_flip, flip_mode = flip_mode, min_area = min_area, min_visibility = min_visibility, e = e,
+                    crop_shape = crop_shape, transform = transform, p_flip = p_flip, flip_mode = flip_mode, min_area = min_area, min_visibility = min_visibility, e = e,
                     batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
                     cache = cache, num_parallel_calls = num_parallel_calls,
                     tf_func = False, dtype = dtype)

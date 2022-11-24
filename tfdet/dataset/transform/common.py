@@ -226,23 +226,29 @@ def resize(x_true, y_true = None, bbox_true = None, mask_true = None, image_shap
     mask_true(with bbox_true & instance mask_true) = (P, H, W, 1)
     mask_true(semantic mask_true) = (H, W, 1 or n_class)
     
-    image_shape = [h, w] or [[h, w], ...] for value mode, [min_scale, max_scale] or [[min_scale, max_scale], ...] for range mode
-    mode = ("value", "range")
+    image_shape = [h, w] or [[h, w], ...] for value mode, [min_scale, max_scale] or [[min_scale, max_scale], ...] for range / jitter mode
+    mode = ("value", "range", "jitter")
     """
-    if mode not in ("value", "range"):
+    if mode not in ("value", "range", "jitter"):
         raise ValueError("unknown mode '{0}'".format(mode))
     
     if image_shape is not None:
         if np.ndim(image_shape) == 0:
             image_shape = np.round(np.multiply(np.shape(x_true)[:2], image_shape)).astype(int)
         else:
-            if 1 < np.ndim(image_shape):
-                #image_shape = random.choice(image_shape)
-                image_shape = np.array(image_shape)[np.random.choice(np.arange(len(image_shape)))] #for numpy seed
-            if mode == "range":
-                min_val, max_val = sorted(image_shape[:2])
-                image_shape = [np.random.randint(min_val, max_val + 1)] * 2
-        
+            if mode == "value":
+                if 1 < np.ndim(image_shape):
+                    image_shape = np.array(image_shape)[np.random.choice(np.arange(len(image_shape)))]
+            elif mode == "range":
+                if 1 < np.ndim(image_shape):
+                    image_shape = np.array(image_shape)[np.random.choice(np.arange(len(image_shape)))]
+                min_scale, max_scale = sorted(image_shape[:2])
+                image_shape = [np.random.randint(min_scale, max_scale + 1)] * 2
+            else:
+                if 1 < np.ndim(image_shape):
+                    min_scales, max_scales = np.min(image_shape, axis = 1), np.max(image_shape, axis = 1)
+                    min_scale, max_scale = np.random.randint(np.min(min_scales), np.max(min_scales) + 1), np.random.randint(np.min(max_scales), np.max(max_scales) + 1)
+                    image_shape = [min_scale, max_scale]
         target_size = tuple(image_shape[:2])
         size = np.shape(x_true)[:2]
         if keep_ratio:
