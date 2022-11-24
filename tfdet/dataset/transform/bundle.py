@@ -32,6 +32,7 @@ try:
         mask_true(with bbox_true & instance mask_true) = (P, H, W, 1)
         mask_true(semantic mask_true) = (H, W, 1 or n_class)
 
+        #albumentations > random_flip > random_crop(optional)
         #Pad is removed.
         #If image_shape is shape or ratio, apply random_crop.
         """
@@ -61,6 +62,7 @@ def yolo_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
     mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
     mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
     
+    #(mosaic + random_perspective > mix_up(with sample mosaic + random_perspective)) or (letter_box + random_perspective) > yolo_hsv > copy_paste(optional) > random_flip
     #Pad is removed.
     #First image is Background image.
     """
@@ -142,6 +144,7 @@ def mmdet_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None
     mask_true(with bbox_true & instance mask_true) = (P, H, W, 1)
     mask_true(semantic mask_true) = (H, W, 1 or n_class)
     
+    #random_resize > random_crop(optional) > random_flip > pad(by shape_divisor)
     #If image_shape is shape or ratio, apply random_crop.
     #Pad is removed.(by random crop)
     """
