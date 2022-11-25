@@ -226,7 +226,7 @@ def resize(x_true, y_true = None, bbox_true = None, mask_true = None, image_shap
     mask_true(with bbox_true & instance mask_true) = (P, H, W, 1)
     mask_true(semantic mask_true) = (H, W, 1 or n_class)
     
-    image_shape = [h, w] or [[h, w], ...] for value mode, [min_scale, max_scale] or [[min_scale, max_scale], ...] for range / jitter mode
+    image_shape = [h, w] or [[h, w], ...] for value / jitter mode, [min_scale, max_scale] or [[min_scale, max_scale], ...] for range mode
     mode = ("value", "range", "jitter")
     """
     if mode not in ("value", "range", "jitter"):

@@ -224,7 +224,7 @@ def resize(x_true, y_true = None, bbox_true = None, mask_true = None,
     mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
     mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
     
-    image_shape = [h, w] or [[h, w], ...] for value mode, [min_scale, max_scale] or [[min_scale, max_scale], ...] for range / jitter mode
+    image_shape = [h, w] or [[h, w], ...] for value / jitter mode, [min_scale, max_scale] or [[min_scale, max_scale], ...] for range mode
     mode = ("value", "range", "jitter")
     """
     pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
@@ -397,7 +397,7 @@ def multi_scale_flip(x_true, y_true = None, bbox_true = None, mask_true = None,
     mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
     mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
     
-    image_shape = [h, w](single apply) or [[h, w], ...](multi apply) for value mode, [min_scale, max_scale](single apply) or [[min_scale, max_scale], ...](multi apply) for range / jitter mode
+    image_shape = [h, w](single apply) or [[h, w], ...](multi apply) for value / jitter mode, [min_scale, max_scale](single apply) or [[min_scale, max_scale], ...](multi apply) for range mode
     flip_mode = ("horizontal", "vertical", None)(single apply) or [mode, ...](multi apply)
     """
     pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
