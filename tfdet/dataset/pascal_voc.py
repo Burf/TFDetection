@@ -119,8 +119,7 @@ def convert_format(path, y_true, bbox_true):
                            "path": path,
                            "source": {"database": "Unknown"},
                            "size": {"width": str(w), "height": str(h), "depth": str(c)},
-                           "segmented": "0",
-                           "object":obj}}
+                           "segmented": "0"}}
     try:
         if np.max(bbox_true) <= 1:
             bbox_true = np.multiply(bbox_true, [w, h, w, h]).astype(np.int32)
@@ -130,9 +129,7 @@ def convert_format(path, y_true, bbox_true):
                 "difficult": "0",
                 "bndbox": {"xmin": str(bbox_true[index][0]), "ymin": str(bbox_true[index][1]), "xmax": str(bbox_true[index][2]), "ymax": str(bbox_true[index][3])}}
                for index in range(len(y_true))]
-        if len(obj) == 1:
-            obj = obj[0]
-        data["annotation"]["object"] = obj
+        data["annotation"]["object"] = obj[0] if len(obj) == 1 else obj
     except:
         pass
     return data
