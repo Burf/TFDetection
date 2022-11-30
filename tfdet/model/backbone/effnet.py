@@ -1,97 +1,5 @@
 import tensorflow as tf
 
-def effnet_b0(x, weights = "imagenet", indices = None):
-    model = tf.keras.applications.EfficientNetB0(input_tensor = x, include_top = False, weights = weights)
-    layers = ["block2b_add", "block3b_add", "block5c_add", "block7a_project_bn"]
-    feature = [model.get_layer(l).output for l in layers]
-    if indices is None:
-        indices = list(range(len(feature)))
-    elif not isinstance(indices, list):
-        indices = [indices]
-    feature = [feature[index] for index in indices]
-    return feature
-
-def effnet_b1(x, weights = "imagenet", indices = None):
-    model = tf.keras.applications.EfficientNetB1(input_tensor = x, include_top = False, weights = weights)
-    layers = ["block2c_add", "block3c_add", "block5d_add", "block7b_add"]
-    feature = [model.get_layer(l).output for l in layers]
-    if indices is None:
-        indices = list(range(len(feature)))
-    elif not isinstance(indices, list):
-        indices = [indices]
-    feature = [feature[index] for index in indices]
-    return feature
-
-def effnet_b2(x, weights = "imagenet", indices = None):
-    model = tf.keras.applications.EfficientNetB2(input_tensor = x, include_top = False, weights = weights)
-    layers = ["block2c_add", "block3c_add", "block5d_add", "block7b_add"]
-    feature = [model.get_layer(l).output for l in layers]
-    if indices is None:
-        indices = list(range(len(feature)))
-    elif not isinstance(indices, list):
-        indices = [indices]
-    feature = [feature[index] for index in indices]
-    return feature
-
-def effnet_b3(x, weights = "imagenet", indices = None):
-    model = tf.keras.applications.EfficientNetB3(input_tensor = x, include_top = False, weights = weights)
-    layers = ["block2c_add", "block3c_add", "block5e_add", "block7b_add"]
-    feature = [model.get_layer(l).output for l in layers]
-    if indices is None:
-        indices = list(range(len(feature)))
-    elif not isinstance(indices, list):
-        indices = [indices]
-    feature = [feature[index] for index in indices]
-    return feature
-
-def effnet_b4(x, weights = "imagenet", indices = None):
-    model = tf.keras.applications.EfficientNetB4(input_tensor = x, include_top = False, weights = weights)
-    layers = ["block2d_add", "block3d_add", "block5f_add", "block7b_add"]
-    feature = [model.get_layer(l).output for l in layers]
-    if indices is None:
-        indices = list(range(len(feature)))
-    elif not isinstance(indices, list):
-        indices = [indices]
-    feature = [feature[index] for index in indices]
-    return feature
-
-def effnet_b5(x, weights = "imagenet", indices = None):
-    model = tf.keras.applications.EfficientNetB5(input_tensor = x, include_top = False, weights = weights)
-    layers = ["block2e_add", "block3e_add", "block5g_add", "block7c_add"]
-    feature = [model.get_layer(l).output for l in layers]
-    if indices is None:
-        indices = list(range(len(feature)))
-    elif not isinstance(indices, list):
-        indices = [indices]
-    feature = [feature[index] for index in indices]
-    return feature
-
-def effnet_b6(x, weights = "imagenet", indices = None):
-    model = tf.keras.applications.EfficientNetB6(input_tensor = x, include_top = False, weights = weights)
-    layers = ["block2f_add", "block3f_add", "block5h_add", "block7c_add"]
-    feature = [model.get_layer(l).output for l in layers]
-    if indices is None:
-        indices = list(range(len(feature)))
-    elif not isinstance(indices, list):
-        indices = [indices]
-    feature = [feature[index] for index in indices]
-    return feature
-
-def effnet_b7(x, weights = "imagenet", indices = None):
-    model = tf.keras.applications.EfficientNetB7(input_tensor = x, include_top = False, weights = weights)
-    layers = ["block2g_add", "block3g_add", "block5j_add", "block7d_add"]
-    feature = [model.get_layer(l).output for l in layers]
-    if indices is None:
-        indices = list(range(len(feature)))
-    elif not isinstance(indices, list):
-        indices = [indices]
-    feature = [feature[index] for index in indices]
-    return feature
-
-"""
--EfficientNet-Lite
-https://github.com/Burf/EfficientNet-Lite-Tensorflow2
-"""
 DEFAULT_BLOCKS_ARGS = [
     {'kernel_size': 3, 'repeats': 1, 'filters_in': 32, 'filters_out': 16,
      'expand_ratio': 1, 'id_skip': True, 'strides': 1, 'se_ratio': 0.25},
@@ -250,6 +158,107 @@ def block(inputs, activation_fn=tf.nn.swish, drop_rate=0., name='',
 
     return x
 
+def efficientnet(width_coefficient,
+                 depth_coefficient,
+                 default_size,
+                 dropout_rate=0.2,
+                 drop_connect_rate=0.2,
+                 depth_divisor=8,
+                 activation_fn=tf.nn.relu6,
+                 blocks_args=DEFAULT_BLOCKS_ARGS,
+                 block = block,
+                 conv_kernel_initializer = CONV_KERNEL_INITIALIZER,
+                 dense_kernel_initializer = DENSE_KERNEL_INITIALIZER,
+                 include_top=True,
+                 input_tensor=None,
+                 input_shape=None,
+                 pooling=None,
+                 classes=1000,
+                 weights = None,
+                 **kwargs):
+    #https://github.com/keras-team/keras-applications/blob/master/keras_applications/efficientnet.py
+    if input_tensor is None:
+        img_input = tf.keras.layers.Input(shape = input_shape)
+    else:
+        if not tf.keras.backend.is_keras_tensor(input_tensor):
+            img_input = tf.keras.layers.Input(tensor = input_tensor, shape = input_shape)
+        else:
+            img_input = input_tensor
+
+    def round_filters(filters, divisor=depth_divisor):
+        """Round number of filters based on depth multiplier."""
+        filters *= width_coefficient
+        new_filters = max(divisor, int(filters + divisor / 2) // divisor * divisor)
+        # Make sure that round down does not go down by more than 10%.
+        if new_filters < 0.9 * filters:
+            new_filters += divisor
+        return int(new_filters)
+
+    def round_repeats(repeats):
+        """Round number of repeats based on depth multiplier."""
+        return int(tf.math.ceil(tf.cast(depth_coefficient * repeats, tf.float32)))
+
+    # Build stem
+    x = img_input
+    x = tf.keras.layers.ZeroPadding2D(padding=correct_pad(x, 3),
+                                      name='stem_conv_pad')(x)
+    x = tf.keras.layers.Conv2D(round_filters(32), 3,
+                               strides=2,
+                               padding='valid',
+                               use_bias=False,
+                               kernel_initializer=conv_kernel_initializer,
+                               name='stem_conv')(x)
+    x = tf.keras.layers.BatchNormalization(axis=-1, name='stem_bn')(x)
+    x = tf.keras.layers.Activation(activation_fn, name='stem_activation')(x)
+
+    # Build blocks
+    from copy import deepcopy
+    blocks_args = deepcopy(blocks_args)
+
+    b = 0
+    blocks = float(sum(args['repeats'] for args in blocks_args))
+    for (i, args) in enumerate(blocks_args):
+        assert args['repeats'] > 0
+        # Update block input and output filters based on depth multiplier.
+        args['filters_in'] = round_filters(args['filters_in'])
+        args['filters_out'] = round_filters(args['filters_out'])
+
+        for j in range(round_repeats(args.pop('repeats'))):
+            # The first block needs to take care of stride and filter size increase.
+            if j > 0:
+                args['strides'] = 1
+                args['filters_in'] = args['filters_out']
+            x = block(x, activation_fn, drop_connect_rate * b / blocks,
+                      name='block{}{}_'.format(i + 1, chr(j + 97)), **args)
+            b += 1
+
+    # Build top
+    x = tf.keras.layers.Conv2D(round_filters(1280), 1,
+                               padding='same',
+                               use_bias=False,
+                               kernel_initializer=conv_kernel_initializer,
+                               name='top_conv')(x)
+    x = tf.keras.layers.BatchNormalization(axis=-1, name='top_bn')(x)
+    x = tf.keras.layers.Activation(activation_fn, name='top_activation')(x)
+    if include_top:
+        x = tf.keras.layers.GlobalAveragePooling2D(name='avg_pool')(x)
+        if dropout_rate > 0:
+            x = tf.keras.layers.Dropout(dropout_rate, name='top_dropout')(x)
+        x = tf.keras.layers.Dense(classes,
+                         activation='softmax',
+                         kernel_initializer=dense_kernel_initializer,
+                         name='probs')(x)
+    else:
+        if pooling == 'avg':
+            x = tf.keras.layers.GlobalAveragePooling2D(name='avg_pool')(x)
+        elif pooling == 'max':
+            x = tf.keras.layers.GlobalMaxPooling2D(name='max_pool')(x)
+
+    model = tf.keras.Model(img_input, x)
+    if weights is not None:
+        model.load_weights(weights)
+    return model
+
 def efficientnet_lite(width_coefficient,
                       depth_coefficient,
                       default_size,
@@ -270,6 +279,14 @@ def efficientnet_lite(width_coefficient,
                       **kwargs):
     #https://github.com/keras-team/keras-applications/blob/master/keras_applications/efficientnet.py
     #https://github.com/Burf/EfficientNet-Lite-Tensorflow2
+    if input_tensor is None:
+        img_input = tf.keras.layers.Input(shape = input_shape)
+    else:
+        if not tf.keras.backend.is_keras_tensor(input_tensor):
+            img_input = tf.keras.layers.Input(tensor = input_tensor, shape = input_shape)
+        else:
+            img_input = input_tensor
+            
     def round_filters(filters, divisor=depth_divisor):
         """Round number of filters based on depth multiplier."""
         filters *= width_coefficient
@@ -282,14 +299,6 @@ def efficientnet_lite(width_coefficient,
     def round_repeats(repeats):
         """Round number of repeats based on depth multiplier."""
         return int(tf.math.ceil(tf.cast(depth_coefficient * repeats, tf.float32)))
-
-    if input_tensor is None:
-        img_input = tf.keras.layers.Input(shape = input_shape)
-    else:
-        if not tf.keras.backend.is_keras_tensor(input_tensor):
-            img_input = tf.keras.layers.Input(tensor = input_tensor, shape = input_shape)
-        else:
-            img_input = input_tensor
 
     # Build stem
     x = img_input
@@ -357,6 +366,24 @@ def efficientnet_lite(width_coefficient,
         model.load_weights(weights)
     return model
 
+effnet_urls = {"b0":"https://github.com/Callidior/keras-applications/releases/download/efficientnet/efficientnet-b0_weights_tf_dim_ordering_tf_kernels_autoaugment_notop.h5",
+               "b1":"https://github.com/Callidior/keras-applications/releases/download/efficientnet/efficientnet-b1_weights_tf_dim_ordering_tf_kernels_autoaugment_notop.h5",
+               "b2":"https://github.com/Callidior/keras-applications/releases/download/efficientnet/efficientnet-b2_weights_tf_dim_ordering_tf_kernels_autoaugment_notop.h5",
+               "b3":"https://github.com/Callidior/keras-applications/releases/download/efficientnet/efficientnet-b3_weights_tf_dim_ordering_tf_kernels_autoaugment_notop.h5",
+               "b4":"https://github.com/Callidior/keras-applications/releases/download/efficientnet/efficientnet-b4_weights_tf_dim_ordering_tf_kernels_autoaugment_notop.h5",
+               "b5":"https://github.com/Callidior/keras-applications/releases/download/efficientnet/efficientnet-b5_weights_tf_dim_ordering_tf_kernels_autoaugment_notop.h5",
+               "b6":"https://github.com/Callidior/keras-applications/releases/download/efficientnet/efficientnet-b6_weights_tf_dim_ordering_tf_kernels_autoaugment_notop.h5",
+               "b7":"https://github.com/Callidior/keras-applications/releases/download/efficientnet/efficientnet-b7_weights_tf_dim_ordering_tf_kernels_autoaugment_notop.h5"}
+
+effnet_hashs = {"b0":"345255ed8048c2f22c793070a9c1a130",
+                "b1":"b20160ab7b79b7a92897fcb33d52cc61",
+                "b2":"c6e46333e8cddfa702f4d8b8b6340d70",
+                "b3":"e0cf8654fad9d3625190e30d70d0c17d",
+                "b4":"b46702e4754d2022d62897e0618edc7b",
+                "b5":"0a839ac36e46552a881f2975aaab442f",
+                "b6":"375a35c17ef70d46f9c664b03b4437f2",
+                "b7":"d55674cc46b805f4382d18bc08ed43c1"}
+
 effnet_lite_urls = {
     "effnet_lite_b0":"https://tfhub.dev/tensorflow/efficientnet/lite0/classification/2",
     "effnet_lite_b1":"https://tfhub.dev/tensorflow/efficientnet/lite1/classification/2",
@@ -364,6 +391,174 @@ effnet_lite_urls = {
     "effnet_lite_b3":"https://tfhub.dev/tensorflow/efficientnet/lite3/classification/2",
     "effnet_lite_b4":"https://tfhub.dev/tensorflow/efficientnet/lite4/classification/2"
 }
+
+def effnet_b0(x, weights = "imagenet", indices = None):
+    keras_weight = False
+    if weights == "imagenet":
+        keras_weight = True
+        weights = None
+    model = efficientnet(1.0, 1.0, 224, 0.2, input_tensor = x, include_top = False, weights = weights)
+    if keras_weight:
+        weight_path = tf.keras.utils.get_file(effnet_urls["b0"].split("/")[-1],
+                                              effnet_urls["b0"],
+                                              cache_subdir = "models",
+                                              file_hash = effnet_hashs["b0"])
+        model.load_weights(weight_path)
+    layers = ["block2b_add", "block3b_add", "block5c_add", "block7a_project_bn"]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
+
+def effnet_b1(x, weights = "imagenet", indices = None):
+    keras_weight = False
+    if weights == "imagenet":
+        keras_weight = True
+        weights = None
+    model = efficientnet(1.0, 1.1, 240, 0.2, input_tensor = x, include_top = False, weights = weights)
+    if keras_weight:
+        weight_path = tf.keras.utils.get_file(effnet_urls["b1"].split("/")[-1],
+                                              effnet_urls["b1"],
+                                              cache_subdir = "models",
+                                              file_hash = effnet_hashs["b1"])
+        model.load_weights(weight_path)
+    layers = ["block2c_add", "block3c_add", "block5d_add", "block7b_add"]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
+
+def effnet_b2(x, weights = "imagenet", indices = None):
+    keras_weight = False
+    if weights == "imagenet":
+        keras_weight = True
+        weights = None
+    model = efficientnet(1.1, 1.2, 260, 0.3, input_tensor = x, include_top = False, weights = weights)
+    if keras_weight:
+        weight_path = tf.keras.utils.get_file(effnet_urls["b2"].split("/")[-1],
+                                              effnet_urls["b2"],
+                                              cache_subdir = "models",
+                                              file_hash = effnet_hashs["b2"])
+        model.load_weights(weight_path)
+    layers = ["block2c_add", "block3c_add", "block5d_add", "block7b_add"]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
+
+def effnet_b3(x, weights = "imagenet", indices = None):
+    keras_weight = False
+    if weights == "imagenet":
+        keras_weight = True
+        weights = None
+    model = efficientnet(1.2, 1.4, 300, 0.3, input_tensor = x, include_top = False, weights = weights)
+    if keras_weight:
+        weight_path = tf.keras.utils.get_file(effnet_urls["b3"].split("/")[-1],
+                                              effnet_urls["b3"],
+                                              cache_subdir = "models",
+                                              file_hash = effnet_hashs["b3"])
+        model.load_weights(weight_path)
+    layers = ["block2c_add", "block3c_add", "block5e_add", "block7b_add"]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
+
+def effnet_b4(x, weights = "imagenet", indices = None): 
+    keras_weight = False
+    if weights == "imagenet":
+        keras_weight = True
+        weights = None
+    model = efficientnet(1.4, 1.8, 380, 0.4, input_tensor = x, include_top = False, weights = weights)
+    if keras_weight:
+        weight_path = tf.keras.utils.get_file(effnet_urls["b4"].split("/")[-1],
+                                              effnet_urls["b4"],
+                                              cache_subdir = "models",
+                                              file_hash = effnet_hashs["b4"])
+        model.load_weights(weight_path)
+    layers = ["block2d_add", "block3d_add", "block5f_add", "block7b_add"]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
+
+def effnet_b5(x, weights = "imagenet", indices = None):
+    keras_weight = False
+    if weights == "imagenet":
+        keras_weight = True
+        weights = None
+    model = efficientnet(1.6, 2.2, 456, 0.4, input_tensor = x, include_top = False, weights = weights)
+    if keras_weight:
+        weight_path = tf.keras.utils.get_file(effnet_urls["b5"].split("/")[-1],
+                                              effnet_urls["b5"],
+                                              cache_subdir = "models",
+                                              file_hash = effnet_hashs["b5"])
+        model.load_weights(weight_path)
+    layers = ["block2e_add", "block3e_add", "block5g_add", "block7c_add"]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
+
+def effnet_b6(x, weights = "imagenet", indices = None):
+    keras_weight = False
+    if weights == "imagenet":
+        keras_weight = True
+        weights = None
+    model = efficientnet(1.8, 2.6, 528, 0.5, input_tensor = x, include_top = False, weights = weights)
+    if keras_weight:
+        weight_path = tf.keras.utils.get_file(effnet_urls["b6"].split("/")[-1],
+                                              effnet_urls["b6"],
+                                              cache_subdir = "models",
+                                              file_hash = effnet_hashs["b6"])
+        model.load_weights(weight_path)
+    layers = ["block2f_add", "block3f_add", "block5h_add", "block7c_add"]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
+
+def effnet_b7(x, weights = "imagenet", indices = None):
+    keras_weight = False
+    if weights == "imagenet":
+        keras_weight = True
+        weights = None
+    model = efficientnet(2.0, 3.1, 600, 0.5, input_tensor = x, include_top = False, weights = weights)
+    if keras_weight:
+        weight_path = tf.keras.utils.get_file(effnet_urls["b7"].split("/")[-1],
+                                              effnet_urls["b7"],
+                                              cache_subdir = "models",
+                                              file_hash = effnet_hashs["b7"])
+        model.load_weights(weight_path)
+    layers = ["block2g_add", "block3g_add", "block5j_add", "block7d_add"]
+    feature = [model.get_layer(l).output for l in layers]
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
 
 def load_weight(model, url):
     """
