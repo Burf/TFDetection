@@ -328,7 +328,7 @@ def mosaic(x_true, y_true = None, bbox_true = None, mask_true = None, image_shap
             if np.ndim(mask_true[i]) < 4: #semantic_mask
                 if i == 0:
                     masks = np.zeros([h, w, np.shape(mask_true[i])[-1]], dtype = mask_true[i].dtype)
-                masks[..., y1a:y2a, x1a:x2a, :] = mask_true[i][..., y1b:y2b, x1b:x2b, :]
+                masks[y1a:y2a, x1a:x2a, :] = mask_true[i][y1b:y2b, x1b:x2b, :]
             elif 3 < np.ndim(mask_true[i]): #instance_mask
                 mask = np.array(mask_true[i])
                 if i == 0:
@@ -450,7 +450,7 @@ def mosaic9(x_true, y_true = None, bbox_true = None, mask_true = None, image_sha
             if np.ndim(mask_true[i]) < 4: #semantic_mask
                 if i == 0:
                     masks = np.zeros([h * 3, w * 3, np.shape(mask_true[i])[-1]], dtype = mask_true[i].dtype)
-                masks[..., y1:y2, x1:x2, :] = mask_true[i][..., y1 - pady:y2 - pady, x1 - padx:x2 - padx, :]
+                masks[y1:y2, x1:x2, :] = mask_true[i][y1 - pady:y2 - pady, x1 - padx:x2 - padx, :]
             elif 3 < np.ndim(mask_true[i]): #instance_mask
                 mask = np.array(mask_true[i])
                 if i == 0:
@@ -879,7 +879,7 @@ def copy_paste(x_true, y_true = None, bbox_true = None, mask_true = None, max_pa
         mask_true = (np.array(mask_true[0]) if 3 < np.ndim(mask_true[0]) else np.array(mask_true[0])) if mask_true is not None else None
         if bbox_true is not None:
             indices = np.where(np.max(0 < bbox_true, axis = -1, keepdims = True) != 0)[0]
-            bbox_true = np.round(np.multiply(bbox_true[indices], np.tile(np.shape(x_true)[:2][::-1], 2))).astype(int) if bbox_norm else np.array(bbox_true[indices], dtype = int)
+            new_bbox = bbox_true = np.round(np.multiply(bbox_true[indices], np.tile(np.shape(x_true)[:2][::-1], 2))).astype(int) if bbox_norm else np.array(bbox_true[indices], dtype = int)
             y_true = y_true[indices] if y_true is not None else None
             mask_true = mask_true[indices] if mask_true is not None and 3 < np.ndim(mask_true) else mask_true
         #elif mask_true is not None and 3 < np.ndim(mask_true):
@@ -911,8 +911,10 @@ def copy_paste(x_true, y_true = None, bbox_true = None, mask_true = None, max_pa
                         y = sample_y[i] if i < len(sample_y) is not None else None
                         mask = sample_mask[i] if i < len(sample_mask) is not None else None
                         if sh != scale[0] or sw != scale[1]:
-                            x = cv2.resize(x, scale[::-1], interpolation = method)
-                            mask = cv2.resize(mask, scale[::-1], interpolation = method) if mask is not None else None
+                            x = cv2.resize(x, tuple(scale[::-1]), interpolation = method)
+                            if np.ndim(x) == 2:
+                                x = np.expand_dims(x, axis = -1)
+                            mask = cv2.resize(mask, tuple(scale[::-1]), interpolation = method) if mask is not None else None
                         if np.random.random() < p_flip:
                             x = np.fliplr(x)
                             mask = np.fliplr(mask) if mask is not None else None

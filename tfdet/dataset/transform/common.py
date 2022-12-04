@@ -254,17 +254,20 @@ def resize(x_true, y_true = None, bbox_true = None, mask_true = None, image_shap
         if keep_ratio:
             scale = min(max(target_size) / max(size), min(target_size) / min(size))
             target_size = tuple((np.multiply(size, scale) + 0.5).astype(int))
+        target_size = target_size[::-1]
         if target_size != size:
             target_size = target_size[::-1]
-            x_true = cv2.resize(x_true, target_size, interpolation = method)
+            x_true = cv2.resize(x_true, target_size[::-1], interpolation = method)
+            if np.ndim(x_true) == 2:
+                x_true = np.expand_dims(x_true, axis = -1)
             if bbox_true is not None and np.any(np.greater_equal(bbox_true, 2)):
                 bbox_true = np.multiply(np.divide(bbox_true, np.tile(size[::-1], 2)), np.tile(target_size, 2))
                 bbox_true = np.round(bbox_true).astype(int)
             if mask_true is not None:
                 if 3 < np.ndim(mask_true):
-                    mask_true = np.expand_dims([cv2.resize(m, target_size, interpolation = method) for m in mask_true], axis = -1)
+                    mask_true = np.expand_dims([cv2.resize(m, target_size[::-1], interpolation = method) for m in mask_true], axis = -1) if 0 < len(mask_true) else np.zeros([0, *target_size, 1], dtype = mask_true.dtype)
                 else:
-                    mask_true = cv2.resize(mask_true, target_size, interpolation = method)
+                    mask_true = cv2.resize(mask_true, target_size[::-1], interpolation = method)
                     mask_true = np.expand_dims(mask_true, axis = -1) if np.ndim(mask_true) == 2 else mask_true
     result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
     result = result[0] if len(result) == 1 else tuple(result)
@@ -436,7 +439,11 @@ def flip(x_true, y_true = None, bbox_true = None, mask_true = None, mode = "hori
         x2, y2 = x1 + w, y1 + h
         bbox_true = np.concatenate([x1, y1, x2, y2], axis = -1)
     if mask_true is not None:
-        mask_true = np.array([func(m) for m in mask_true]) if 3 < np.ndim(mask_true) else func(mask_true)
+        if 3 < np.ndim(mask_true):
+            if 0 < len(mask_true):
+                mask_true = np.array([func(m) for m in mask_true])
+        else:
+            func(mask_true)
     
     result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
     result = result[0] if len(result) == 1 else tuple(result)
