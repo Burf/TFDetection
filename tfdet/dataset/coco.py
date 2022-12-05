@@ -71,7 +71,7 @@ def get(path, refresh = False):
         raise e
     
     global memory
-    key = os.path.basename(path)
+    key = os.path.abspath(path)
     if refresh or key not in memory:
         coco = COCO(path)
         memory[key] = coco
@@ -228,8 +228,7 @@ def tfds_to_tfdet(tfds_pipe, crowd = False, label = LABEL[1:],
     pipe = tfds.load("coco/2017", split = tfds.Split.VALIDATION)
     pipe = tfdet.dataset.coco.tfds_to_tfdet(pipe, crowd = False)
 
-    out = next(iter(pipe))
-    image, y_true, bbox_true = out #x_true:(640, 480, 3), y_true:(4, 1), bbox_true:(4, 4)
+    x_true, y_true, bbox_true = next(iter(pipe)) #x_true:(640, 480, 3), y_true:(4, 1), bbox_true:(4, 4)
     """
     func = functools.partial(convert_tfds_to_tfdet, crowd = crowd, label = label)
     pipe = tfds_pipe.map(func)

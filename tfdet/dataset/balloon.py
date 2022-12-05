@@ -25,7 +25,7 @@ def clear(path = None):
 
 def get(path, refresh = False):
     global memory
-    key = os.path.basename(path)
+    key = os.path.abspath(path)
     if refresh or key not in memory:
         balloon = load_json(path)
         balloon = list(balloon.values())

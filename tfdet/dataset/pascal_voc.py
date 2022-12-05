@@ -246,8 +246,7 @@ def tfds_to_tfdet(tfds_pipe, truncated = True, difficult = False, label = LABEL[
     pipe = tfds.load("voc/2007", split = tfds.Split.VALIDATION)
     pipe = tfdet.dataset.pascal_voc.tfds_to_tfdet(pipe, truncated = True, difficult = False)
 
-    out = next(iter(pipe))
-    image, y_true, bbox_true = out #x_true:(375, 500, 3), y_true:(3, 1), bbox_true:(3, 4)
+    x_true, y_true, bbox_true = next(iter(pipe)) #x_true:(375, 500, 3), y_true:(3, 1), bbox_true:(3, 4)
     """
     func = functools.partial(convert_tfds_to_tfdet, truncated = truncated, difficult = difficult, label = label)
     pipe = tfds_pipe.map(func)
