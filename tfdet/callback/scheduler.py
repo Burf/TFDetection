@@ -142,8 +142,8 @@ class WarmUpLearningRateSchedulerStep(LearningRateSchedulerStep):
         self.epoch = epoch
         
     def schedule(self, epoch, step, total_step, learning_rate, current_learning_rate):
+        total_step = 1000 if total_step is None else total_step
         if epoch < self.epoch:
-            total_step = 1000 if total_step is None else total_step
             w = np.interp(step + 1, [0, total_step], [epoch / self.epoch, (epoch + 1) / self.epoch])
         else:
             w = 1
@@ -169,6 +169,7 @@ class CosineLearningRateSchedulerStep(LearningRateSchedulerStep):
         self.decay_rate = decay_rate
         
     def schedule(self, epoch, step, total_step, learning_rate, current_learning_rate):
+        total_step = 1000 if total_step is None else total_step
         w = self.decay_rate + (1 - self.decay_rate) * (0.5 * (1 + np.cos(np.pi * (epoch % self.cycle) / self.cycle)))
         w2 = self.decay_rate + (1 - self.decay_rate) * (0.5 * (1 + np.cos(np.pi * ((epoch + 1) % self.cycle) / self.cycle)))
         w = np.interp(step, [0, total_step], [w, w2])
@@ -182,8 +183,8 @@ class WarmUpLinearLearningRateSchedulerStep(LearningRateSchedulerStep):
         self.warm_up_epoch = warm_up_epoch
         
     def schedule(self, epoch, step, total_step, learning_rate, current_learning_rate):
+        total_step = 1000 if total_step is None else total_step
         if epoch < self.warm_up_epoch:
-            total_step = 1000 if total_step is None else total_step
             w = np.interp(step + 1, [0, total_step], [epoch / self.warm_up_epoch, (epoch + 1) / self.warm_up_epoch])
         else:
             w = (1 - ((epoch - self.warm_up_epoch) % self.cycle) / (self.cycle - 1)) * (1. - learning_rate * self.decay_rate) + learning_rate * self.decay_rate
@@ -199,8 +200,8 @@ class WarmUpCosineLearningRateSchedulerStep(LearningRateSchedulerStep):
         self.warm_up_epoch = warm_up_epoch
         
     def schedule(self, epoch, step, total_step, learning_rate, current_learning_rate):
+        total_step = 1000 if total_step is None else total_step
         if epoch < self.warm_up_epoch:
-            total_step = 1000 if total_step is None else total_step
             w = np.interp(step + 1, [0, total_step], [epoch / self.warm_up_epoch, (epoch + 1) / self.warm_up_epoch])
         else:
             w = self.decay_rate + (1 - self.decay_rate) * (0.5 * (1 + np.cos(np.pi * ((epoch - self.warm_up_epoch) % self.cycle) / self.cycle)))
