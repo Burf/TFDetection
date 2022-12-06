@@ -219,28 +219,63 @@ def get_device(type = None):
             result = [device for device in result if device.device_type == type]
     return result
 
-def select_device(gpu = None, limit = None):
-    if not isinstance(gpu, list):
-        gpu = [gpu]
-    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"] = ",".join([str(device) for device in gpu])
+def select_device(device = None, limit = None, tpu_address = ""):
+    """
+    # This is the device initialization code that has to be at the beginning.
     
-    if len(get_device("GPU")) == 0:
-        return tf.device("/cpu:0")
+    - single gpu or cpu (device = select_device(0))
+    with device:
+        model init / compile / fit
+    
+    - multi gpu(distribute) (device = select_device([0, 1, 2, 3])) or tpu (device = select_device("tpu"))
+    with device.scope():
+        #optional-1
+        options = tf.data.Options()
+        options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
+        pipe = pipe.with_options(options)
+        
+        #optional-2
+        pipe = device.experimental_distribute_dataset(pipe) #model.fit(..., steps_per_epoch = tr_pipe.cardinality(), validation_steps = te_pipe.cardinality())
+        
+        model init / compile / fit
+    """
+    if device in ["cpu", None]:
+        device = tf.device("/cpu:0")
+    elif device in ["tpu", "colab"]:
+        if device == "colab":
+            tpu_address = "grpc://{0}".format(os.environ["COLAB_TPU_ADDR"])
+        resolver = tf.distribute.cluster_resolver.TPUClusterResolver(tpu = tpu_address)
+        tf.config.experimental_connect_to_cluster(resolver)
+        tf.tpu.experimental.initialize_tpu_system(resolver)
+        
+        device = tf.config.list_logical_devices("TPU")
+        if len(device) == 0:
+            device = tf.device("/cpu:0")
+        else:
+            device = tf.distribute.TPUStrategy(resolver)
     else:
-        for device in get_device("GPU"):
+        if device != "gpu":
+            device = [device] if np.ndim(device) == 0 else device
+            os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+            os.environ["CUDA_VISIBLE_DEVICES"] = ",".join([str(num) for num in device])
+        
+        gpu_device = get_device("GPU")
+        for device_context in gpu_device:
             try:
-                tf.config.experimental.set_memory_growth(device, True)
+                tf.config.experimental.set_memory_growth(device_context, True)
                 if limit is not None:
-                    tf.config.experimental.set_virtual_device_configuration(device, [tf.config.experimental.VirtualDeviceConfiguration(memory_limit = limit)])
+                    tf.config.experimental.set_virtual_device_configuration(device_context, [tf.config.experimental.VirtualDeviceConfiguration(memory_limit = limit)])
             except:
                 pass
-        if len(gpu) == 1:
-            device = tf.device("/gpu:0")
+        
+        device = tf.config.list_logical_devices("GPU")
+        if len(device) == 0:
+            device = tf.device("/cpu:0")
+        elif len(device) == 1:
+            device = tf.device(device[0])
         else:
-            strategy = tf.distribute.MirroredStrategy(["/gpu:{0}".format(device) for device in range(len(gpu))], cross_device_ops = tf.distribute.HierarchicalCopyAllReduce())
-            device = strategy.scope()
-        return device
+            device = tf.distribute.MirroredStrategy(device, cross_device_ops = tf.distribute.HierarchicalCopyAllReduce())
+    return device
     
 class EMA:
     """
@@ -274,7 +309,8 @@ class EMA:
         self.n_update += 1
         decay = self.decay(self.n_update)
         for w in self.model.trainable_weights:
-            self.weights[w.name] = (1 - decay) * np.array(w) + (decay * self.weights[w.name])
+            if w.dtype.is_floating:
+                self.weights[w.name] = (1 - decay) * np.array(w) + (decay * self.weights[w.name])
 
     def apply(self, model = None):
         for w in (model if isinstance(model, tf.keras.Model) else self.model).trainable_weights:

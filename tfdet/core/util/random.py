@@ -16,6 +16,9 @@ def set_numpy_seed(seed = 0):
     np.random.seed(seed)
 
 def set_tensorflow_seed(seed = 0, determinism = False):
+    """
+    # This is the random seed initialization code that has to be at the beginning.
+    """
     if determinism:
         tf_version = float(".".join(tf.__version__.split(".")[:2]))
         if hasattr(tf.config.experimental, "enable_op_determinism"):
@@ -36,6 +39,9 @@ def set_tensorflow_seed(seed = 0, determinism = False):
     tf.config.threading.set_intra_op_parallelism_threads(1)
             
 def set_seed(seed = 0, determinism = False):
+    """
+    # This is the random seed initialization code that has to be at the beginning.
+    """
     set_python_seed(seed)
     set_random_seed(seed)
     set_numpy_seed(seed)
