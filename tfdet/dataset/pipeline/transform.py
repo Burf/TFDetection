@@ -955,6 +955,23 @@ def cast(x_true, y_true = None, bbox_true = None, mask_true = None,
                 batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache,
                 tf_func = True)
 
+def reshape(x_true, y_true = None, bbox_true = None, mask_true = None, 
+            map = {"x_true":None, "y_true":None, "bbox_true":None, "mask_true":None},
+            batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
+            cache = False, num_parallel_calls = True):
+    """
+    x_true = (N, H, W, C) or pipe
+    y_true(without bbox_true) = (N, 1 or n_class)
+    y_true(with bbox_true) = (N, P, 1 or n_class)
+    bbox_true = (N, P, 4)
+    mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
+    mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
+    """
+    return pipe(x_true, y_true, bbox_true, mask_true, function = T.reshape,
+                map = map,
+                batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch, num_parallel_calls = num_parallel_calls, cache = cache,
+                tf_func = True)
+
 def args2dict(x_true, y_true = None, bbox_true = None, mask_true = None, 
               keys = ["x_true", "y_true", "bbox_true", "mask_true"],
               batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
