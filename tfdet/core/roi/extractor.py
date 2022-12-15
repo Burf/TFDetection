@@ -15,9 +15,10 @@ def roi2level(bbox, n_level, input_shape = (224, 224)):
     roi_level = tf.squeeze(roi_level, axis = -1)
     return roi_level
 
-def roi_align(feature, bbox_pred, image_shape = [1024, 1024], pool_size = 7, method = "bilinear"):
-    if not isinstance(feature, list):
-        feature = [feature]
+def roi_align(bbox_pred, *feature, image_shape = [1024, 1024], pool_size = 7, method = "bilinear"):
+    #if not isinstance(feature, (tuple, list)):
+    #    feature = [feature]
+    feature = list(feature)
     pool_size = [pool_size, pool_size] if isinstance(pool_size, int) else [pool_size, pool_size]
     
     max_size = tf.shape(bbox_pred)[0]
