@@ -45,6 +45,7 @@ def score_loss(score_true, score_pred, loss = binary_cross_entropy, missing_valu
     indices = tf.where(tf.not_equal(score_true, 0))[:, 0]
     score = tf.gather(score_pred, indices)
     match_score = tf.gather(match_score, indices)
+    match_score = tf.cast(match_score, score_pred.dtype)
 
     _loss = loss(match_score, score, reduce = False)
     
