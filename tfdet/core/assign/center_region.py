@@ -2,13 +2,13 @@ import tensorflow as tf
 
 from ..bbox import overlap_bbox, scale_bbox, isin
 
-def center_region(bbox_true, bbox_pred, positive_scale = 0.2, negative_scale = 0.5, threshold = 0.01, min_threshold = 0.0001, mode = "normal"):
+def center_region(y_true, bbox_true, y_pred, bbox_pred, positive_scale = 0.2, negative_scale = 0.5, threshold = 0.01, min_threshold = 0.0001, extra_length = None, mode = "normal"):
     #https://arxiv.org/abs/1901.03278
     pos_bbox_true = scale_bbox(bbox_true, positive_scale)
     neg_bbox_true = scale_bbox(bbox_true, negative_scale)
     
-    pos_flag = tf.transpose(isin(pos_bbox_true, bbox_pred)) #(P, T)
-    neg_flag = tf.transpose(~isin(neg_bbox_true, bbox_pred)) #(P, T)
+    pos_flag = tf.transpose(isin(pos_bbox_true, bbox_pred, extra_length = extra_length, mode = "rect")) #(P, T)
+    neg_flag = tf.transpose(~isin(neg_bbox_true, bbox_pred, extra_length = extra_length, mode = "rect")) #(P, T)
     #ignore_flag = tf.logical_and(~pos_flag, ~neg_flag)
     overlaps = overlap_bbox(bbox_pred, bbox_true, mode = mode) #(P, T)
     overlaps = tf.where(pos_flag, overlaps, 0)

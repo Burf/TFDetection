@@ -26,7 +26,8 @@ def anchor_target(y_true, bbox_true, y_pred, bbox_pred, anchors, assign = max_io
         anchors = tf.gather(anchors, valid_indices)
     pred_count = tf.shape(anchors)[0]
     
-    true_indices, positive_indices, negative_indices = assign(bbox_true, anchors)
+    #true_indices, positive_indices, negative_indices = assign(bbox_true, anchors)
+    true_indices, positive_indices, negative_indices = assign(y_true, bbox_true, y_pred, anchors)
     
     if isinstance(sampling_count, int) and 0 < sampling_count:
         positive_count = tf.cast(sampling_count * positive_ratio, tf.int32)

@@ -7,7 +7,7 @@ def fcos_target(y_true, bbox_true, y_pred, bbox_pred, points, regress_range, cen
     """
     y_true = label #(padded_num_true, 1 or num_class)
     bbox_true = [[x1, y1, x2, y2], ...] #(padded_num_true, bbox)
-    y_pred = classifier logit #(num_points, 1 or num_class)
+    y_pred = classifier logit #(num_points, num_class)
     bbox_pred = classifier regress #(num_points, offset)
     points = [[center_x, center_y], ...] #(num_points, point)
     regress_range = [[min_offset_range, max_offet_range], ...] #(num_points, regress_range)
@@ -18,8 +18,14 @@ def fcos_target(y_true, bbox_true, y_pred, bbox_pred, points, regress_range, cen
     y_true = tf.gather(y_true, valid_indices)
     bbox_true = tf.gather(bbox_true, valid_indices)
     
-    true_indices, positive_indices, negative_indices = assign(bbox_true, points, regress_range)
-    
+    #true_indices, positive_indices, negative_indices = assign(bbox_true, points, regress_range = regress_range)
+    if centerness_pred is not None:
+        logits = tf.multiply(y_pred, centerness_pred)
+        logits = tf.sqrt(logits)
+        true_indices, positive_indices, negative_indices = assign(y_true, bbox_true, logits, points, regress_range = regress_range)
+    else:
+        true_indices, positive_indices, negative_indices = assign(y_true, bbox_true, y_pred, points, regress_range = regress_range)
+        
     if isinstance(sampling_count, int) and 0 < sampling_count:
         positive_count = tf.cast(sampling_count * positive_ratio, tf.int32)
         indices = tf.range(tf.shape(positive_indices)[0])

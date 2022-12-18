@@ -2,7 +2,7 @@ import tensorflow as tf
 
 from ..bbox import overlap_bbox
 
-def max_iou(bbox_true, bbox_pred, positive_threshold = 0.5, negative_threshold = 0.4, min_threshold = 0.0001, match_low_quality = True, mode = "normal"):
+def max_iou(y_true, bbox_true, y_pred, bbox_pred, positive_threshold = 0.5, negative_threshold = 0.4, min_threshold = 0.0001, match_low_quality = True, mode = "normal"):
     overlaps = overlap_bbox(bbox_pred, bbox_true, mode = mode) #(P, T)
     max_iou = tf.reduce_max(overlaps, axis = -1)
 

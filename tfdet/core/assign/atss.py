@@ -3,7 +3,7 @@ import tensorflow as tf
 from ..bbox import overlap_bbox, isin
 from ..util import euclidean_matrix
 
-def atss(bbox_true, bbox_pred, k = 9, threshold = 0.01, min_threshold = 0.0001, mode = "normal"):
+def atss(y_true, bbox_true, y_pred, bbox_pred, k = 9, threshold = 0.01, min_threshold = 0.0001, extra_length = None, mode = "normal"):
     #https://arxiv.org/abs/1912.02424
     k = tf.minimum(k, tf.shape(bbox_pred)[0])
     overlaps = overlap_bbox(bbox_true, bbox_pred, mode = mode) #(T, P)
@@ -20,7 +20,7 @@ def atss(bbox_true, bbox_pred, k = 9, threshold = 0.01, min_threshold = 0.0001, 
     candidate_flag = tf.concat([candidate_flag, tf.zeros((true_count, pred_count - k), dtype = tf.bool)], axis = -1) #(T, K) + (T, P - K)
     candidate_flag = tf.gather(candidate_flag, tf.argsort(sort_indices, axis = -1), batch_dims = -1) #(T, P)
     
-    isin_flag = isin(bbox_true, bbox_pred) #(T, P)
+    isin_flag = isin(bbox_true, bbox_pred, extra_length = extra_length, mode = "rect") #(T, P)
     overlaps = tf.where(tf.logical_and(candidate_flag, isin_flag), overlaps, 0) #(T, P)
     overlaps = tf.transpose(overlaps) #(P, T)
     

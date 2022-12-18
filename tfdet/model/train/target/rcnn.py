@@ -3,11 +3,11 @@ import tensorflow as tf
 from tfdet.core.assign import max_iou
 from tfdet.core.bbox import bbox2delta, delta2bbox
 
-def rpn_assign(bbox_true, bbox_pred, positive_threshold = 0.7, negative_threshold = 0.3, min_threshold = 0.3, match_low_quality = True, mode = "normal"):
-    return max_iou(bbox_true, bbox_pred, positive_threshold = positive_threshold, negative_threshold = negative_threshold, min_threshold = min_threshold, match_low_quality = match_low_quality, mode = mode)
+def rpn_assign(y_true, bbox_true, y_pred, bbox_pred, positive_threshold = 0.7, negative_threshold = 0.3, min_threshold = 0.3, match_low_quality = True, mode = "normal"):
+    return max_iou(y_true, bbox_true, y_pred, bbox_pred, positive_threshold = positive_threshold, negative_threshold = negative_threshold, min_threshold = min_threshold, match_low_quality = match_low_quality, mode = mode)
 
-def cls_assign(bbox_true, bbox_pred, positive_threshold = 0.5, negative_threshold = 0.5, min_threshold = 0.5, match_low_quality = False, mode = "normal"):
-    return max_iou(bbox_true, bbox_pred, positive_threshold = positive_threshold, negative_threshold = negative_threshold, min_threshold = min_threshold, match_low_quality = match_low_quality, mode = mode)
+def cls_assign(y_true, bbox_true, y_pred, bbox_pred, positive_threshold = 0.5, negative_threshold = 0.5, min_threshold = 0.5, match_low_quality = False, mode = "normal"):
+    return max_iou(y_true, bbox_true, y_pred, bbox_pred, positive_threshold = positive_threshold, negative_threshold = negative_threshold, min_threshold = min_threshold, match_low_quality = match_low_quality, mode = mode)
 
 def rpn_target(bbox_true, rpn_score, rpn_regress, anchors, assign = rpn_assign, sampling_count = 256, positive_ratio = 0.5, valid = False, mean = [0., 0., 0., 0.], std = [1., 1., 1., 1.]):
     """
@@ -35,7 +35,8 @@ def rpn_target(bbox_true, rpn_score, rpn_regress, anchors, assign = rpn_assign, 
         anchors = tf.gather(anchors, valid_indices)
     pred_count = tf.shape(anchors)[0]
 
-    true_indices, positive_indices, negative_indices = assign(bbox_true, anchors)
+    #true_indices, positive_indices, negative_indices = assign(bbox_true, anchors)
+    true_indices, positive_indices, negative_indices = assign(tf.ones([tf.shape(bbox_true)[0], 1], dtype = tf.float32), bbox_true, rpn_score, anchors)
     
     if isinstance(sampling_count, int) and 0 < sampling_count:
         positive_count = tf.cast(sampling_count * positive_ratio, tf.int32)
@@ -91,7 +92,9 @@ def sampling_target(y_true, bbox_true, proposal, mask_true = None, assign = cls_
     if mask_true is not None:
         mask_true = tf.gather(mask_true, valid_true_indices)
 
-    true_indices, positive_indices, negative_indices = assign(bbox_true, proposal)
+    #true_indices, positive_indices, negative_indices = assign(bbox_true, proposal)
+    #true_indices, positive_indices, negative_indices = assign(y_true, bbox_true, None, proposal)
+    true_indices, positive_indices, negative_indices = assign(tf.ones([tf.shape(bbox_true)[0], 1], dtype = tf.float32), bbox_true, tf.ones([tf.shape(proposal)[0], 1], dtype = tf.float32), proposal)
     
     if isinstance(sampling_count, int) and 0 < sampling_count:
         positive_count = tf.cast(sampling_count * positive_ratio, tf.int32)
@@ -213,7 +216,8 @@ def cls_target(y_true, bbox_true, cls_logit, cls_regress, proposal, mask_true = 
         mask_true = tf.gather(mask_true, valid_true_indices)
         mask_regress = tf.gather(mask_regress, valid_pred_indices)
 
-    true_indices, positive_indices, negative_indices = assign(bbox_true, proposal)
+    #true_indices, positive_indices, negative_indices = assign(bbox_true, proposal)
+    true_indices, positive_indices, negative_indices = assign(y_true, bbox_true, cls_logit, proposal)
     
     if isinstance(sampling_count, int) and 0 < sampling_count:
         positive_count = tf.cast(sampling_count * positive_ratio, tf.int32)
