@@ -1,8 +1,15 @@
 import tensorflow as tf
 
-from .retina import classnet_accuracy, classnet_loss, boxnet_loss
+from tfdet.core.loss import binary_cross_entropy, focal_binary_cross_entropy, iou
+from .retina import classnet_accuracy, classnet_loss as _classnet_loss, boxnet_loss as _boxnet_loss
 
-def centernessnet_loss(y_true, centerness_true, centerness_pred, missing_value = 0.):
+def classnet_loss(y_true, y_pred, loss = focal_binary_cross_entropy, weight = None, background = False, missing_value = 0.):
+    return _classnet_loss(y_true, y_pred, loss = loss, weight = weight, background = background, missing_value = missing_value)
+    
+def boxnet_loss(y_true, bbox_true, bbox_pred, loss = iou, missing_value = 0.):
+    return _boxnet_loss(y_true, bbox_true, bbox_pred, loss = loss, missing_value = missing_value)
+
+def centernessnet_loss(y_true, centerness_true, centerness_pred, loss = binary_cross_entropy, missing_value = 0.):
     """
     y_true = targeted y_true #(batch_size, sampling_count, 1 or num_class)
     centerness_true = targeted centerness_true #(batch_size, sampling_count, 1)
@@ -17,7 +24,7 @@ def centernessnet_loss(y_true, centerness_true, centerness_pred, missing_value =
     centerness_true = tf.gather(centerness_true, true_indices)
     centerness_pred = tf.gather(centerness_pred, true_indices)
     
-    loss = tf.keras.losses.binary_crossentropy(centerness_true, centerness_pred)
-    loss = tf.reduce_mean(loss)
-    loss = tf.where(tf.math.is_nan(loss), missing_value, loss)
-    return loss
+    _loss = loss(centerness_true, centerness_pred, reduce = False)
+    _loss = tf.reduce_mean(_loss)
+    _loss = tf.where(tf.math.is_nan(_loss), missing_value, _loss)
+    return _loss

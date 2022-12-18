@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-def binary_cross_entropy(y_true, y_pred, focal = False, alpha = .25, gamma = 1.5, weight = None, reduce = True):
+def binary_cross_entropy(y_true, y_pred, focal = False, alpha = .25, gamma = 2., weight = None, reduce = True):
     n_true_class = tf.shape(y_true)[-1]
     n_pred_class = tf.shape(y_pred)[-1]
     
@@ -43,7 +43,7 @@ def categorical_cross_entropy(y_true, y_pred, focal = False, alpha = 1., gamma =
         loss = tf.reduce_mean(loss)
     return loss
 
-def focal_binary_cross_entropy(y_true, y_pred, alpha = .25, gamma = 1.5, weight = None, reduce = True):
+def focal_binary_cross_entropy(y_true, y_pred, alpha = .25, gamma = 2., weight = None, reduce = True):
     return binary_cross_entropy(y_true, y_pred, focal = True, alpha = alpha, gamma = gamma, weight = weight, reduce = reduce)
 
 def focal_categorical_cross_entropy(y_true, y_pred, alpha = 1., gamma = 2., weight = None, reduce = True):

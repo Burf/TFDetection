@@ -2,9 +2,9 @@ import tensorflow as tf
 import numpy as np
 
 from tfdet.core.assign import max_iou
-from tfdet.core.loss import regularize as regularize_loss
+from tfdet.core.loss import binary_cross_entropy, categorical_cross_entropy, focal_categorical_cross_entropy, smooth_l1, regularize as regularize_loss
 from tfdet.core.util import map_fn
-from .loss.rcnn import score_accuracy, score_loss, logits_accuracy, logits_loss, regress_loss, mask_loss, semantic_loss
+from .loss.rcnn import score_accuracy, score_loss, logits_accuracy, logits_loss, regress_loss, mask_loss, semantic_loss as semantic_loss_func
 from .target import rpn_target, sampling_postprocess, cls_target
 from ..postprocess.rcnn import FilterDetection
 
@@ -20,6 +20,9 @@ def cls_assign2(y_true, bbox_true, y_pred, bbox_pred, positive_threshold = 0.6, 
 def cls_assign3(y_true, bbox_true, y_pred, bbox_pred, positive_threshold = 0.7, negative_threshold = 0.7, min_threshold = 0.7, match_low_quality = False, mode = "normal"):
     return max_iou(y_true, bbox_true, y_pred, bbox_pred, positive_threshold = positive_threshold, negative_threshold = negative_threshold, min_threshold = min_threshold, match_low_quality = match_low_quality, mode = mode)
 
+def smooth_l1_sigma1(y_true, y_pred, sigma = 1, reduce = True):
+    return smooth_l1(y_true, y_pred, sigma = sigma, reduce = reduce)
+
 def train_model(input, rpn_score = None, rpn_regress = None, anchors = None, cls_logits = None, cls_regress = None, proposals = None, mask_regress = None, semantic_regress = None,
                 sampling_tag = None, sampling_count = 256,
                 rpn_assign = rpn_assign, rpn_positive_ratio = 0.5,
@@ -29,7 +32,11 @@ def train_model(input, rpn_score = None, rpn_regress = None, anchors = None, cls
                 rpn_mean = [0., 0., 0., 0.], rpn_std = [1., 1., 1., 1.], rpn_clip_ratio = 16 / 1000, 
                 cls_mean = [0., 0., 0., 0.], cls_std = [0.1, 0.1, 0.2, 0.2], cls_clip_ratio = 16 / 1000,
                 method = "bilinear",
-                regularize = True, weight_decay = 1e-4, focal = True, alpha = 1., gamma = 2., sigma = 1, class_weight = None, stage_weight = [1.0, 0.5, 0.25], semantic_weight = 0.2, threshold = 0.5, missing_value = 0.):
+                rpn_class_loss = binary_cross_entropy, rpn_bbox_loss = smooth_l1,
+                cls_class_loss = focal_categorical_cross_entropy, cls_bbox_loss = smooth_l1_sigma1, cls_mask_loss = binary_cross_entropy,
+                semantic_loss = categorical_cross_entropy,
+                regularize = True, weight_decay = 1e-4, 
+                class_weight = None, stage_weight = [1.0, 0.5, 0.25], semantic_weight = 0.2, threshold = 0.5, missing_value = 0.):
     """
     y_true > #(batch_size, padded_num_true, 1 or n_class)
     bbox_true > #(batch_size, padded_num_true, 4)
@@ -74,8 +81,8 @@ def train_model(input, rpn_score = None, rpn_regress = None, anchors = None, cls
                                                                                                         assign = rpn_assign, sampling_count = sampling_count, positive_ratio = rpn_positive_ratio, valid = valid, mean = rpn_mean, std = rpn_std), name = "rpn_target")([bbox_true, rpn_score, rpn_regress, anchors])
         
         rpn_score_accuracy = tf.keras.layers.Lambda(lambda args: score_accuracy(*args, threshold = threshold, missing_value = missing_value), name = "rpn_score_accuracy")([rpn_match, rpn_score])
-        rpn_score_loss = tf.keras.layers.Lambda(lambda args: score_loss(*args, focal = focal, missing_value = missing_value), name = "rpn_score_loss")([rpn_match, rpn_score])
-        rpn_regress_loss = tf.keras.layers.Lambda(lambda args: regress_loss(*args, sigma = sigma, missing_value = missing_value), name = "rpn_regress_loss")([rpn_match, rpn_bbox_true, rpn_bbox_pred])
+        rpn_score_loss = tf.keras.layers.Lambda(lambda args: score_loss(*args, loss = rpn_class_loss, missing_value = missing_value), name = "rpn_score_loss")([rpn_match, rpn_score])
+        rpn_regress_loss = tf.keras.layers.Lambda(lambda args: regress_loss(*args, loss = rpn_bbox_loss, missing_value = missing_value), name = "rpn_regress_loss")([rpn_match, rpn_bbox_true, rpn_bbox_pred])
         metric["rpn_score_accuracy"] = rpn_score_accuracy
         loss["rpn_score_loss"] = rpn_score_loss
         loss["rpn_regress_loss"] = rpn_regress_loss
@@ -132,18 +139,18 @@ def train_model(input, rpn_score = None, rpn_regress = None, anchors = None, cls
                 cls_logits_accuracy = tf.keras.layers.Lambda(lambda args: logits_accuracy(*args, missing_value = missing_value), name = "cls_logits_accuracy{0}".format(i + 1) if 2 < len(proposals) else "cls_logits_accuracy")([cls_y_true, cls_y_pred])
                 metric["cls_logits_accuracy{0}".format(i + 1) if 2 < len(proposals) else "cls_logits_accuracy"] = cls_logits_accuracy
 
-                cls_logits_loss = tf.keras.layers.Lambda(lambda args: logits_loss(*args, focal = focal, alpha = alpha, gamma = gamma, weight = class_weight, missing_value = missing_value), name = "cls_logits_loss{0}".format(i + 1) if 2 < len(proposals) else "cls_logits_loss")([cls_y_true, cls_y_pred])
-                cls_regress_loss = tf.keras.layers.Lambda(lambda args: regress_loss(*args, sigma = sigma, missing_value = missing_value), name = "cls_regress_loss{0}".format(i + 1) if 2 < len(proposals) else "cls_regress_loss")([cls_y_true, cls_bbox_true, cls_bbox_pred])
+                cls_logits_loss = tf.keras.layers.Lambda(lambda args: logits_loss(*args, loss = cls_class_loss, weight = class_weight, missing_value = missing_value), name = "cls_logits_loss{0}".format(i + 1) if 2 < len(proposals) else "cls_logits_loss")([cls_y_true, cls_y_pred])
+                cls_regress_loss = tf.keras.layers.Lambda(lambda args: regress_loss(*args, loss = cls_bbox_loss, missing_value = missing_value), name = "cls_regress_loss{0}".format(i + 1) if 2 < len(proposals) else "cls_regress_loss")([cls_y_true, cls_bbox_true, cls_bbox_pred])
                 loss["cls_logits_loss{0}".format(i + 1) if 2 < len(proposals) else "cls_logits_loss"] = cls_logits_loss * stage_weight[i]
                 loss["cls_regress_loss{0}".format(i + 1) if 2 < len(proposals) else "cls_regress_loss"] = cls_regress_loss * stage_weight[i]
             
             if _mask_regress is not None:
                 mask_index = i + 1 if mask_regress[0] is not None else i
-                cls_mask_loss = tf.keras.layers.Lambda(lambda args: mask_loss(*args, missing_value = missing_value), name = "cls_mask_loss{0}".format(mask_index) if 2 < len(proposals) else "cls_mask_loss")([cls_y_true, cls_mask_true, cls_mask_pred])
-                loss["cls_mask_loss{0}".format(mask_index) if 2 < len(proposals) else "cls_mask_loss"] = cls_mask_loss * stage_weight[i]
+                _cls_mask_loss = tf.keras.layers.Lambda(lambda args: mask_loss(*args, loss = cls_mask_loss, missing_value = missing_value), name = "cls_mask_loss{0}".format(mask_index) if 2 < len(proposals) else "cls_mask_loss")([cls_y_true, cls_mask_true, cls_mask_pred])
+                loss["cls_mask_loss{0}".format(mask_index) if 2 < len(proposals) else "cls_mask_loss"] = _cls_mask_loss * stage_weight[i]
 
         if semantic_regress is not None:
-            _semantic_loss = tf.keras.layers.Lambda(lambda args: semantic_loss(*args, method = method, weight = class_weight, missing_value = missing_value), name = "semantic_loss")([y_true, mask_true, semantic_regress])
+            _semantic_loss = tf.keras.layers.Lambda(lambda args: semantic_loss_func(*args, method = method, weight = class_weight, missing_value = missing_value), name = "semantic_loss")([y_true, mask_true, semantic_regress])
             loss["semantic_loss"] = _semantic_loss * semantic_weight
     
     metric = {k:tf.expand_dims(v, axis = -1) for k, v in metric.items()}

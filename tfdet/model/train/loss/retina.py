@@ -1,6 +1,9 @@
 import tensorflow as tf
 
-from tfdet.core.loss import smooth_l1
+from tfdet.core.loss import focal_binary_cross_entropy, smooth_l1
+
+def focal_loss(y_true, y_pred, alpha = .25, gamma = 1.5, weight = None, reduce = True):
+    return focal_binary_cross_entropy(y_true, y_pred, alpha = alpha, gamma = gamma, weight = weight, reduce = reduce)
     
 def classnet_accuracy(y_true, y_pred, missing_value = 0.):
     """
@@ -25,7 +28,7 @@ def classnet_accuracy(y_true, y_pred, missing_value = 0.):
     accuracy = tf.where(tf.math.is_nan(accuracy), missing_value, accuracy)
     return accuracy
 
-def classnet_loss(y_true, y_pred, focal = True, alpha = .25, gamma = 1.5, weight = None, background = False, missing_value = 0.):
+def classnet_loss(y_true, y_pred, loss = focal_loss, weight = None, background = False, missing_value = 0.):
     """
     y_true = targeted label #(batch_size, sampling_count, 1 or num_class)
     y_pred = targeted logits  #(batch_size, sampling_count, num_class)
@@ -44,27 +47,16 @@ def classnet_loss(y_true, y_pred, focal = True, alpha = .25, gamma = 1.5, weight
     true_flag = tf.not_equal(tf.expand_dims(tf.argmax(y_true, axis = -1), axis = -1), 0)
     if not background:
         y_true = tf.where(true_flag, y_true, 0)
-    y_true = tf.cast(y_true, y_pred.dtype)
-    y_pred = tf.clip_by_value(y_pred, tf.keras.backend.epsilon(), 1 - tf.keras.backend.epsilon())
-    
-    loss = -tf.stack([(1 - y_true) * tf.math.log(1 - y_pred), y_true * tf.math.log(y_pred)], axis = -1)
-    if focal:
-        alpha_factor = tf.ones_like(y_true) * alpha
-        alpha_factor = tf.where(0.5 < y_true, alpha_factor, 1 - alpha_factor)
-        focal_weight = tf.where(0.5 < y_true, 1 - y_pred, y_pred)
-        focal_weight = alpha_factor * focal_weight ** gamma
-        loss = tf.expand_dims(focal_weight, axis = -1) * loss
-    loss = tf.reduce_sum(loss, axis = -1)
-    if weight is not None:
-        loss *= weight
-    #loss = tf.reduce_sum(loss, axis = -1)
+        
+    _loss = loss(y_true, y_pred, weight = weight, reduce = False)
+    #_loss = tf.reduce_sum(_loss, axis = -1)
     
     true_count = tf.reduce_sum(tf.cast(true_flag, y_pred.dtype))
-    loss = tf.reduce_sum(loss) / tf.maximum(true_count, 1.)
-    loss = tf.where(tf.math.is_nan(loss), missing_value, loss)
-    return loss
+    _loss = tf.reduce_sum(_loss) / tf.maximum(true_count, 1.)
+    _loss = tf.where(tf.math.is_nan(_loss), missing_value, _loss)
+    return _loss
 
-def boxnet_loss(y_true, bbox_true, bbox_pred, sigma = 3, missing_value = 0.):
+def boxnet_loss(y_true, bbox_true, bbox_pred, loss = smooth_l1, missing_value = 0.):
     """
     y_true = targeted y_true #(batch_size, sampling_count, 1 or num_class)
     bbox_true = targeted true bbox #(batch_size, sampling_count, delta)
@@ -79,9 +71,9 @@ def boxnet_loss(y_true, bbox_true, bbox_pred, sigma = 3, missing_value = 0.):
     bbox_true = tf.gather(bbox_true, true_indices)
     bbox_pred = tf.gather(bbox_pred, true_indices)
     
-    loss = smooth_l1(bbox_true, bbox_pred, sigma)
-    loss = tf.reduce_sum(loss, axis = -1)
+    _loss = loss(bbox_true, bbox_pred, reduce = False)
+    _loss = tf.reduce_sum(_loss, axis = -1)
     
-    loss = tf.reduce_mean(loss)
-    loss = tf.where(tf.math.is_nan(loss), missing_value, loss)
-    return loss
+    _loss = tf.reduce_mean(_loss)
+    _loss = tf.where(tf.math.is_nan(_loss), missing_value, _loss)
+    return _loss

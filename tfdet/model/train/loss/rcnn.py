@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from tfdet.core.loss import smooth_l1
+from tfdet.core.loss import binary_cross_entropy, categorical_cross_entropy, focal_categorical_cross_entropy, smooth_l1
 
 def score_accuracy(score_true, score_pred, threshold = 0.5, missing_value = 0.):
     """
@@ -21,7 +21,7 @@ def score_accuracy(score_true, score_pred, threshold = 0.5, missing_value = 0.):
     accuracy = tf.where(tf.math.is_nan(accuracy), missing_value, accuracy)
     return accuracy
 
-def score_loss(score_true, score_pred, focal = True, missing_value = 0.):
+def score_loss(score_true, score_pred, loss = binary_cross_entropy, missing_value = 0.):
     """
     score_true = -1 : negative / 0 : neutral / 1 : positive #(batch_size, sampling_count, 1)
     score_pred = score for FG/BG #(batch_size, sampling_count, 1)
@@ -33,18 +33,14 @@ def score_loss(score_true, score_pred, focal = True, missing_value = 0.):
     indices = tf.where(tf.not_equal(score_true, 0))[:, 0]
     score = tf.gather(score_pred, indices)
     match_score = tf.gather(match_score, indices)
-
     match_score = tf.cast(match_score, score_pred.dtype)
-    score = tf.clip_by_value(score, tf.keras.backend.epsilon(), 1 - tf.keras.backend.epsilon())
-  
-    loss = tf.keras.losses.binary_crossentropy(match_score, score)
-    if focal:
-        loss = tf.expand_dims(loss, axis = -1) * tf.pow(match_score - score, 2)
+    
+    _loss = loss(match_score, score, reduce = False)
     
     true_count = tf.reduce_sum(match_score)
-    loss = tf.reduce_sum(loss) / tf.maximum(true_count, 1.)
-    loss = tf.where(tf.math.is_nan(loss), missing_value, loss)
-    return loss
+    _loss = tf.reduce_sum(_loss) / tf.maximum(true_count, 1.)
+    _loss = tf.where(tf.math.is_nan(_loss), missing_value, _loss)
+    return _loss
 
 def logits_accuracy(y_true, y_pred, missing_value = 0.):
     """
@@ -69,7 +65,7 @@ def logits_accuracy(y_true, y_pred, missing_value = 0.):
     accuracy = tf.where(tf.math.is_nan(accuracy), missing_value, accuracy)
     return accuracy
 
-def logits_loss(y_true, y_pred, focal = True, alpha = 1., gamma = 2., weight = None, missing_value = 0.):
+def logits_loss(y_true, y_pred, loss = focal_categorical_cross_entropy, weight = None, missing_value = 0.):
     """
     y_true = targeted label #(batch_size, sampling_count, 1 or num_class)
     y_pred = targeted logits  #(batch_size, sampling_count, num_class)
@@ -85,23 +81,17 @@ def logits_loss(y_true, y_pred, focal = True, alpha = 1., gamma = 2., weight = N
     
     y_true = tf.cond(tf.equal(n_true_class, 1), true_fn = lambda: tf.one_hot(tf.cast(y_true, tf.int32), n_pred_class)[:, 0], false_fn = lambda: y_true)
     y_true = tf.cast(y_true, y_pred.dtype)
-    y_pred = y_pred / (tf.reduce_sum(y_pred, axis = -1, keepdims = True) + tf.keras.backend.epsilon())
-    y_pred = tf.clip_by_value(y_pred, tf.keras.backend.epsilon(), 1. - tf.keras.backend.epsilon())
     
-    loss = -y_true * tf.math.log(y_pred)
-    if focal:
-        loss = alpha * tf.math.pow(1 - y_pred, gamma) * loss
-    if weight is not None:
-        loss *= weight
-    #loss = tf.reduce_sum(loss, axis = -1)
+    _loss = loss(y_true, y_pred, weight = weight, reduce = False)
+    #_loss = tf.reduce_sum(_loss, axis = -1)
     
     label = tf.argmax(y_true, axis = -1)
     true_count = tf.reduce_sum(tf.cast(0 < label, y_pred.dtype))
-    loss = tf.reduce_sum(loss) / tf.maximum(true_count, 1.)
-    loss = tf.where(tf.math.is_nan(loss), missing_value, loss)
-    return loss
+    _loss = tf.reduce_sum(_loss) / tf.maximum(true_count, 1.)
+    _loss = tf.where(tf.math.is_nan(_loss), missing_value, _loss)
+    return _loss
 
-def regress_loss(match_or_y_true, bbox_true, bbox_pred, sigma = 1, missing_value = 0.):
+def regress_loss(match_or_y_true, bbox_true, bbox_pred, loss = smooth_l1, missing_value = 0.):
     """
     match_or_y_true = targeted rpn_match or y_true #(batch_size, sampling_count, 1 or num_class)
     bbox_true = targeted true bbox #(batch_size, sampling_count, delta)
@@ -116,14 +106,13 @@ def regress_loss(match_or_y_true, bbox_true, bbox_pred, sigma = 1, missing_value
     bbox_true = tf.gather(bbox_true, true_indices)
     bbox_pred = tf.gather(bbox_pred, true_indices)
     
-    loss = smooth_l1(bbox_true, bbox_pred, sigma)
-    loss = tf.reduce_sum(loss, axis = -1)
-    
-    loss = tf.reduce_mean(loss)
-    loss = tf.where(tf.math.is_nan(loss), missing_value, loss)
-    return loss
+    _loss = loss(bbox_true, bbox_pred, reduce = False)
+    _loss = tf.reduce_sum(_loss, axis = -1)
+    _loss = tf.reduce_mean(_loss)
+    _loss = tf.where(tf.math.is_nan(_loss), missing_value, _loss)
+    return _loss
 
-def mask_loss(y_true, mask_true, mask_pred, missing_value = 0.):
+def mask_loss(y_true, mask_true, mask_pred, loss = binary_cross_entropy, missing_value = 0.):
     """
     y_true = targeted y_true #(batch_size, sampling_count, 1 or num_class)
     mask_true = targeted true mask #(batch_size, sampling_count, h, w, 1)
@@ -140,12 +129,12 @@ def mask_loss(y_true, mask_true, mask_pred, missing_value = 0.):
     mask_true = tf.gather(mask_true, true_indices)
     mask_pred = tf.gather(mask_pred, true_indices)
     
-    loss = tf.keras.losses.binary_crossentropy(mask_true, mask_pred)
-    loss = tf.reduce_mean(loss)
-    loss = tf.where(tf.math.is_nan(loss), missing_value, loss)
-    return loss
+    _loss = loss(mask_true, mask_pred, reduce = False)
+    _loss = tf.reduce_mean(_loss)
+    _loss = tf.where(tf.math.is_nan(_loss), missing_value, _loss)
+    return _loss
 
-def semantic_loss(y_true, mask_true, semantic_pred, method = "bilinear", weight = None, missing_value = 0.):
+def semantic_loss(y_true, mask_true, semantic_pred, loss = categorical_cross_entropy, method = "bilinear", weight = None, missing_value = 0.):
     """
     y_true = targeted y_true #(batch_size, padded_num_true, 1 or num_class)
     mask_true = mask_true #(batch_size, padded_num_true, h, w, 1)
@@ -161,14 +150,9 @@ def semantic_loss(y_true, mask_true, semantic_pred, method = "bilinear", weight 
     semantic_true = tf.multiply(tf.cast(tf.expand_dims(tf.expand_dims(y_true, axis = -2), axis = -2), semantic_true.dtype), semantic_true)
     semantic_true = tf.reduce_max(semantic_true, axis = 1)
     
-    semantic_pred = semantic_pred / (tf.reduce_sum(semantic_pred, axis = -1, keepdims = True) + tf.keras.backend.epsilon())
-    semantic_pred = tf.clip_by_value(semantic_pred, tf.keras.backend.epsilon(), 1. - tf.keras.backend.epsilon())
-
-    loss = -tf.cast(semantic_true, semantic_pred.dtype) * tf.math.log(semantic_pred)
-    if weight is not None:
-        loss *= weight
-
-    loss = tf.reduce_sum(loss, axis = -1)
-    loss = tf.reduce_mean(loss)
-    loss = tf.where(tf.math.is_nan(loss), missing_value, loss)
-    return loss
+    _loss = loss(semantic_true, semantic_pred, weight = weight, reduce = False)
+ 
+    _loss = tf.reduce_sum(_loss, axis = -1)
+    _loss = tf.reduce_mean(_loss)
+    _loss = tf.where(tf.math.is_nan(_loss), missing_value, _loss)
+    return _loss

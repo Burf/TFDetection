@@ -1,6 +1,17 @@
 import tensorflow as tf
 
-from tfdet.core.bbox import overlap_bbox
+from tfdet.core.loss import binary_cross_entropy, giou
+
+def giou_loss(bbox_true, bbox_pred, reduce = True, mode = "general"):
+    bbox_true = tf.reshape(bbox_true, (-1, 4))
+    bbox_pred = tf.reshape(bbox_pred, (-1, 4))
+    
+    loss = giou(bbox_true, bbox_pred, reduce = False, mode = mode)
+    bbox_loss_scale = 1. - ((bbox_true[..., 2] - bbox_true[..., 0]) * (bbox_true[..., 3] - bbox_true[..., 1])) #2 - 1 * bbox_area / input_area
+    loss = bbox_loss_scale * loss
+    if reduce:
+        loss = tf.reduce_mean(loss)
+    return loss
 
 def score_accuracy(score_true, score_pred, threshold = 0.5, missing_value = 0.):
     """
@@ -13,6 +24,7 @@ def score_accuracy(score_true, score_pred, threshold = 0.5, missing_value = 0.):
     indices = tf.where(tf.equal(score_true, 1))[:, 0]
     score = tf.gather(score_pred, indices)
     match_score = tf.ones_like(score)
+    match_score = tf.cast(match_score, score_pred.dtype)
 
     score = tf.clip_by_value(score, tf.keras.backend.epsilon(), 1 - tf.keras.backend.epsilon())
     score = tf.cast(tf.greater_equal(score, threshold), score.dtype)
@@ -21,7 +33,7 @@ def score_accuracy(score_true, score_pred, threshold = 0.5, missing_value = 0.):
     accuracy = tf.where(tf.math.is_nan(accuracy), missing_value, accuracy)
     return accuracy
 
-def score_loss(score_true, score_pred, focal = True, missing_value = 0.):
+def score_loss(score_true, score_pred, loss = binary_cross_entropy, missing_value = 0.):
     """
     score_true = -1 : negative / 0 : neutral / 1 : positive #(batch_size, sampling_count, 1)
     score_pred = confidence score for FG/BG #(batch_size, sampling_count, 1)
@@ -34,17 +46,12 @@ def score_loss(score_true, score_pred, focal = True, missing_value = 0.):
     score = tf.gather(score_pred, indices)
     match_score = tf.gather(match_score, indices)
 
-    match_score = tf.cast(match_score, score_pred.dtype)
-    score = tf.clip_by_value(score, tf.keras.backend.epsilon(), 1 - tf.keras.backend.epsilon())
-  
-    loss = tf.keras.losses.binary_crossentropy(match_score, score)
-    if focal:
-        loss = tf.expand_dims(loss, axis = -1) * tf.pow(match_score - score, 2)
+    _loss = loss(match_score, score, reduce = False)
     
     true_count = tf.reduce_sum(match_score)
-    loss = tf.reduce_sum(loss) / tf.maximum(true_count, 1.)
-    loss = tf.where(tf.math.is_nan(loss), missing_value, loss)
-    return loss
+    _loss = tf.reduce_sum(_loss) / tf.maximum(true_count, 1.)
+    _loss = tf.where(tf.math.is_nan(_loss), missing_value, _loss)
+    return _loss
     
 def logits_accuracy(score_true, logit_true, logit_pred, missing_value = 0.):
     """
@@ -71,7 +78,7 @@ def logits_accuracy(score_true, logit_true, logit_pred, missing_value = 0.):
     accuracy = tf.where(tf.math.is_nan(accuracy), missing_value, accuracy)
     return accuracy
 
-def logits_loss(score_true, logit_true, logit_pred, focal = True, alpha = .25, gamma = 1.5, weight = None, missing_value = 0.):
+def logits_loss(score_true, logit_true, logit_pred, loss = binary_cross_entropy, weight = None, missing_value = 0.):
     """
     score_true = targeted score_true #(batch_size, sampling_count, 1)
     logit_true = targeted label #(batch_size, sampling_count, 1 or num_class)
@@ -91,23 +98,14 @@ def logits_loss(score_true, logit_true, logit_pred, focal = True, alpha = .25, g
     logit_true = tf.cast(logit_true, logit_pred.dtype)
     logit_pred = tf.clip_by_value(logit_pred, tf.keras.backend.epsilon(), 1 - tf.keras.backend.epsilon())
 
-    loss = -tf.stack([(1 - logit_true) * tf.math.log(1 - logit_pred), logit_true * tf.math.log(logit_pred)], axis = -1)
-    if focal:
-        alpha_factor = tf.ones_like(logit_true) * alpha
-        alpha_factor = tf.where(0.5 < logit_true, alpha_factor, 1 - alpha_factor)
-        focal_weight = tf.where(0.5 < logit_true, 1 - logit_pred, logit_pred)
-        focal_weight = alpha_factor * focal_weight ** gamma
-        loss = tf.expand_dims(focal_weight, axis = -1) * loss
-    loss = tf.reduce_sum(loss, axis = -1)
-    if weight is not None:
-        loss *= weight
-    loss = tf.reduce_sum(loss, axis = -1)
+    _loss = loss(logit_true, logit_pred, weight = weight, reduce = False)
+    _loss = tf.reduce_sum(_loss, axis = -1)
     
-    loss = tf.reduce_mean(loss)
-    loss = tf.where(tf.math.is_nan(loss), missing_value, loss)
-    return loss
+    _loss = tf.reduce_mean(_loss)
+    _loss = tf.where(tf.math.is_nan(_loss), missing_value, _loss)
+    return _loss
 
-def regress_loss(score_true, bbox_true, bbox_pred, mode = "general", missing_value = 0.):
+def regress_loss(score_true, bbox_true, bbox_pred, loss = giou_loss, missing_value = 0.):
     """
     score_true = targeted score_true #(batch_size, sampling_count, 1)
     bbox_true = targeted true bbox #(batch_size, sampling_count, delta)
@@ -121,11 +119,8 @@ def regress_loss(score_true, bbox_true, bbox_pred, mode = "general", missing_val
     bbox_true = tf.gather(bbox_true, true_indices)
     bbox_pred = tf.gather(bbox_pred, true_indices)
 
-    overlaps = overlap_bbox(bbox_pred, bbox_true, mode = mode) #(P, T)
-    max_iou = tf.reduce_max(overlaps, axis = 1)
-    bbox_loss_scale = 1. - ((bbox_true[..., 2] - bbox_true[..., 0]) * (bbox_true[..., 3] - bbox_true[..., 1])) #2 - 1 * bbox_area / input_area
-    loss = bbox_loss_scale * (1 - max_iou)
+    _loss = loss(bbox_true, bbox_pred, reduce = False)
 
-    loss = tf.reduce_mean(loss)
-    loss = tf.where(tf.math.is_nan(loss), missing_value, loss)
-    return loss
+    _loss = tf.reduce_mean(_loss)
+    _loss = tf.where(tf.math.is_nan(_loss), missing_value, _loss)
+    return _loss
