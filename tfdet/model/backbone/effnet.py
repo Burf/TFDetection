@@ -1,3 +1,5 @@
+import traceback
+
 import tensorflow as tf
 
 DEFAULT_BLOCKS_ARGS = [
@@ -573,7 +575,7 @@ def load_weight(model, url):
         with tf.device("/cpu:0"):
             mod = hub.load(url)
     except:
-        print("If you want to use 'EfficientNet-Lite Weight', please install 'tensorflow_hub'")
+        print("If you want to use 'EfficientNet-Lite Weight', please install 'tensorflow_hub'\n{0}".format(traceback.format_exc()))
         return model
     for w, new_w in zip(model.weights, mod.variables):
         tf.keras.backend.set_value(w, new_w.numpy())

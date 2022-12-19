@@ -1,4 +1,6 @@
 #https://github.com/Burf/ResNet-Tensorflow2
+import traceback
+
 import tensorflow as tf
 
 def normalize(axis = -1, momentum = 0.9, epsilon = 1e-5, **kwargs):
@@ -78,7 +80,7 @@ def load_weight(keras_model, torch_url):
         import torch
         torch_weight = torch.hub.load_state_dict_from_url(torch_url, map_location = "cpu", progress = True, check_hash = True)
     except:
-        print("If you want to use 'ResNet Weight', please install 'torch 1.1▲'")
+        print("If you want to use 'ResNet Weight', please install 'torch 1.1▲'\n{0}".format(traceback.format_exc()))
         return keras_model
     
     conv = []

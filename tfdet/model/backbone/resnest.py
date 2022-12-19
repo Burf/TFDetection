@@ -1,4 +1,6 @@
 #https://github.com/Burf/ResNeSt-Tensorflow2
+import traceback
+
 import tensorflow as tf
 
 def group_conv(x, filters = None, kernel_size = 3, **kwargs):
@@ -237,7 +239,7 @@ def load_weight(keras_model, torch_url, group_size = 2):
         import torch
         torch_weight = torch.hub.load_state_dict_from_url(torch_url, map_location = "cpu", progress = True, check_hash = True)
     except:
-        print("If you want to use 'ResNeSt Weight', please install 'torch 1.1▲'")
+        print("If you want to use 'ResNeSt Weight', please install 'torch 1.1▲'\n{0}".format(traceback.format_exc()))
         return keras_model
     
     weight = {}
