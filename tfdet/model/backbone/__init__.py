@@ -1,3 +1,4 @@
+from .convnext import convnext_tiny, convnext_small, convnext_base, convnext_large, convnext_xlarge
 from .darknet import darknet53, darknet19, csp_darknet53, csp_darknet19
 from .densenet import densenet121, densenet169, densenet201
 from .effnet import effnet_b0, effnet_b1, effnet_b2, effnet_b3, effnet_b4, effnet_b5, effnet_b6, effnet_b7
