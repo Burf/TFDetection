@@ -668,11 +668,10 @@ def effnet_lite_b4(x, activation = tf.nn.relu6, weights = "imagenet", indices = 
 
 def effnet_v2_b0(x, weights = "imagenet", indices = None):
     try:
-        tf.keras.applications.EfficientNetV2B0
+        model = tf.keras.applications.EfficientNetV2B0(input_tensor = x, include_top = False, include_preprocessing = False, weights = weights)
     except Exception as e:
         print("If you want to use 'EfficientNetV2', please install 'tensorflow 2.8▲'")
         raise e
-    model = tf.keras.applications.EfficientNetV2B0(input_tensor = x, include_top = False, include_preprocessing = False, weights = weights)
     layers = ["block2b_add", "block3b_add", "block5e_add", "block6h_add"]
     feature = [model.get_layer(l).output for l in layers]
     if indices is None:
@@ -684,11 +683,10 @@ def effnet_v2_b0(x, weights = "imagenet", indices = None):
     
 def effnet_v2_b1(x, weights = "imagenet", indices = None):
     try:
-        tf.keras.applications.EfficientNetV2B1
+        model = tf.keras.applications.EfficientNetV2B1(input_tensor = x, include_top = False, include_preprocessing = False, weights = weights)
     except Exception as e:
         print("If you want to use 'EfficientNetV2', please install 'tensorflow 2.8▲'")
         raise e
-    model = tf.keras.applications.EfficientNetV2B1(input_tensor = x, include_top = False, include_preprocessing = False, weights = weights)
     layers = ["block2c_add", "block3c_add", "block5f_add", "block6i_add"]
     feature = [model.get_layer(l).output for l in layers]
     if indices is None:
@@ -700,11 +698,10 @@ def effnet_v2_b1(x, weights = "imagenet", indices = None):
     
 def effnet_v2_b2(x, weights = "imagenet", indices = None):
     try:
-        tf.keras.applications.EfficientNetV2B2
+        model = tf.keras.applications.EfficientNetV2B2(input_tensor = x, include_top = False, include_preprocessing = False, weights = weights)
     except Exception as e:
         print("If you want to use 'EfficientNetV2', please install 'tensorflow 2.8▲'")
         raise e
-    model = tf.keras.applications.EfficientNetV2B2(input_tensor = x, include_top = False, include_preprocessing = False, weights = weights)
     layers = ["block2c_add", "block3c_add", "block5f_add", "block6j_add"]
     feature = [model.get_layer(l).output for l in layers]
     if indices is None:
@@ -716,11 +713,10 @@ def effnet_v2_b2(x, weights = "imagenet", indices = None):
     
 def effnet_v2_b3(x, weights = "imagenet", indices = None):
     try:
-        tf.keras.applications.EfficientNetV2B3
+        model = tf.keras.applications.EfficientNetV2B3(input_tensor = x, include_top = False, include_preprocessing = False, weights = weights)
     except Exception as e:
         print("If you want to use 'EfficientNetV2', please install 'tensorflow 2.8▲'")
         raise e
-    model = tf.keras.applications.EfficientNetV2B3(input_tensor = x, include_top = False, include_preprocessing = False, weights = weights)
     layers = ["block2c_add", "block3c_add", "block5g_add", "block6l_add"]
     feature = [model.get_layer(l).output for l in layers]
     if indices is None:
@@ -732,11 +728,10 @@ def effnet_v2_b3(x, weights = "imagenet", indices = None):
     
 def effnet_v2_s(x, weights = "imagenet", indices = None):
     try:
-        tf.keras.applications.EfficientNetV2S
+        model = tf.keras.applications.EfficientNetV2S(input_tensor = x, include_top = False, include_preprocessing = False, weights = weights)
     except Exception as e:
         print("If you want to use 'EfficientNetV2', please install 'tensorflow 2.8▲'")
         raise e
-    model = tf.keras.applications.EfficientNetV2S(input_tensor = x, include_top = False, include_preprocessing = False, weights = weights)
     layers = ["block2d_add", "block3d_add", "block5i_add", "block6o_add"]
     feature = [model.get_layer(l).output for l in layers]
     if indices is None:
@@ -748,11 +743,10 @@ def effnet_v2_s(x, weights = "imagenet", indices = None):
     
 def effnet_v2_m(x, weights = "imagenet", indices = None):
     try:
-        tf.keras.applications.EfficientNetV2M
+        model = tf.keras.applications.EfficientNetV2M(input_tensor = x, include_top = False, include_preprocessing = False, weights = weights)
     except Exception as e:
         print("If you want to use 'EfficientNetV2', please install 'tensorflow 2.8▲'")
         raise e
-    model = tf.keras.applications.EfficientNetV2M(input_tensor = x, include_top = False, include_preprocessing = False, weights = weights)
     layers = ["block2e_add", "block3e_add", "block5n_add", "block7e_add"]
     feature = [model.get_layer(l).output for l in layers]
     if indices is None:
@@ -764,11 +758,10 @@ def effnet_v2_m(x, weights = "imagenet", indices = None):
     
 def effnet_v2_l(x, weights = "imagenet", indices = None):
     try:
-        tf.keras.applications.EfficientNetV2L
+        model = tf.keras.applications.EfficientNetV2L(input_tensor = x, include_top = False, include_preprocessing = False, weights = weights)
     except Exception as e:
         print("If you want to use 'EfficientNetV2', please install 'tensorflow 2.8▲'")
         raise e
-    model = tf.keras.applications.EfficientNetV2L(input_tensor = x, include_top = False, include_preprocessing = False, weights = weights)
     layers = ["block2g_add", "block3g_add", "block5s_add", "block7g_add"]
     feature = [model.get_layer(l).output for l in layers]
     if indices is None:
