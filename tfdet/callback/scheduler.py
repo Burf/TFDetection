@@ -36,9 +36,10 @@ class LearningRateSchedulerStep(tf.keras.callbacks.Callback):
     current_epoch = initial_epoch + current_epoch
     total_step = None if total_step is None else total_step (in first epoch)
     """
-    def __init__(self, schedule, total_step = None, initial_epoch = 0, name = "learning_rate"):
+    def __init__(self, schedule, step = None, total_step = None, initial_epoch = 0, name = "learning_rate"):
         super(LearningRateSchedulerStep, self)
         self.schedule = schedule
+        self.step = step
         self.total_step = total_step
         self.initial_epoch = initial_epoch
         self.name = name
@@ -65,12 +66,12 @@ class LearningRateSchedulerStep(tf.keras.callbacks.Callback):
             logs[self.name] = tf.keras.backend.get_value(self.model.optimizer.lr)
         
     def on_train_batch_begin(self, step, logs = None):
-        if self.total_step is None:
-            self.step_count += 1
-        new_lr = self.schedule(self.initial_epoch + self._epoch, step, self.total_step, self.learning_rate, self._lr)
-        if self._lr != new_lr:
-            tf.keras.backend.set_value(self.model.optimizer.lr, new_lr)
-            self._lr = new_lr
+        self.step_count += 1
+        if self.step is None or round(self.step_count % self.step) == 0:
+            new_lr = self.schedule(self.initial_epoch + self._epoch, step, self.total_step, self.learning_rate, self._lr)
+            if self._lr != new_lr:
+                tf.keras.backend.set_value(self.model.optimizer.lr, new_lr)
+                self._lr = new_lr
             
     #def on_train_batch_end(self, step, logs = None):
     #    if logs is not None:
@@ -137,21 +138,21 @@ class WarmUpCosineLearningRateScheduler(LearningRateScheduler):
         return learning_rate * w
     
 class WarmUpLearningRateSchedulerStep(LearningRateSchedulerStep):
-    def __init__(self, epoch = 5, total_step = None, initial_epoch = 0, name = "learning_rate"):
-        super(WarmUpLearningRateSchedulerStep, self).__init__(schedule = self.schedule, total_step = total_step, initial_epoch = initial_epoch, name = name)
+    def __init__(self, epoch = 5, step = None, total_step = None, initial_epoch = 0, name = "learning_rate"):
+        super(WarmUpLearningRateSchedulerStep, self).__init__(schedule = self.schedule, step = step, total_step = total_step, initial_epoch = initial_epoch, name = name)
         self.epoch = epoch
         
     def schedule(self, epoch, step, total_step, learning_rate, current_learning_rate):
-        total_step = 1000 if total_step is None else total_step
         if epoch < self.epoch:
+            total_step = 1000 if total_step is None else total_step
             w = np.interp(step + 1, [0, total_step], [epoch / self.epoch, (epoch + 1) / self.epoch])
         else:
             w = 1
         return learning_rate * w
 
 class LinearLearningRateSchedulerStep(LearningRateSchedulerStep):
-    def __init__(self, cycle, decay_rate = 1e-2, total_step = None, initial_epoch = 0, name = "learning_rate"):
-        super(LinearLearningRateSchedulerStep, self).__init__(schedule = self.schedule, total_step = total_step, initial_epoch = initial_epoch, name = name)
+    def __init__(self, cycle, decay_rate = 1e-2, step = None, total_step = None, initial_epoch = 0, name = "learning_rate"):
+        super(LinearLearningRateSchedulerStep, self).__init__(schedule = self.schedule, step = step, total_step = total_step, initial_epoch = initial_epoch, name = name)
         self.cycle = cycle
         self.decay_rate = decay_rate
         
@@ -163,28 +164,27 @@ class LinearLearningRateSchedulerStep(LearningRateSchedulerStep):
         return learning_rate * w
     
 class CosineLearningRateSchedulerStep(LearningRateSchedulerStep):
-    def __init__(self, cycle, decay_rate = 1e-2, total_step = None, initial_epoch = 0, name = "learning_rate"):
-        super(CosineLearningRateSchedulerStep, self).__init__(schedule = self.schedule, total_step = total_step, initial_epoch = initial_epoch, name = name)
+    def __init__(self, cycle, decay_rate = 1e-2, step = None, total_step = None, initial_epoch = 0, name = "learning_rate"):
+        super(CosineLearningRateSchedulerStep, self).__init__(schedule = self.schedule, step = step, total_step = total_step, initial_epoch = initial_epoch, name = name)
         self.cycle = cycle
         self.decay_rate = decay_rate
         
     def schedule(self, epoch, step, total_step, learning_rate, current_learning_rate):
-        total_step = 1000 if total_step is None else total_step
         w = self.decay_rate + (1 - self.decay_rate) * (0.5 * (1 + np.cos(np.pi * (epoch % self.cycle) / self.cycle)))
         w2 = self.decay_rate + (1 - self.decay_rate) * (0.5 * (1 + np.cos(np.pi * ((epoch + 1) % self.cycle) / self.cycle)))
         w = np.interp(step, [0, total_step], [w, w2])
         return learning_rate * w
     
 class WarmUpLinearLearningRateSchedulerStep(LearningRateSchedulerStep):
-    def __init__(self, cycle, decay_rate = 1e-2, warm_up_epoch = 5, total_step = None, initial_epoch = 0, name = "learning_rate"):
-        super(WarmUpLinearLearningRateSchedulerStep, self).__init__(schedule = self.schedule, total_step = total_step, initial_epoch = initial_epoch, name = name)
+    def __init__(self, cycle, decay_rate = 1e-2, warm_up_epoch = 5, step = None, total_step = None, initial_epoch = 0, name = "learning_rate"):
+        super(WarmUpLinearLearningRateSchedulerStep, self).__init__(schedule = self.schedule, step = step, total_step = total_step, initial_epoch = initial_epoch, name = name)
         self.cycle = cycle
         self.decay_rate = decay_rate
         self.warm_up_epoch = warm_up_epoch
         
     def schedule(self, epoch, step, total_step, learning_rate, current_learning_rate):
-        total_step = 1000 if total_step is None else total_step
         if epoch < self.warm_up_epoch:
+            total_step = 1000 if total_step is None else total_step
             w = np.interp(step + 1, [0, total_step], [epoch / self.warm_up_epoch, (epoch + 1) / self.warm_up_epoch])
         else:
             w = (1 - ((epoch - self.warm_up_epoch) % self.cycle) / (self.cycle - 1)) * (1. - learning_rate * self.decay_rate) + learning_rate * self.decay_rate
@@ -193,15 +193,15 @@ class WarmUpLinearLearningRateSchedulerStep(LearningRateSchedulerStep):
         return learning_rate * w
     
 class WarmUpCosineLearningRateSchedulerStep(LearningRateSchedulerStep):
-    def __init__(self, cycle, decay_rate = 1e-2, warm_up_epoch = 5, total_step = None, initial_epoch = 0, name = "learning_rate"):
-        super(WarmUpCosineLearningRateSchedulerStep, self).__init__(schedule = self.schedule, total_step = total_step, initial_epoch = initial_epoch, name = name)
+    def __init__(self, cycle, decay_rate = 1e-2, warm_up_epoch = 5, step = None, total_step = None, initial_epoch = 0, name = "learning_rate"):
+        super(WarmUpCosineLearningRateSchedulerStep, self).__init__(schedule = self.schedule, step = step, total_step = total_step, initial_epoch = initial_epoch, name = name)
         self.cycle = cycle
         self.decay_rate = decay_rate
         self.warm_up_epoch = warm_up_epoch
         
     def schedule(self, epoch, step, total_step, learning_rate, current_learning_rate):
-        total_step = 1000 if total_step is None else total_step
         if epoch < self.warm_up_epoch:
+            total_step = 1000 if total_step is None else total_step
             w = np.interp(step + 1, [0, total_step], [epoch / self.warm_up_epoch, (epoch + 1) / self.warm_up_epoch])
         else:
             w = self.decay_rate + (1 - self.decay_rate) * (0.5 * (1 + np.cos(np.pi * ((epoch - self.warm_up_epoch) % self.cycle) / self.cycle)))
