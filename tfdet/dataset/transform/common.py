@@ -248,13 +248,13 @@ def resize(x_true, y_true = None, bbox_true = None, mask_true = None, image_shap
                 if 1 < np.ndim(image_shape):
                     min_scales, max_scales = np.min(image_shape, axis = 1), np.max(image_shape, axis = 1)
                     min_scale, max_scale = np.random.randint(np.min(min_scales), np.max(min_scales) + 1), np.random.randint(np.min(max_scales), np.max(max_scales) + 1)
-                    image_shape = [min_scale, max_scale]
+                    image_shape = [min_scale, max_scale] if image_shape[0][0] < image_shape[0][1] else [max_scale, min_scale]
         target_size = tuple(image_shape[:2])
         size = np.shape(x_true)[:2]
         if keep_ratio:
             scale = min(max(target_size) / max(size), min(target_size) / min(size))
             target_size = tuple((np.multiply(size, scale) + 0.5).astype(int))
-        if target_size != size and target_size[::-1] != size:
+        if target_size != size:
             x_true = cv2.resize(x_true, target_size[::-1], interpolation = method)
             if np.ndim(x_true) == 2:
                 x_true = np.expand_dims(x_true, axis = -1)
