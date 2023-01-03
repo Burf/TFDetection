@@ -254,7 +254,7 @@ def resize(x_true, y_true = None, bbox_true = None, mask_true = None, image_shap
         if keep_ratio:
             scale = min(max(target_size) / max(size), min(target_size) / min(size))
             target_size = tuple((np.multiply(size, scale) + 0.5).astype(int))
-        if target_size != size:
+        if target_size != size and target_size[::-1] != size:
             x_true = cv2.resize(x_true, target_size[::-1], interpolation = method)
             if np.ndim(x_true) == 2:
                 x_true = np.expand_dims(x_true, axis = -1)
