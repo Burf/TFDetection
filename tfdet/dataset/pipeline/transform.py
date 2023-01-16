@@ -372,7 +372,6 @@ def random_flip(x_true, y_true = None, bbox_true = None, mask_true = None,
     mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
     mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
 
-    #Pad is removed.
     mode = ("horizontal", "vertical")
     """
     pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)

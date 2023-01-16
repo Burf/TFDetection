@@ -76,11 +76,7 @@ def load_dataset(path, mask = False,
                  cache = None):
     """
     https://github.com/matterport/Mask_RCNN/releases/download/v2.1/balloon_dataset.zip
-    
-    <example>
-    path = 
-    mask = with instance mask_true
-    
+ 
     <example>
     1. all-in-one
     > dataset = tfdet.dataset.baloon.load_dataset("./balloon/train/via_region_data.json",

@@ -159,7 +159,6 @@ def random_flip(x_true, y_true = None, bbox_true = None, mask_true = None, p = 0
     mask_true(with bbox_true & instance mask_true) = (P, H, W, 1)
     mask_true(semantic mask_true) = (H, W, 1 or n_class)
     
-    #Pad is removed.
     mode = ("horizontal", "vertical")
     """
     if mode not in ("horizontal", "vertical"):
@@ -422,7 +421,7 @@ def mosaic(x_true, y_true = None, bbox_true = None, mask_true = None, image_shap
         y_true = np.sum([np.multiply(l, r, dtype = np.float32) for l, r in zip(y_true, ratio)], axis = 0)
     elif bbox_true is not None:
         norm = True
-        for bbox in bbox_true:
+        for bbox in bbox_true[:min(len(x_true), 4)]:
             if np.any(np.greater_equal(bbox, 2)):
                 norm = False
                 break
@@ -431,7 +430,7 @@ def mosaic(x_true, y_true = None, bbox_true = None, mask_true = None, image_shap
             h = w = 1
         bboxes = []
         labels = []
-        for i, bbox in enumerate(bbox_true):
+        for i, bbox in enumerate(bbox_true[:min(len(x_true), 4)]):
             bbox = np.divide(np.multiply(bbox, np.tile(np.shape(x_true[i])[:2][::-1], 2), dtype = np.float32), np.tile(np.shape(image)[:2][::-1], 2), dtype = np.float32) if norm else bbox
             new_bbox = np.add(np.tile(pads[i], 2), bbox, dtype = bbox.dtype)
             new_bbox = np.clip(new_bbox, 0, [w, h, w, h], dtype = bbox.dtype)
@@ -584,7 +583,7 @@ def mosaic9(x_true, y_true = None, bbox_true = None, mask_true = None, image_sha
                                    [0, 0, w, h]])[:len(y_true)]
     elif bbox_true is not None:
         norm = True
-        for bbox in bbox_true:
+        for bbox in bbox_true[:min(len(x_true), 9)]:
             if np.any(np.greater_equal(bbox, 2)):
                 norm = False
                 break
@@ -593,7 +592,7 @@ def mosaic9(x_true, y_true = None, bbox_true = None, mask_true = None, image_sha
             h = w = 1
         bboxes = []
         labels = []
-        for i, bbox in enumerate(bbox_true):
+        for i, bbox in enumerate(bbox_true[:min(len(x_true), 9)]):
             bbox = np.divide(np.multiply(bbox, np.tile(np.shape(x_true[i])[:2][::-1], 2), dtype = np.float32), np.tile(np.shape(image)[:2][::-1], 2), dtype = np.float32) if norm else bbox
             bboxes.append(np.add(np.tile(pads[i], 2), bbox, dtype = bbox.dtype))
             if y_true is not None:
