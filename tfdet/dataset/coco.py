@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 import tensorflow as tf
 
+from .dataset import Dataset
 from .util import load_json
 from tfdet.core.util import pipeline, py_func
 
@@ -79,44 +80,20 @@ def get(path, refresh = False):
         coco = memory[key]
     return coco
 
-def load_data(path, data_path, mask = False, crowd = False, label = LABEL, refresh = False, shuffle = False):
-    """
-    https://cocodataset.org
-    
-    <example>
-    path = "./coco/annotations/instances_train2017.json"
-    data_path = "./coco/train2017"
-    mask = with instance mask_true
-    crowd = iscrowd
-    """
-    coco = get(path, refresh = refresh)
-    cat_ids = coco.getCatIds(label)
-    cat2label = {cat_id: i for i, cat_id in enumerate(cat_ids)}
-    
-    ids = coco.getImgIds()
-    if shuffle:
-        np.random.shuffle(ids)
-    for id in ids:
-        yield load_object(coco, data_path, id, mask = mask, crowd = crowd, label = label, cat_ids = cat_ids, cat2label = cat2label)
-
-def load_object(coco, data_path, id, mask = False, crowd = False, label = LABEL, cat_ids = None, cat2label = None):
-    try:
-        from pycocotools import mask as maskUtils
-    except Exception as e:
-        print("If you want to use 'coco dataset', please install 'pycocotools'")
-        raise e
+def load_info(coco, data_path, x_true, mask = False, crowd = False, label = LABEL, cat_ids = None, cat2label = None):       
     if isinstance(coco, str):
         coco = get(coco)
     if cat_ids is None:
         cat_ids = coco.getCatIds(label)
     if cat2label is None:
         cat2label = {cat_id: i for i, cat_id in enumerate(cat_ids)}
-    
-    info = coco.loadImgs([id])[0]
+        
+    info = coco.loadImgs([x_true])[0]
     filename = info["file_name"]
     height, width = info["height"], info["width"]
-    anno_id = coco.getAnnIds([id], iscrowd = crowd)
+    anno_id = coco.getAnnIds([x_true], iscrowd = crowd)
     anno = coco.loadAnns(anno_id)
+    
     x_true = os.path.join(data_path, filename)
     y_true = []
     bbox_true = []
@@ -131,71 +108,87 @@ def load_object(coco, data_path, id, mask = False, crowd = False, label = LABEL,
             continue
         if a["category_id"] not in cat_ids:
             continue
-
         y_true.append([label[int(cat2label[a["category_id"]] + 1)] if cat2label is not None else int(a["category_id"])])
-        bbox_true.append([int(round(x1)), int(round(y1)), int(round(x1 + w)), int(round(y1 + h))])
+        bbox_true.append([int(round(x1)), int(round(y1)), int(round(x1 + w)), int(round(y1 + h))])    
         if mask:
-            seg = a["segmentation"]
-            if isinstance(seg, list):
-                rles = maskUtils.frPyObjects(seg, height, width)
-                rle = maskUtils.merge(rles)
+            mask_true.append(a["segmentation"])
+    y_true = np.array(y_true, dtype = np.object0) if 0 < len(y_true) else np.zeros((0, 1), dtype = np.object0)
+    bbox_true = np.array(bbox_true, dtype = np.int32) if 0 < len(bbox_true) else np.zeros((0, 4), dtype = np.int32)
+    return (x_true, y_true, bbox_true) if not mask else (x_true, y_true, bbox_true, mask_true)
+
+def load_instance(mask_true, image_shape):
+    try:
+        from pycocotools import mask as maskUtils
+    except Exception as e:
+        print("If you want to use 'coco dataset', please install 'pycocotools'")
+        raise e
+    
+    mask = []
+    for seg in mask_true:
+        if isinstance(seg, list):
+            rles = maskUtils.frPyObjects(seg, *image_shape[:2])
+            rle = maskUtils.merge(rles)
+        else:
+            if isinstance(seg["counts"], list):
+                rle = maskUtils.frPyObjects([seg], *image_shape[:2])
             else:
-                if isinstance(seg["counts"], list):
-                    rle = maskUtils.frPyObjects([seg], height, width)
-                else:
-                    rle = [rle]
-            mask_true.append(maskUtils.decode(rle))
-    y_true = np.array(y_true) if 0 < len(y_true) else np.zeros((0, 1), dtype = str)
-    bbox_true = np.array(bbox_true) if 0 < len(bbox_true) else np.zeros((0, 4), dtype = int)
+                rle = [rle]
+        mask.append(maskUtils.decode(rle))
+    mask_true = np.expand_dims(np.stack(mask, axis = 0).astype(np.uint8), axis = -1) if 0 < len(mask) else np.zeros((0, *image_shape[:2], 1), dtype = np.uint8)
+    return mask_true
+
+def load_annotation(x_true, y_true, bbox_true, mask_true = None):
+    if mask_true is not None:
+        mask_true = load_instance(mask_true, np.shape(cv2.imread(x_true, -1))[:2])
     result = (x_true, y_true, bbox_true)
-    if mask:
-        mask_true = np.expand_dims(mask_true, axis = -1).astype(np.float32) if 0 < len(bbox_true) else np.zeros((0, height, width, 1), dtype = np.float32)
+    if mask_true is not None:
         result = (x_true, y_true, bbox_true, mask_true)
     return result
 
-def load_pipe(path, data_path, mask = False, crowd = False, label = LABEL, refresh = False, shuffle = False,
-              batch_size = 0, repeat = 1, prefetch = False,
-              cache = None, num_parallel_calls = True):
+def load_dataset(path, data_path, mask = False, crowd = False, label = LABEL,
+                 transform = None, refresh = False, shuffle = False,
+                 cache = None):
     """
     https://cocodataset.org
     
     <example>
-    path = "./coco/annotations/instances_train2017.json"
-    data_path = "./coco/train2017"
-    mask = with instance mask_true
-    crowd = iscrowd
-    """
-    coco = get(path, refresh = refresh)
-    cat_ids = coco.getCatIds(label)
-    cat2label = {cat_id: i for i, cat_id in enumerate(cat_ids)}
-    ids = np.array(coco.getImgIds())
-    if shuffle:
-        np.random.shuffle(ids)
+    1. all-in-one
+    > dataset = tfdet.dataset.coco.load_dataset("./coco/annotations/instances_train2017.json", "./coco/train2017",
+                                                transform = [load, resize,
+                                                             filter_annotation, label_encode, normalize]
+                                                mask = False, crowd = False,
+                                                shuffle = False, cache = "coco_train.cache")
+    > dataset[i] #or next(iter(dataset))
     
-    object_func = functools.partial(load_object, path, data_path, mask = mask, crowd = crowd, label = label, cat_ids = cat_ids, cat2label = cat2label)
-    dtype = (tf.string, tf.string, tf.int32, tf.float32) if mask else (tf.string, tf.string, tf.int32)
-    func = functools.partial(py_func, object_func, Tout = dtype)
-    return pipeline(ids, function = func,
-                    batch_size = batch_size, repeat = repeat, shuffle = False, prefetch = prefetch,
-                    cache = cache, num_parallel_calls = num_parallel_calls)
+    2. split
+    > dataset = tfdet.dataset.coco.load_dataset("./coco/annotations/instances_train2017.json", "./coco/train2017",
+                                                mask = False, crowd = False,
+                                                shuffle = False, cache = "coco_train.cache")
+    > dataset = tfdet.dataset.Dataset(dataset,
+                                      transform = [load, resize,
+                                                   filter_annotation, label_encode, normalize])
+    > dataset[i] #or next(iter(dataset))
         
-def load_pipe_old(path, data_path, mask = False, crowd = False, label = LABEL, refresh = False, shuffle = False,
-                  batch_size = 0, repeat = 1, prefetch = False,
-                  cache = None, num_parallel_calls = True):
+    3. dataset to pipe
+    > pipe = tfdet.dataset.PipeLoader(dataset)
+    > pipe = tfdet.dataset.pipeline.args2dict(pipe) #optional for object detection
+    > pipe = tfdet.dataset.pipeline.collect(pipe) #optional for semantic segmentation
+    > pipe = tfdet.dataset.pipeline.cast(pipe)
+    > pipe = tfdet.dataset.pipeline.key_map(pipe, batch_size = 16, shuffle = False, prefetch = True)
+    > next(iter(dataset))
     """
-    https://cocodataset.org
+    transform = ([transform] if not isinstance(transform, (list, tuple)) else list(transform)) if transform is not None else []
     
-    <example>
-    path = "./coco/annotations/instances_train2017.json"
-    data_path = "./coco/train2017"
-    mask = with instance mask_true
-    crowd = iscrowd
-    """
-    generator = functools.partial(load_data, path, data_path, mask = mask, crowd = crowd, label = label, refresh = refresh, shuffle = shuffle)
-    dtype = (tf.string, tf.string, tf.int32, tf.float32) if mask else (tf.string, tf.string, tf.int32)
-    pipe = tf.data.Dataset.from_generator(generator, dtype)
-    return pipeline(pipe, batch_size = batch_size, repeat = repeat, shuffle = False, prefetch = prefetch,
-                    cache = cache, num_parallel_calls = num_parallel_calls)
+    if isinstance(cache, str) and os.path.exists(cache):
+        return Dataset(transform = [load_annotation] + transform, shuffle = shuffle, cache = cache, keys = ["x_true", "y_true", "bbox_true", "mask_true"])
+    else:
+        coco = get(path, refresh = refresh)
+        cat_ids = coco.getCatIds(label)
+        cat2label = {cat_id: i for i, cat_id in enumerate(cat_ids)}
+        ids = np.array(coco.getImgIds())
+
+        preprocess_func = functools.partial(load_info, path, data_path, mask = mask, crowd = crowd, label = label, cat_ids = cat_ids, cat2label = cat2label)
+        return Dataset(ids, preprocess = preprocess_func, transform = [load_annotation] + transform, shuffle = shuffle, cache = cache, keys = ["x_true", "y_true", "bbox_true", "mask_true"])
 
 def convert_tfds_to_tfdet(data, crowd = False, label = LABEL[1:]):
     x_true = data["image"]
@@ -245,9 +238,10 @@ def convert_format(path, y_true, bbox_true, coco = True):
     if np.ndim(y_true) == 3:
         y_true = y_true[0]
         bbox_true = bbox_true[0]
+    bbox_true = np.array(bbox_true) if not isinstance(bbox_true, np.ndarray) else bbox_true
     valid_indices = np.where(0 < np.max(bbox_true, axis = -1))
-    y_true = np.array(y_true)[valid_indices]
-    bbox_true = np.array(bbox_true)[valid_indices]
+    y_true = (np.array(y_true) if not isinstance(y_true, np.ndarray) else y_true)[valid_indices]
+    bbox_true = bbox_true[valid_indices]
     if np.shape(y_true)[-1] == 1:
         label_true = y_true
         score_true = np.ones_like(label_true)
@@ -261,12 +255,12 @@ def convert_format(path, y_true, bbox_true, coco = True):
         bbox_true = bbox_true[flag]
     if 0 < len(bbox_true) and np.max(bbox_true) < 2:
         h, w, c = np.shape(cv2.imread(path))
-        bbox_true = np.multiply(bbox_true, [w, h, w, h])
+        bbox_true = np.multiply(bbox_true, [w, h, w, h], dtype = np.float32)
     name = os.path.splitext(os.path.basename(path))[0]
     image_id = int(name) if name.isnumeric() else name
     x1, y1, x2, y2 = np.split(bbox_true, 4, axis = -1)
     w, h = x2 - x1, y2 - y1
-    bbox_true = np.concatenate([x1, y1, w, h], axis = -1)
+    bbox_true = np.hstack([x1, y1, w, h])
     data = [{"image_id": image_id,
              "category_id": CATEGORY_ID[int(label_true[index])] if coco else int(label_true[index]),
              "score": np.round(float(score_true[index][0]), 5),
@@ -292,7 +286,7 @@ def coco_evaluate(anno_path, pred_path, coco = True, mode = "bbox"):
     if np.ndim(pred_anno[0]) == 1:
         pred_anno = np.concatenate(pred_anno, axis = 0)
     if isinstance(pred_anno, np.ndarray):
-        pred_anno = pred_anno.tolist()
+        pred_anno = [p for p in pred_anno]
     
     coco_anno = COCO(anno_path)
     coco_pred = coco_anno.loadRes(pred_anno)

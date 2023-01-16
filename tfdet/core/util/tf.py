@@ -146,7 +146,21 @@ def pipeline(dataset, function = None,
     if shuffle:
         dataset = dataset.shuffle(buffer_size = shuffle if not isinstance(shuffle, bool) else max(batch_size, 1) * 10)
     if 0 < batch_size:
-        dataset = dataset.batch(batch_size)
+        #dataset = dataset.batch(batch_size)
+        spec = dataset.element_spec
+        if isinstance(spec, dict):
+            if list(spec.values())[0].shape == None:
+                spec = next(iter(dataset))
+            padded_shape = {k:[None] * np.ndim(v) for k, v in spec.items()}
+        else:
+            if (np.ndim(spec) == 0 and spec.shape == None) or (np.ndim(spec) == 1 and spec[0].shape == None):
+                spec = next(iter(dataset))
+            padded_shape = [[None] * np.ndim(v) for v in ([spec] if np.ndim(dataset.element_spec) == 0 else spec)]
+            if np.ndim(dataset.element_spec) == 0:
+                padded_shape = padded_shape[0]
+            elif isinstance(dataset.element_spec, tuple):
+                padded_shape = tuple(padded_shape)
+        dataset = dataset.padded_batch(batch_size, padded_shapes = padded_shape)
     if 1 < repeat:
         dataset = dataset.repeat(repeat)
     if prefetch:

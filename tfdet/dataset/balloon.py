@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 import tensorflow as tf
 
+from .dataset import Dataset
 from .util.file import load_json
 from tfdet.core.util import pipeline, py_func
 
@@ -34,35 +35,27 @@ def get(path, refresh = False):
         balloon = memory[key]
     return balloon
 
-def load_data(path, mask = False, refresh = False, shuffle = False):
-    """
-    https://github.com/matterport/Mask_RCNN/releases/download/v2.1/balloon_dataset.zip
-    
-    <example>
-    path = "./balloon/train/via_region_data.json"
-    mask = with instance mask_true
-    """
+def load_info(path, x_true):
+    balloon = get(path)
     data_path = os.path.dirname(os.path.abspath(path))
-    balloon = get(path, refresh = refresh)
-    if shuffle:
-        np.random.shuffle(balloon)
-    for anno in balloon:
-        yield load_object(data_path, anno, mask = mask)
-        
-def load_object(data_path, anno, mask = False):
+    anno = balloon[x_true]
+    
+    x_true = os.path.join(data_path, anno["filename"])
+    y_true = [r["shape_attributes"] for r in (anno["regions"].values() if isinstance(anno["regions"], dict) else anno["regions"])]
+    return x_true, y_true
+    
+def load_annotation(x_true, y_true, mask = False):
     try:
         import skimage.draw
     except Exception as e:
         print("If you want to use 'balloon dataset', please install 'skimage'")
         raise e
         
-    x_true = os.path.join(data_path, anno["filename"])
     h, w = np.shape(cv2.imread(x_true, -1))[:2]
-    polygons = [r['shape_attributes'] for r in (anno["regions"].values() if isinstance(anno["regions"], dict) else anno["regions"])]
-    y_true = np.array([["balloon"]] * len(polygons), dtype = str)
+    new_y_true = np.array([["balloon"]] * len(y_true), dtype = np.object0)
     bbox_true = []
-    mask_true = np.zeros((len(polygons), h, w, 1), dtype = np.float32)
-    for i, poly in enumerate(polygons):
+    mask_true = np.zeros((len(y_true), h, w, 1), dtype = np.uint8)
+    for i, poly in enumerate(y_true):
         rr, cc = skimage.draw.polygon(poly['all_points_y'], poly['all_points_x'])
         rr = np.clip(rr, 0, h - 1)
         cc = np.clip(cc, 0, w - 1)
@@ -70,48 +63,54 @@ def load_object(data_path, anno, mask = False):
         pos = np.where(0 < mask_true[i, ..., 0])[:2]
         bbox = [np.min(pos[1]), np.min(pos[0]), np.max(pos[1]), np.max(pos[0])]
         bbox_true.append(bbox)
-    bbox_true = np.array(bbox_true, dtype = int)
+    y_true = new_y_true
+    bbox_true = np.array(bbox_true, dtype = np.int32)
     return (x_true, y_true, bbox_true, mask_true) if mask else (x_true, y_true, bbox_true)
 
-def load_index(path, index, mask = False):
-    balloon = get(path)
-    data_path = os.path.dirname(os.path.abspath(path))
-    return load_object(data_path, balloon[index], mask = mask)
+def load_object(path, x_true, mask = False):
+    x_true, y_true = load_info(path, x_true)
+    return load_annotation(x_true, y_true, mask = mask)
 
-def load_pipe(path, mask = False, refresh = False, shuffle = False,
-              batch_size = 0, repeat = 1, prefetch = False,
-              cache = None, num_parallel_calls = True):
+def load_dataset(path, mask = False,
+                 transform = None, refresh = False, shuffle = False,
+                 cache = None):
     """
     https://github.com/matterport/Mask_RCNN/releases/download/v2.1/balloon_dataset.zip
     
     <example>
-    path = "./balloon/train/via_region_data.json"
+    path = 
     mask = with instance mask_true
-    """
-    balloon = get(path, refresh = refresh)
-    indices = np.arange(len(balloon))
-    if shuffle:
-        np.random.shuffle(indices)
-    
-    object_func = functools.partial(load_index, path, mask = mask)
-    dtype = (tf.string, tf.string, tf.int32, tf.float32) if mask else (tf.string, tf.string, tf.int32)
-    func = functools.partial(py_func, object_func, Tout = dtype)
-    return pipeline(indices, function = func,
-                    batch_size = batch_size, repeat = repeat, shuffle = False, prefetch = prefetch,
-                    cache = cache, num_parallel_calls = num_parallel_calls)
-
-def load_pipe_old(path, mask = False, refresh = False, shuffle = False,
-                  batch_size = 0, repeat = 1, prefetch = False,
-                  cache = None, num_parallel_calls = True):
-    """
-    https://github.com/matterport/Mask_RCNN/releases/download/v2.1/balloon_dataset.zip
     
     <example>
-    path = "./balloon/train/via_region_data.json"
-    mask = with instance mask_true
+    1. all-in-one
+    > dataset = tfdet.dataset.baloon.load_dataset("./balloon/train/via_region_data.json",
+                                                  transform = [load, resize,
+                                                               filter_annotation, label_encode, normalize]
+                                                  mask = False,
+                                                  shuffle = False, cache = "balloon_train.cache")
+    > dataset[i] #or next(iter(dataset))
+    
+    2. split
+    > dataset = tfdet.dataset.baloon.load_dataset("./balloon/train/via_region_data.json",
+                                                  mask = False,
+                                                  shuffle = False, cache = "balloon_train.cache")
+    > dataset = tfdet.dataset.Dataset(dataset,
+                                      transform = [load, resize,
+                                                   filter_annotation, label_encode, normalize])
+    > dataset[i] #or next(iter(dataset))
+        
+    3. dataset to pipe
+    > pipe = tfdet.dataset.PipeLoader(dataset)
+    > pipe = tfdet.dataset.pipeline.args2dict(pipe) #optional for object detection
+    > pipe = tfdet.dataset.pipeline.collect(pipe) #optional for semantic segmentation
+    > pipe = tfdet.dataset.pipeline.cast(pipe)
+    > pipe = tfdet.dataset.pipeline.key_map(pipe, batch_size = 16, shuffle = False, prefetch = True)
+    > next(iter(dataset))
     """
-    generator = functools.partial(load_data, path, mask = mask, refresh = refresh, shuffle = shuffle)
-    dtype = (tf.string, tf.string, tf.int32, tf.float32) if mask else (tf.string, tf.string, tf.int32)
-    pipe = tf.data.Dataset.from_generator(generator, dtype)
-    return pipeline(pipe, batch_size = batch_size, repeat = repeat, shuffle = False, prefetch = prefetch,
-                    cache = cache, num_parallel_calls = num_parallel_calls)
+    if isinstance(cache, str) and os.path.exists(cache):
+        return Dataset(transform = transform, shuffle = shuffle, cache = cache, keys = ["x_true", "y_true", "bbox_true", "mask_true"])
+    else:
+        balloon = get(path, refresh = refresh)
+        indices = np.arange(len(balloon))
+        object_func = functools.partial(load_object, path = path, mask = mask)
+        return Dataset(indices, preprocess = object_func, transform = transform, shuffle = shuffle, cache = cache, keys = ["x_true", "y_true", "bbox_true", "mask_true"])

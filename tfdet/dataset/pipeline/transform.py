@@ -29,7 +29,7 @@ def load(x_true, y_true = None, bbox_true = None, mask_true = None,
   
 def normalize(x_true, y_true = None, bbox_true = None, mask_true = None, 
               rescale = 1., mean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375],
-              bbox_normalize = True,
+              bbox_normalize = True, x_dtype = np.float32,
               batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
               cache = False, num_parallel_calls = True):
     """
@@ -55,14 +55,14 @@ def normalize(x_true, y_true = None, bbox_true = None, mask_true = None,
     dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
     return pipe(x_true, y_true, bbox_true, mask_true, function = T.normalize,
                 rescale = rescale, mean = mean, std = std,
-                bbox_normalize = bbox_normalize,
+                bbox_normalize = bbox_normalize, x_dtype = x_dtype,
                 batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
                 cache = cache, num_parallel_calls = num_parallel_calls,
                 tf_func = False, dtype = dtype)
   
 def unnormalize(x_true, y_true = None, bbox_true = None, mask_true = None, 
                 rescale = 1., mean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375],
-                bbox_normalize = True,
+                bbox_normalize = True, x_dtype = np.uint8,
                 batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
                 cache = False, num_parallel_calls = True):
     """
@@ -88,7 +88,7 @@ def unnormalize(x_true, y_true = None, bbox_true = None, mask_true = None,
     dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
     return pipe(x_true, y_true, bbox_true, mask_true, function = T.unnormalize,
                 rescale = rescale, mean = mean, std = std,
-                bbox_normalize = bbox_normalize,
+                bbox_normalize = bbox_normalize, x_dtype = x_dtype,
                 batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
                 cache = cache, num_parallel_calls = num_parallel_calls,
                 tf_func = False, dtype = dtype)
@@ -156,7 +156,7 @@ def label_encode(x_true, y_true = None, bbox_true = None, mask_true = None,
                 tf_func = False, dtype = dtype)
   
 def label_decode(x_true, y_true = None, bbox_true = None, mask_true = None, 
-                 label = None,
+                 label = None, mask_decode = False,
                  batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
                  cache = False, num_parallel_calls = True):
     """
@@ -181,7 +181,7 @@ def label_decode(x_true, y_true = None, bbox_true = None, mask_true = None,
         dtype = tuple([dtype_info[i] if dtype_info[i] is not None else v.dtype for i, v in enumerate(pre_pipe.element_spec if isinstance(pre_pipe.element_spec, tuple) else (pre_pipe.element_spec,))])
     dtype = dtype[0] if len(dtype) == 1 else tuple(dtype)
     return pipe(x_true, y_true, bbox_true, mask_true, function = T.label_decode,
-                label = label,
+                label = label, mask_decode = mask_decode,
                 batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
                 cache = cache, num_parallel_calls = num_parallel_calls,
                 tf_func = False, dtype = dtype)
@@ -238,7 +238,7 @@ def resize(x_true, y_true = None, bbox_true = None, mask_true = None,
                 tf_func = False, dtype = dtype)
 
 def pad(x_true, y_true = None, bbox_true = None, mask_true = None, 
-        image_shape = None, shape_divisor = None, max_pad_size = 100, pad_val = 114, mode = "both", background = "background",
+        image_shape = None, shape_divisor = None, max_pad_size = 0, pad_val = 114, mode = "both", background = "background",
         batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
         cache = False, num_parallel_calls = True):
     """
@@ -372,6 +372,7 @@ def random_flip(x_true, y_true = None, bbox_true = None, mask_true = None,
     mask_true(with bbox_true & instance mask_true) = (N, P, H, W, 1)
     mask_true(semantic mask_true) = (N, H, W, 1 or n_class)
 
+    #Pad is removed.
     mode = ("horizontal", "vertical")
     """
     pre_pipe = x_true if isinstance(x_true, tf.data.Dataset) else pipe(x_true, y_true, bbox_true, mask_true)
@@ -386,7 +387,7 @@ def random_flip(x_true, y_true = None, bbox_true = None, mask_true = None,
 
 def multi_scale_flip(x_true, y_true = None, bbox_true = None, mask_true = None,
                      image_shape = None, keep_ratio = True, flip_mode = "horizontal", method = cv2.INTER_LINEAR, resize_mode = "value",
-                     shape_divisor = None, max_pad_size = 100, pad_val = 114, pad_mode = "both", background = "background",
+                     shape_divisor = None, max_pad_size = 0, pad_val = 114, pad_mode = "both", background = "background",
                      batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
                      cache = False, num_parallel_calls = True):
     """
@@ -659,7 +660,7 @@ def copy_paste(x_true, y_true = None, bbox_true = None, mask_true = None,
                max_paste_count = 100, scale_range = [0.0625, 0.75], clip_object = True, replace = True, random_count = True, label = None,
                min_scale = 2, min_instance_area = 1, iou_threshold = 0.3,
                copy_min_scale = 2, copy_min_instance_area = 1, copy_iou_threshold = 0.3,
-               p_flip = 0.5, pad_val = 114, method = cv2.INTER_LINEAR,
+               p_flip = 0.5, method = cv2.INTER_LINEAR,
                min_area = 0., min_visibility = 0., e = 1e-12,
                sample_size = 4, sample_cache = False, sample_shuffle = True,
                batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
@@ -699,7 +700,7 @@ def copy_paste(x_true, y_true = None, bbox_true = None, mask_true = None,
     pre_pipe, sample_pipe = pre_pipe.map(convert_to_pickle), sample_pipe.map(convert_to_pickle)
     args_pipe = concat_pipe(pre_pipe.batch(1), (sample_pipe.shuffle(max(sample_size, 1) * 10) if sample_shuffle else sample_pipe).repeat().batch(max(sample_size, 1)), axis = 0)
         
-    func = functools.partial(T.copy_paste, max_paste_count = max_paste_count, scale_range = scale_range, clip_object = clip_object, replace = replace, random_count = random_count, label = label, min_scale = min_scale, min_instance_area = min_instance_area, iou_threshold = iou_threshold, copy_min_scale = copy_min_scale, copy_min_instance_area = copy_min_instance_area, copy_iou_threshold = copy_iou_threshold, p_flip = p_flip, pad_val = pad_val, method = method, min_area = min_area, min_visibility = min_visibility, e = e)
+    func = functools.partial(T.copy_paste, max_paste_count = max_paste_count, scale_range = scale_range, clip_object = clip_object, replace = replace, random_count = random_count, label = label, min_scale = min_scale, min_instance_area = min_instance_area, iou_threshold = iou_threshold, copy_min_scale = copy_min_scale, copy_min_instance_area = copy_min_instance_area, copy_iou_threshold = copy_iou_threshold, p_flip = p_flip, method = method, min_area = min_area, min_visibility = min_visibility, e = e)
     def fail_func(x_true, y_true = None, bbox_true = None, mask_true = None):
         result = [v[0] for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
         result = result[0] if len(result) == 1 else tuple(result)
@@ -737,9 +738,9 @@ def yolo_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
                       image_shape = None, pad_val = 114,
                       perspective = 0., rotate = 0., translate = 0.2, scale = 0.9, shear = 0.,
                       h = 0.015, s = 0.7, v = 0.4,
-                      max_paste_count = 20, scale_range = [0.0625, 0.75], clip_object = True, replace = True, random_count = False, label = None,
+                      max_paste_count = 30, scale_range = [0.0625, 0.75], clip_object = True, replace = True, random_count = False, label = None,
                       min_scale = 2, min_instance_area = 1, iou_threshold = 0.3, copy_min_scale = 2, copy_min_instance_area = 1, copy_iou_threshold = 0.3, p_copy_paste_flip = 0.5, method = cv2.INTER_LINEAR,
-                      p_mosaic = 1., p_mix_up = 0.15, p_copy_paste = 0., p_flip = 0.5, p_mosaic9 = 0.8,
+                      p_mosaic = 1., p_mix_up = 0.15, p_copy_paste = 0., p_flip = 0.5, p_mosaic9 = 0.2,
                       min_area = 0., min_visibility = 0., e = 1e-12,
                       sample_size = 8 + 9 + 4, sample_cache = False, sample_shuffle = True,
                       batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
@@ -789,7 +790,7 @@ def yolo_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
 def mmdet_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
                        image_shape = [1333, 800], keep_ratio = True, crop_shape = None, p_flip = 0.5,
                        flip_mode = "horizontal", method = cv2.INTER_LINEAR, resize_mode = "jitter",
-                       shape_divisor = 32, max_pad_size = 100, pad_val = 114, pad_mode = "both", background = "background",
+                       shape_divisor = 32, max_pad_size = 0, pad_val = 114, pad_mode = "both", background = "background",
                        min_area = 0., min_visibility = 0., e = 1e-12,
                        batch_size = 0, repeat = 1, shuffle = False, prefetch = False,
                        cache = False, num_parallel_calls = True):

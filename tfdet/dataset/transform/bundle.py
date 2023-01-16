@@ -5,6 +5,7 @@ import numpy as np
 
 from .augment import *
 from .common import *
+from ..dataset import multi_transform
 
 try:
     def weak_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
@@ -42,15 +43,16 @@ try:
             func_transform.append(functools.partial(random_crop, image_shape = crop_shape, min_area = min_area, min_visibility = min_visibility, e = e))
         return compose(x_true, y_true, bbox_true, mask_true, transform = func_transform)
 except:
-    pass    
+    pass
 
+@multi_transform(sample_size = 8 + 9 + 4)
 def yolo_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
                       image_shape = None, pad_val = 114,
                       perspective = 0., rotate = 0., translate = 0.2, scale = 0.9, shear = 0.,
                       h = 0.015, s = 0.7, v = 0.4,
-                      max_paste_count = 20, scale_range = [0.0625, 0.75], clip_object = True, replace = True, random_count = False, label = None,
+                      max_paste_count = 30, scale_range = [0.0625, 0.75], clip_object = True, replace = True, random_count = False, label = None,
                       min_scale = 2, min_instance_area = 1, iou_threshold = 0.3, copy_min_scale = 2, copy_min_instance_area = 1, copy_iou_threshold = 0.3, p_copy_paste_flip = 0.5, method = cv2.INTER_LINEAR,
-                      p_mosaic = 1., p_mix_up = 0.15, p_copy_paste = 0., p_flip = 0.5, p_mosaic9 = 0.8,
+                      p_mosaic = 1., p_mix_up = 0.15, p_copy_paste = 0., p_flip = 0.5, p_mosaic9 = 0.2,
                       min_area = 0., min_visibility = 0., e = 1e-12):
     """
     https://github.com/WongKinYiu/yolov7/blob/main/utils/datasets.py
@@ -67,21 +69,54 @@ def yolo_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
     #First image is Background image.
     """
     if np.ndim(x_true[0]) < 3:
-        x_true = np.expand_dims(x_true, axis = 0)
-        y_true = np.expand_dims(y_true, axis = 0) if y_true is not None else None
-        bbox_true = np.expand_dims(bbox_true, axis = 0) if bbox_true is not None else None
-        mask_true = np.expand_dims(mask_true, axis = 0) if mask_true is not None else None
+        x_true = [x_true]
+        y_true = [y_true] if y_true is not None else None
+        bbox_true = [bbox_true] if bbox_true is not None else None
+        mask_true = [mask_true] if mask_true is not None else None
+        
+    valid_indices = None
+    if bbox_true is not None:
+        valid_indices = []
+        new_bbox_true = []
+        for bbox in bbox_true:
+            bbox = np.array(bbox) if not isinstance(bbox, np.ndarray) else bbox
+            #indices = np.where(np.max(0 < bbox, axis = -1, keepdims = True) != 0)[0]
+            indices = np.where(np.any(0 < bbox, axis = -1))[0]
+            new_bbox_true.append(bbox[indices])
+            valid_indices.append(indices)
+        bbox_true = new_bbox_true
+        del new_bbox_true
+        if y_true is not None:
+            new_y_true = []
+            for i, y in enumerate(y_true):
+                y = np.array(y) if not isinstance(y, np.ndarray) else y
+                new_y_true.append(y[valid_indices[i]])
+            y_true = new_y_true
+            del new_y_true
+    if mask_true is not None:
+        new_mask_true = []
+        for i, mask in enumerate(mask_true):
+            mask = np.array(mask) if not isinstance(mask, np.ndarray) else mask
+            if 3 < np.ndim(mask):
+                if valid_indices is not None:
+                    mask = mask[valid_indices[i]]
+                else:
+                    #mask = mask[np.where(np.max(mask, axis = (1, 2, 3), keepdims = True) != 0)[0]]
+                    mask = mask[np.where(np.any(0 < bbox, axis = (1, 2, 3)))[0]]
+            new_mask_true.append(mask)
+        mask_true = new_mask_true
+        del new_mask_true
+    del valid_indices
     
     indices = np.arange(len(x_true))
-    
     keys = ["x_true", "y_true", "bbox_true", "mask_true"]
     values = [x_true, y_true, bbox_true, mask_true]
     kwargs = {k:v for k, v in zip(keys, values) if v is not None}
-    target_kwargs = {k:np.array(v[0]) for k, v in kwargs.items()}
+    target_kwargs = {k:v[0] for k, v in kwargs.items()}
     
     image_shape = np.shape(target_kwargs["x_true"])[:2] if image_shape is None else image_shape
     if np.random.random() < p_mosaic:
-        if np.random.random() < p_mosaic9:
+        if np.random.random() < (1 - p_mosaic9):
             sample_indices = np.random.choice(indices, 3, replace = True)
             mosaic_func = functools.partial(mosaic, pad_val = pad_val, min_area = min_area, min_visibility = min_visibility, e = e)
         else:
@@ -90,10 +125,11 @@ def yolo_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
         sample_kwargs = {k:[target_kwargs[k]] + [v[i] for i in sample_indices] for k, v in kwargs.items()}
         sample_transform = [mosaic_func,
                             functools.partial(random_perspective, image_shape = image_shape, perspective = perspective, rotate = rotate, translate = translate, scale = scale, shear = shear, pad_val = pad_val, min_area = min_area, min_visibility = min_visibility, e = e),
-                            functools.partial(filter_annotation, min_scale = min_scale, min_instance_area = min_instance_area)]
+                            #functools.partial(filter_annotation, min_scale = min_scale, min_instance_area = min_instance_area),
+                           ]
         target_kwargs = compose(sample_kwargs, transform = sample_transform)  
         if np.random.random() < p_mix_up:
-            if np.random.random() < p_mosaic9:
+            if np.random.random() < (1 - p_mosaic9):
                 sample_indices = np.random.choice(indices, 4, replace = True)
                 mosaic_func = functools.partial(mosaic, pad_val = pad_val, min_area = min_area, min_visibility = min_visibility, e = e)
             else:
@@ -102,17 +138,20 @@ def yolo_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
             sample_kwargs = {k:[target_kwargs[k]] + [v[i] for i in sample_indices] for k, v in kwargs.items()}
             sample_transform = [mosaic_func,
                                 functools.partial(random_perspective, image_shape = image_shape, perspective = perspective, rotate = rotate, translate = translate, scale = scale, shear = shear, pad_val = pad_val, min_area = min_area, min_visibility = min_visibility, e = e),
-                                functools.partial(filter_annotation, min_scale = min_scale, min_instance_area = min_instance_area)]
+                                #functools.partial(filter_annotation, min_scale = min_scale, min_instance_area = min_instance_area),
+                               ]
             sample_kwargs = compose(sample_kwargs, transform = sample_transform)
             sample_kwargs = {k:[target_kwargs[k], v] for k, v in sample_kwargs.items()}
             target_kwargs = compose(sample_kwargs, transform = mix_up)
     else:
         transform = [functools.partial(pad, image_shape = image_shape, max_pad_size = 0, pad_val = pad_val),
                      functools.partial(random_perspective, image_shape = image_shape, perspective = perspective, rotate = rotate, translate = translate, scale = scale, shear = shear, pad_val = pad_val, min_area = min_area, min_visibility = min_visibility, e = e),
-                     functools.partial(filter_annotation, min_scale = min_scale, min_instance_area = min_instance_area)]
+                     #functools.partial(filter_annotation, min_scale = min_scale, min_instance_area = min_instance_area),
+                    ]
         target_kwargs = compose(target_kwargs, transform = transform)
         
-    transform = functools.partial(yolo_hsv, h = h, s = s, v = v)
+    transform = [functools.partial(filter_annotation, min_scale = min_scale, min_instance_area = min_instance_area),
+                 functools.partial(yolo_hsv, h = h, s = s, v = v)]
     target_kwargs = compose(target_kwargs, transform = transform)
     
     if np.random.random() < p_copy_paste:
@@ -132,7 +171,7 @@ def yolo_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
 def mmdet_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
                        image_shape = [1333, 800], keep_ratio = True, crop_shape = None, p_flip = 0.5,
                        flip_mode = "horizontal", method = cv2.INTER_LINEAR, resize_mode = "jitter",
-                       shape_divisor = 32, max_pad_size = 100, pad_val = 114, pad_mode = "both", background = "background",
+                       shape_divisor = 32, max_pad_size = 0, pad_val = 114, pad_mode = "both", background = "background",
                        min_area = 0., min_visibility = 0., e = 1e-12):
     """
     https://github.com/open-mmlab/mmdetection/blob/master/configs/_base_/datasets/coco_detection.py
