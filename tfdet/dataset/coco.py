@@ -80,6 +80,70 @@ def get(path, refresh = False):
         coco = memory[key]
     return coco
 
+def merge_multi_segment(segments):
+    """
+    https://github.com/ultralytics/JSON2YOLO/blob/master/general_json2yolo.py
+    """
+    def min_index(arr1, arr2):
+        dis = ((arr1[:, None, :] - arr2[None, :, :]) ** 2).sum(-1)
+        return np.unravel_index(np.argmin(dis, axis=None), dis.shape)
+    
+    s = []
+    segments = [np.array(i).reshape(-1, 2) for i in segments]
+    idx_list = [[] for _ in range(len(segments))]
+
+    # record the indexes with min distance between each segment
+    for i in range(1, len(segments)):
+        idx1, idx2 = min_index(segments[i - 1], segments[i])
+        idx_list[i - 1].append(idx1)
+        idx_list[i].append(idx2)
+
+    # use two round to connect all the segments
+    for k in range(2):
+        # forward connection
+        if k == 0:
+            for i, idx in enumerate(idx_list):
+                # middle segments have two indexes
+                # reverse the index of middle segments
+                if len(idx) == 2 and idx[0] > idx[1]:
+                    idx = idx[::-1]
+                    segments[i] = segments[i][::-1, :]
+
+                segments[i] = np.roll(segments[i], -idx[0], axis=0)
+                segments[i] = np.concatenate([segments[i], segments[i][:1]])
+                # deal with the first segment and the last one
+                if i in [0, len(idx_list) - 1]:
+                    s.append(segments[i])
+                else:
+                    idx = [0, idx[1] - idx[0]]
+                    s.append(segments[i][idx[0]:idx[1] + 1])
+
+        else:
+            for i in range(len(idx_list) - 1, -1, -1):
+                if i not in [0, len(idx_list) - 1]:
+                    idx = idx_list[i]
+                    nidx = abs(idx[1] - idx[0])
+                    s.append(segments[i][nidx:])
+    return s
+
+def convert_contour(segments):
+    if 1 < len(segments):
+        s = merge_multi_segment(segments)
+        #s = np.concatenate(s, axis = 0)
+        s = np.vstack(s).astype(np.float32)
+    elif len(segments) == 1:
+        s = [j for i in segments for j in i]  # all segments concatenated
+        s = np.reshape(np.array(s, dtype = np.float32), [-1, 2])
+    else:
+        s = np.zeros([0, 2], dtype = np.float32)
+    return s
+
+def contour2instance(contour, image_shape, ignore_label = 0):
+    mask_true = np.full([len(contour), *image_shape, 1], ignore_label, dtype = np.uint8)
+    for i, cont in enumerate(contour):
+        cv2.drawContours(mask_true[i], np.round(np.reshape(cont, [1, -1, 2])).astype(np.int32), -1, 1, -1)
+    return mask_true
+
 def load_info(coco, data_path, x_true, mask = False, crowd = False, label = LABEL, cat_ids = None, cat2label = None):       
     if isinstance(coco, str):
         coco = get(coco)
@@ -111,30 +175,34 @@ def load_info(coco, data_path, x_true, mask = False, crowd = False, label = LABE
         y_true.append([label[int(cat2label[a["category_id"]] + 1)] if cat2label is not None else int(a["category_id"])])
         bbox_true.append([int(round(x1)), int(round(y1)), int(round(x1 + w)), int(round(y1 + h))])    
         if mask:
-            mask_true.append(a["segmentation"])
+            #mask_true.append(a["segmentation"])
+            mask_true.append(convert_contour(a["segmentation"]))
     y_true = np.array(y_true, dtype = np.object0) if 0 < len(y_true) else np.zeros((0, 1), dtype = np.object0)
     bbox_true = np.array(bbox_true, dtype = np.int32) if 0 < len(bbox_true) else np.zeros((0, 4), dtype = np.int32)
     return (x_true, y_true, bbox_true) if not mask else (x_true, y_true, bbox_true, mask_true)
 
 def load_instance(mask_true, image_shape):
-    try:
-        from pycocotools import mask as maskUtils
-    except Exception as e:
-        print("If you want to use 'coco dataset', please install 'pycocotools'")
-        raise e
-    
-    mask = []
-    for seg in mask_true:
-        if isinstance(seg, list):
-            rles = maskUtils.frPyObjects(seg, *image_shape[:2])
-            rle = maskUtils.merge(rles)
-        else:
-            if isinstance(seg["counts"], list):
-                rle = maskUtils.frPyObjects([seg], *image_shape[:2])
+    if False:
+        try:
+            from pycocotools import mask as maskUtils
+        except Exception as e:
+            print("If you want to use 'coco dataset', please install 'pycocotools'")
+            raise e
+        
+        mask = []
+        for seg in mask_true:
+            if isinstance(seg, list):
+                rles = maskUtils.frPyObjects(seg, *image_shape[:2])
+                rle = maskUtils.merge(rles)
             else:
-                rle = [rle]
-        mask.append(maskUtils.decode(rle))
-    mask_true = np.expand_dims(np.stack(mask, axis = 0).astype(np.uint8), axis = -1) if 0 < len(mask) else np.zeros((0, *image_shape[:2], 1), dtype = np.uint8)
+                if isinstance(seg["counts"], list):
+                    rle = maskUtils.frPyObjects([seg], *image_shape[:2])
+                else:
+                    rle = [rle]
+            mask.append(maskUtils.decode(rle))
+        mask_true = np.expand_dims(np.stack(mask, axis = 0).astype(np.uint8), axis = -1) if 0 < len(mask) else np.zeros((0, *image_shape[:2], 1), dtype = np.uint8)
+    else:
+        mask_true = contour2instance(mask_true, image_shape)
     return mask_true
 
 def load_annotation(x_true, y_true, bbox_true, mask_true = None):
@@ -154,7 +222,7 @@ def load_dataset(path, data_path, mask = False, crowd = False, label = LABEL,
     <example>
     1. all-in-one
     > dataset = tfdet.dataset.coco.load_dataset("./coco/annotations/instances_train2017.json", "./coco/train2017",
-                                                transform = [load, resize,
+                                                transform = [load, resize, pad,
                                                              filter_annotation, label_encode, normalize]
                                                 mask = False, crowd = False,
                                                 shuffle = False, cache = "coco_train.cache")
@@ -165,7 +233,7 @@ def load_dataset(path, data_path, mask = False, crowd = False, label = LABEL,
                                                 mask = False, crowd = False,
                                                 shuffle = False, cache = "coco_train.cache")
     > dataset = tfdet.dataset.Dataset(dataset,
-                                      transform = [load, resize,
+                                      transform = [load, resize, pad,
                                                    filter_annotation, label_encode, normalize])
     > dataset[i] #or next(iter(dataset))
         

@@ -80,7 +80,7 @@ def load_dataset(path, mask = False,
     <example>
     1. all-in-one
     > dataset = tfdet.dataset.baloon.load_dataset("./balloon/train/via_region_data.json",
-                                                  transform = [load, resize,
+                                                  transform = [load, resize, pad,
                                                                filter_annotation, label_encode, normalize]
                                                   mask = False,
                                                   shuffle = False, cache = "balloon_train.cache")
@@ -91,7 +91,7 @@ def load_dataset(path, mask = False,
                                                   mask = False,
                                                   shuffle = False, cache = "balloon_train.cache")
     > dataset = tfdet.dataset.Dataset(dataset,
-                                      transform = [load, resize,
+                                      transform = [load, resize, pad,
                                                    filter_annotation, label_encode, normalize])
     > dataset[i] #or next(iter(dataset))
         

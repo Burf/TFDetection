@@ -47,7 +47,7 @@ def load_dataset(path, mask = False, truncated = True, difficult = False, instan
     <example>
     1. all-in-one
     > dataset = tfdet.dataset.baloon.load_dataset("./VOC2007/ImageSets/Main/train.txt",
-                                                  transform = [load, resize,
+                                                  transform = [load, resize, pad,
                                                                filter_annotation, label_encode, normalize]
                                                   mask = False, truncated = True, difficult = False, instance = True,
                                                   shuffle = False, cache = "voc2007_train.cache")
@@ -58,7 +58,7 @@ def load_dataset(path, mask = False, truncated = True, difficult = False, instan
                                                   mask = False, truncated = True, difficult = False, instance = True, 
                                                   shuffle = False, cache = "voc2007_train.cache")
     > dataset = tfdet.dataset.Dataset(dataset,
-                                      transform = [load, resize,
+                                      transform = [load, resize, pad,
                                                    filter_annotation, label_encode, normalize])
     > dataset[i] #or next(iter(dataset))
         
@@ -122,7 +122,7 @@ def load_annotation(path, bbox = None, truncated = True, difficult = False, flag
                 bbox.append([int(round(float(obj["bndbox"][k]))) for k in ["xmin", "ymin", "xmax", "ymax"]])
         label = np.array(label, dtype = np.object0) if 0 < len(label) else np.zeros((0, 1), dtype = np.object0)
         bbox = np.array(bbox, dtype = np.int32) if 0 < len(bbox) else np.zeros((0, 4), dtype = np.int32)
-        flags = np.array(flags, dtype = np.bool) if 0 < len(flags) else np.zeros((0,), dtype = np.bool)
+        flags = np.array(flags, dtype = bool) if 0 < len(flags) else np.zeros((0,), dtype = bool)
     result = [v for v in [label, bbox] if v is not None]
     if flag:
         result += [flags]

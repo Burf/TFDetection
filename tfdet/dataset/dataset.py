@@ -30,7 +30,7 @@ class Dataset:
         <example>
         1. basic
         > dataset = tfdet.dataset.Dataset(x_true, y_true, bbox_true, mask_true,
-                                          transform = [load, resize,
+                                          transform = [load, resize, pad,
                                                        filter_annotation, label_encode, normalize], #post-apply transform
                                           preprocess = [], #pre-apply transform
                                           shuffle = False, #when item 0 is called, shuffle indices.(Recommended by 1 GPU)
@@ -43,7 +43,7 @@ class Dataset:
                                                     mask = False, crowd = False,
                                                     cache = "coco_train.cache")
         > dataset = tfdet.dataset.Dataset(dataset,
-                                          transform = [load, resize,
+                                          transform = [load, resize, pad,
                                                        filter_annotation, label_encode, normalize])
         > dataset[i] #or next(iter(dataset))
         

@@ -135,7 +135,6 @@ def filter_annotation(x_true, y_true = None, bbox_true = None, mask_true = None,
     valid_indices = None
     if bbox_true is not None:
         bbox_true = np.array(bbox_true) if not isinstance(bbox_true, np.ndarray) else bbox_true
-        #valid_indices = np.where(np.max(0 < bbox_true, axis = -1, keepdims = True) != 0)[0]
         valid_indices = np.where(np.any(0 < bbox_true, axis = -1))[0]
         bbox_true = bbox_true[valid_indices]
         if y_true is not None:
@@ -146,7 +145,6 @@ def filter_annotation(x_true, y_true = None, bbox_true = None, mask_true = None,
             if valid_indices is not None:
                 mask_true = mask_true[valid_indices]
             else:
-                #mask_true = mask_true[np.where(np.max(mask_true, axis = (1, 2, 3), keepdims = True) != 0)[0]]
                 mask_true = mask_true[np.where(np.any(0 < mask_true, axis = (1, 2, 3)))[0]]
     del valid_indices
     
@@ -407,7 +405,6 @@ def crop(x_true, y_true = None, bbox_true = None, mask_true = None, bbox = None,
     valid_indices = None
     if bbox_true is not None:
         bbox_true = np.array(bbox_true) if not isinstance(bbox_true, np.ndarray) else bbox_true 
-        #valid_indices = np.where(np.max(0 < bbox_true, axis = -1, keepdims = True) != 0)[0]
         valid_indices = np.where(np.any(0 < bbox_true, axis = -1))[0]
         bbox_true = bbox_true[valid_indices]
         if y_true is not None:
@@ -418,7 +415,6 @@ def crop(x_true, y_true = None, bbox_true = None, mask_true = None, bbox = None,
             if valid_indices is not None:
                 mask_true = mask_true[valid_indices]
             else:
-                #mask_true = mask_true[np.where(np.max(mask_true, axis = (1, 2, 3), keepdims = True) != 0)[0]]
                 mask_true = mask_true[np.where(np.any(0 < mask_true, axis = (1, 2, 3)))[0]]
     del valid_indices
     
@@ -486,7 +482,7 @@ def flip(x_true, y_true = None, bbox_true = None, mask_true = None, mode = "hori
             y = shape[0] - y
         x1, y1 = x - (0.5 * w), y - (0.5 * h)
         x2, y2 = x1 + w, y1 + h
-        bbox_true = np.hstack([p.astype(bbox_true.dtype) for p in [x1, y1, x2, y2]])
+        bbox_true = np.hstack([p.astype(bbox_true.dtype) for p in [x1, y1, x2, y2]], dtype = bbox_true.dtype)
         bbox_true = np.where(flag, bbox_true, 0)
     if mask_true is not None:
         if 3 < np.ndim(mask_true):

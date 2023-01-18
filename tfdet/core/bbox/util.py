@@ -62,5 +62,5 @@ def random_bbox(alpha = 1, image_shape = None, scale = None, clip = False, clip_
     if clip:
         bbox = np.clip(bbox, 0, 1)
     if image_shape is not None:
-        bbox = np.round(np.multiply(bbox, [w, h, w, h])).astype(int)
+        bbox = np.round(np.multiply(bbox, [w, h, w, h])).astype(np.int32)
     return bbox

@@ -80,7 +80,6 @@ def yolo_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
         new_bbox_true = []
         for bbox in bbox_true:
             bbox = np.array(bbox) if not isinstance(bbox, np.ndarray) else bbox
-            #indices = np.where(np.max(0 < bbox, axis = -1, keepdims = True) != 0)[0]
             indices = np.where(np.any(0 < bbox, axis = -1))[0]
             new_bbox_true.append(bbox[indices])
             valid_indices.append(indices)
@@ -101,8 +100,7 @@ def yolo_augmentation(x_true, y_true = None, bbox_true = None, mask_true = None,
                 if valid_indices is not None:
                     mask = mask[valid_indices[i]]
                 else:
-                    #mask = mask[np.where(np.max(mask, axis = (1, 2, 3), keepdims = True) != 0)[0]]
-                    mask = mask[np.where(np.any(0 < bbox, axis = (1, 2, 3)))[0]]
+                    mask = mask[np.where(np.any(0 < mask, axis = (1, 2, 3)))[0]]
             new_mask_true.append(mask)
         mask_true = new_mask_true
         del new_mask_true
