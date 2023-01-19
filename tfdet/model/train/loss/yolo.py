@@ -2,6 +2,9 @@ import tensorflow as tf
 
 from tfdet.core.loss import binary_cross_entropy, giou
 
+def focal_loss(y_true, y_pred, alpha = .25, gamma = 2., weight = None, reduce = True):
+    return focal_binary_cross_entropy(y_true, y_pred, alpha = alpha, gamma = gamma, weight = weight, reduce = reduce)
+
 def giou_loss(bbox_true, bbox_pred, reduce = True, mode = "general"):
     bbox_true = tf.reshape(bbox_true, (-1, 4))
     bbox_pred = tf.reshape(bbox_pred, (-1, 4))
@@ -29,8 +32,9 @@ def score_accuracy(score_true, score_pred, threshold = 0.5, missing_value = 0.):
     score = tf.clip_by_value(score, tf.keras.backend.epsilon(), 1 - tf.keras.backend.epsilon())
     score = tf.cast(tf.greater_equal(score, threshold), score.dtype)
   
-    accuracy = tf.reduce_mean(tf.cast(tf.equal(match_score, score), score.dtype))
-    accuracy = tf.where(tf.math.is_nan(accuracy), missing_value, accuracy)
+    dtype = score.dtype
+    accuracy = tf.reduce_mean(tf.cast(tf.equal(match_score, score), dtype))
+    accuracy = tf.where(tf.math.is_nan(accuracy), tf.cast(missing_value, dtype), accuracy)
     return accuracy
 
 def score_loss(score_true, score_pred, loss = binary_cross_entropy, missing_value = 0.):
@@ -45,13 +49,13 @@ def score_loss(score_true, score_pred, loss = binary_cross_entropy, missing_valu
     indices = tf.where(tf.not_equal(score_true, 0))[:, 0]
     score = tf.gather(score_pred, indices)
     match_score = tf.gather(match_score, indices)
-    match_score = tf.cast(match_score, score_pred.dtype)
 
     _loss = loss(match_score, score, reduce = False)
     
-    true_count = tf.reduce_sum(match_score)
-    _loss = tf.reduce_sum(_loss) / tf.maximum(true_count, 1.)
-    _loss = tf.where(tf.math.is_nan(_loss), missing_value, _loss)
+    dtype = _loss.dtype
+    true_count = tf.cast(tf.reduce_sum(match_score), dtype)
+    _loss = tf.reduce_sum(_loss) / tf.maximum(true_count, tf.cast(1., dtype))
+    _loss = tf.where(tf.math.is_nan(_loss), tf.cast(missing_value, dtype), _loss)
     return _loss
     
 def logits_accuracy(score_true, logit_true, logit_pred, missing_value = 0.):
@@ -76,7 +80,7 @@ def logits_accuracy(score_true, logit_true, logit_pred, missing_value = 0.):
     logit_true = tf.cast(logit_true, logit_pred.dtype)
     
     accuracy = tf.reduce_mean(tf.cast(tf.equal(logit_true, logit_pred), dtype))
-    accuracy = tf.where(tf.math.is_nan(accuracy), missing_value, accuracy)
+    accuracy = tf.where(tf.math.is_nan(accuracy), tf.cast(missing_value, dtype), accuracy)
     return accuracy
 
 def logits_loss(score_true, logit_true, logit_pred, loss = binary_cross_entropy, weight = None, missing_value = 0.):
@@ -95,7 +99,7 @@ def logits_loss(score_true, logit_true, logit_pred, loss = binary_cross_entropy,
     logit_true = tf.gather(logit_true, true_indices)
     logit_pred = tf.gather(logit_pred, true_indices)
 
-    logit_true = tf.cond(tf.equal(n_true_class, 1), true_fn = lambda: tf.one_hot(tf.cast(logit_true, tf.int32), n_pred_class)[:, 0], false_fn = lambda: logit_true)
+    logit_true = tf.cond(tf.equal(n_true_class, 1), true_fn = lambda: tf.cast(tf.one_hot(tf.cast(logit_true, tf.int32), n_pred_class)[:, 0], logit_true.dtype), false_fn = lambda: logit_true)
     logit_true = tf.cast(logit_true, logit_pred.dtype)
     logit_pred = tf.clip_by_value(logit_pred, tf.keras.backend.epsilon(), 1 - tf.keras.backend.epsilon())
 
@@ -103,7 +107,7 @@ def logits_loss(score_true, logit_true, logit_pred, loss = binary_cross_entropy,
     _loss = tf.reduce_sum(_loss, axis = -1)
     
     _loss = tf.reduce_mean(_loss)
-    _loss = tf.where(tf.math.is_nan(_loss), missing_value, _loss)
+    _loss = tf.where(tf.math.is_nan(_loss), tf.cast(missing_value, _loss.dtype), _loss)
     return _loss
 
 def regress_loss(score_true, bbox_true, bbox_pred, loss = giou_loss, missing_value = 0.):
@@ -123,5 +127,5 @@ def regress_loss(score_true, bbox_true, bbox_pred, loss = giou_loss, missing_val
     _loss = loss(bbox_true, bbox_pred, reduce = False)
 
     _loss = tf.reduce_mean(_loss)
-    _loss = tf.where(tf.math.is_nan(_loss), missing_value, _loss)
+    _loss = tf.where(tf.math.is_nan(_loss), tf.cast(missing_value, _loss.dtype), _loss)
     return _loss

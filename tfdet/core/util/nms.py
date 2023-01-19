@@ -6,6 +6,12 @@ def pad_nms(proposal, score, proposal_count, iou_threshold, score_threshold = fl
     soft_nms_sigma = soft_nms
     if not isinstance(soft_nms, float):
         soft_nms_sigma = 0.5 if soft_nms else 0.
+        
+    dtype = proposal.dtype
+    iou_threshold = tf.cast(iou_threshold, dtype)
+    score_threshold = tf.cast(score_threshold, dtype)
+    soft_nms_sigma = tf.cast(soft_nms_sigma, dtype)
+    
     indices = tf.image.non_max_suppression_with_scores(proposal, score, max_output_size = tf.minimum(proposal_count, tf.shape(proposal)[0]), iou_threshold = iou_threshold, score_threshold = score_threshold, soft_nms_sigma = soft_nms_sigma)[0]
     proposal = tf.gather(proposal, indices)
     pad_size = proposal_count - tf.shape(proposal)[0]
@@ -77,6 +83,10 @@ def multiclass_nms(y_pred, bbox_pred, anchors = None, mask_pred = None, proposal
     x1, y1, x2, y2 = tf.split(bbox_pred, 4, axis = -1)
     bbox = tf.concat([y1, x1, y2, x2], axis = -1)
     
+    dtype = bbox.dtype
+    iou_threshold = tf.cast(iou_threshold, dtype)
+    score_threshold = tf.cast(score_threshold, dtype)
+    soft_nms_sigma = tf.cast(soft_nms_sigma, dtype)
     scores = []
     indices = []
     for cls in keep_label:

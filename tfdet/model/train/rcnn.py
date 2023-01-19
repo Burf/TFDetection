@@ -71,18 +71,18 @@ def train_model(input, rpn_score = None, rpn_regress = None, anchors = None, cls
     if isinstance(sampling_tag, dict):
         sampling_count, cls_positive_ratio, y_true, bbox_true, mask_true, sampling_y_true, sampling_bbox_true, sampling_mask_true = [sampling_tag[key] for key in ["sampling_count", "positive_ratio", "y_true", "bbox_true", "mask_true", "sampling_y_true", "sampling_bbox_true", "sampling_mask_true"]]
     else:
-        bbox_true = tf.keras.layers.Input(shape = (None, 4), name = "bbox_true", dtype = [l[0] if isinstance(l, list) else l for l in [l for l in [rpn_regress, cls_regress] if l is not None]][0].dtype)
+        bbox_true = tf.keras.layers.Input(shape = (None, 4), name = "bbox_true")
     
     metric = {}
     loss = {}
     if rpn_score is not None and rpn_regress is not None:
         anchors = tf.tile(tf.expand_dims(anchors, axis = 0), [tf.shape(input)[0], 1, 1])
-        rpn_match, rpn_bbox_true, rpn_score, rpn_bbox_pred = tf.keras.layers.Lambda(lambda args: map_fn(rpn_target, *args, dtype = (tf.int32, bbox_true.dtype, rpn_score.dtype, rpn_regress.dtype), batch_size = batch_size, 
-                                                                                                        assign = rpn_assign, sampling_count = sampling_count, positive_ratio = rpn_positive_ratio, valid = valid, mean = rpn_mean, std = rpn_std), name = "rpn_target")([bbox_true, rpn_score, rpn_regress, anchors])
+        rpn_match, rpn_bbox_true, rpn_score, rpn_bbox_pred = tf.keras.layers.Lambda(lambda args: map_fn(rpn_target, *args, dtype = (tf.int32, tf.float32, tf.float32, tf.float32), batch_size = batch_size, 
+                                                                                                        assign = rpn_assign, sampling_count = sampling_count, positive_ratio = rpn_positive_ratio, valid = valid, mean = rpn_mean, std = rpn_std), dtype = tf.float32, name = "rpn_target")([bbox_true, rpn_score, rpn_regress, anchors])
         
-        rpn_score_accuracy = tf.keras.layers.Lambda(lambda args: score_accuracy(*args, threshold = threshold, missing_value = missing_value), name = "rpn_score_accuracy")([rpn_match, rpn_score])
-        rpn_score_loss = tf.keras.layers.Lambda(lambda args: score_loss(*args, loss = rpn_class_loss, missing_value = missing_value), name = "rpn_score_loss")([rpn_match, rpn_score])
-        rpn_regress_loss = tf.keras.layers.Lambda(lambda args: regress_loss(*args, loss = rpn_bbox_loss, missing_value = missing_value), name = "rpn_regress_loss")([rpn_match, rpn_bbox_true, rpn_bbox_pred])
+        rpn_score_accuracy = tf.keras.layers.Lambda(lambda args: score_accuracy(*args, threshold = threshold, missing_value = missing_value), dtype = tf.float32, name = "rpn_score_accuracy")([rpn_match, rpn_score])
+        rpn_score_loss = tf.keras.layers.Lambda(lambda args: score_loss(*args, loss = rpn_class_loss, missing_value = missing_value), dtype = tf.float32, name = "rpn_score_loss")([rpn_match, rpn_score])
+        rpn_regress_loss = tf.keras.layers.Lambda(lambda args: regress_loss(*args, loss = rpn_bbox_loss, missing_value = missing_value), dtype = tf.float32, name = "rpn_regress_loss")([rpn_match, rpn_bbox_true, rpn_bbox_pred])
         metric["rpn_score_accuracy"] = rpn_score_accuracy
         loss["rpn_score_loss"] = rpn_score_loss
         loss["rpn_regress_loss"] = rpn_regress_loss
@@ -106,51 +106,49 @@ def train_model(input, rpn_score = None, rpn_regress = None, anchors = None, cls
         #len(cls_logits) > 1 = faster_rcnn or mask_rcnn + @, 3 = cascade_rcnn + @
         interleaved = True if len(proposals) in [2, 4] else False
         if not isinstance(sampling_tag, dict):
-            cls_y_true = y_true = tf.keras.layers.Input(shape = (None, None), name = "y_true", dtype = cls_logits[0].dtype)
+            cls_y_true = y_true = tf.keras.layers.Input(shape = (None, None), name = "y_true")
             cls_bbox_true = bbox_true
             if mask_regress[-1] is not None or semantic_regress is not None:
-                cls_mask_true = mask_true = tf.keras.layers.Input(shape = (None, None, None, 1), name = "mask_true", dtype = [l for l in [mask_regress[-1], semantic_regress] if l is not None][0].dtype)
+                cls_mask_true = mask_true = tf.keras.layers.Input(shape = (None, None, None, 1), name = "mask_true")
         
-        cls_dtype = (y_true.dtype, bbox_true.dtype, cls_logits[0].dtype, cls_regress[0].dtype)
-        sampling_func = lambda args, **kwargs: map_fn(sampling_postprocess, *args, dtype = cls_dtype, batch_size = batch_size, **kwargs)
-        cls_func = lambda args, **kwargs: map_fn(cls_target, *args, dtype = cls_dtype, batch_size = batch_size, **kwargs)
+        sampling_func = lambda args, **kwargs: map_fn(sampling_postprocess, *args, dtype = (tf.float32, tf.float32, tf.float32, tf.float32), batch_size = batch_size, **kwargs)
+        cls_func = lambda args, **kwargs: map_fn(cls_target, *args, dtype = (tf.float32, tf.float32, tf.float32, tf.float32), batch_size = batch_size, **kwargs)
         if mask_regress[-1] is not None:
-            mask_dtype = (y_true.dtype, bbox_true.dtype, mask_true.dtype, cls_logits[0].dtype, cls_regress[0].dtype, mask_regress[-1].dtype)
-            sampling_mask_func = lambda args, **kwargs: map_fn(sampling_postprocess, *args, dtype = mask_dtype, batch_size = batch_size, **kwargs)
-            cls_mask_func = lambda args, **kwargs: map_fn(cls_target, *args, dtype = mask_dtype, batch_size = batch_size, **kwargs)
+            sampling_mask_func = lambda args, **kwargs: map_fn(sampling_postprocess, *args, dtype = (tf.float32, tf.float32, tf.float32, tf.float32, tf.float32, tf.float32), batch_size = batch_size, **kwargs)
+            cls_mask_func = lambda args, **kwargs: map_fn(cls_target, *args, dtype = (tf.float32, tf.float32, tf.float32, tf.float32, tf.float32, tf.float32), batch_size = batch_size, **kwargs)
 
         for i, (_cls_logits, _cls_regress, _proposals, _mask_regress) in enumerate(zip(cls_logits, cls_regress, proposals[:len(cls_logits)], mask_regress)):
             if isinstance(sampling_tag, dict):
                 cls_y_true, cls_bbox_true, cls_mask_true = sampling_y_true[i], sampling_bbox_true[i], sampling_mask_true[i]
                 kwargs = {"interleaved":interleaved, "mean":cls_mean, "std":np.divide(cls_std, i + 1), "clip_ratio":cls_clip_ratio, "method":method}
                 if _mask_regress is not None:
-                    cls_y_true, cls_bbox_true, cls_mask_true, cls_y_pred, cls_bbox_pred, cls_mask_pred = tf.keras.layers.Lambda(sampling_mask_func, arguments = kwargs, name = "sampling_postprocess{0}".format(i + 1) if 1 < len(proposals) else "sampling_postprocess")([cls_y_true, cls_bbox_true, _cls_logits, _cls_regress, _proposals, cls_mask_true, _mask_regress])
+                    cls_y_true, cls_bbox_true, cls_mask_true, cls_y_pred, cls_bbox_pred, cls_mask_pred = tf.keras.layers.Lambda(sampling_mask_func, arguments = kwargs, dtype = tf.float32, name = "sampling_postprocess{0}".format(i + 1) if 1 < len(proposals) else "sampling_postprocess")([cls_y_true, cls_bbox_true, _cls_logits, _cls_regress, _proposals, cls_mask_true, _mask_regress])
                 else:
-                    cls_y_true, cls_bbox_true, cls_y_pred, cls_bbox_pred = tf.keras.layers.Lambda(sampling_func, arguments = kwargs, name = "sampling_postprocess{0}".format(i + 1) if 1 < len(proposals) else "sampling_postprocess")([cls_y_true, cls_bbox_true, _cls_logits, _cls_regress, _proposals])
+                    cls_y_true, cls_bbox_true, cls_y_pred, cls_bbox_pred = tf.keras.layers.Lambda(sampling_func, arguments = kwargs, dtype = tf.float32, name = "sampling_postprocess{0}".format(i + 1) if 1 < len(proposals) else "sampling_postprocess")([cls_y_true, cls_bbox_true, _cls_logits, _cls_regress, _proposals])
             #elif _cls_logits is not None:
             else:
                 kwargs = {"assign":cls_assign[i], "sampling_count":sampling_count, "positive_ratio":cls_positive_ratio, "interleaved":interleaved, "mean":cls_mean, "std":np.divide(cls_std, i + 1), "clip_ratio":cls_clip_ratio, "method":method}
                 if _mask_regress is not None:
-                    cls_y_true, cls_bbox_true, cls_mask_true, cls_y_pred, cls_bbox_pred, cls_mask_pred = tf.keras.layers.Lambda(cls_mask_func, arguments = kwargs, name = "cls_target{0}".format(i + 1) if 1 < len(proposals) else "cls_target")([cls_y_true, cls_bbox_true, _cls_logits, _cls_regress, _proposals, cls_mask_true, _mask_regress])
+                    cls_y_true, cls_bbox_true, cls_mask_true, cls_y_pred, cls_bbox_pred, cls_mask_pred = tf.keras.layers.Lambda(cls_mask_func, arguments = kwargs, dtype = tf.float32, name = "cls_target{0}".format(i + 1) if 1 < len(proposals) else "cls_target")([cls_y_true, cls_bbox_true, _cls_logits, _cls_regress, _proposals, cls_mask_true, _mask_regress])
                 else:
-                    cls_y_true, cls_bbox_true, cls_y_pred, cls_bbox_pred = tf.keras.layers.Lambda(cls_func, arguments = kwargs, name = "cls_target{0}".format(i + 1) if 1 < len(proposals) else "cls_target")([cls_y_true, cls_bbox_true, _cls_logits, _cls_regress, _proposals])
+                    cls_y_true, cls_bbox_true, cls_y_pred, cls_bbox_pred = tf.keras.layers.Lambda(cls_func, arguments = kwargs, dtype = tf.float32, name = "cls_target{0}".format(i + 1) if 1 < len(proposals) else "cls_target")([cls_y_true, cls_bbox_true, _cls_logits, _cls_regress, _proposals])
             
             if _cls_logits is not None:
-                cls_logits_accuracy = tf.keras.layers.Lambda(lambda args: logits_accuracy(*args, missing_value = missing_value), name = "cls_logits_accuracy{0}".format(i + 1) if 2 < len(proposals) else "cls_logits_accuracy")([cls_y_true, cls_y_pred])
+                cls_logits_accuracy = tf.keras.layers.Lambda(lambda args: logits_accuracy(*args, missing_value = missing_value), dtype = tf.float32, name = "cls_logits_accuracy{0}".format(i + 1) if 2 < len(proposals) else "cls_logits_accuracy")([cls_y_true, cls_y_pred])
                 metric["cls_logits_accuracy{0}".format(i + 1) if 2 < len(proposals) else "cls_logits_accuracy"] = cls_logits_accuracy
 
-                cls_logits_loss = tf.keras.layers.Lambda(lambda args: logits_loss(*args, loss = cls_class_loss, weight = class_weight, missing_value = missing_value), name = "cls_logits_loss{0}".format(i + 1) if 2 < len(proposals) else "cls_logits_loss")([cls_y_true, cls_y_pred])
-                cls_regress_loss = tf.keras.layers.Lambda(lambda args: regress_loss(*args, loss = cls_bbox_loss, missing_value = missing_value), name = "cls_regress_loss{0}".format(i + 1) if 2 < len(proposals) else "cls_regress_loss")([cls_y_true, cls_bbox_true, cls_bbox_pred])
+                cls_logits_loss = tf.keras.layers.Lambda(lambda args: logits_loss(*args, loss = cls_class_loss, weight = class_weight, missing_value = missing_value), dtype = tf.float32, name = "cls_logits_loss{0}".format(i + 1) if 2 < len(proposals) else "cls_logits_loss")([cls_y_true, cls_y_pred])
+                cls_regress_loss = tf.keras.layers.Lambda(lambda args: regress_loss(*args, loss = cls_bbox_loss, missing_value = missing_value), dtype = tf.float32, name = "cls_regress_loss{0}".format(i + 1) if 2 < len(proposals) else "cls_regress_loss")([cls_y_true, cls_bbox_true, cls_bbox_pred])
                 loss["cls_logits_loss{0}".format(i + 1) if 2 < len(proposals) else "cls_logits_loss"] = cls_logits_loss * stage_weight[i]
                 loss["cls_regress_loss{0}".format(i + 1) if 2 < len(proposals) else "cls_regress_loss"] = cls_regress_loss * stage_weight[i]
             
             if _mask_regress is not None:
                 mask_index = i + 1 if mask_regress[0] is not None else i
-                _cls_mask_loss = tf.keras.layers.Lambda(lambda args: mask_loss(*args, loss = cls_mask_loss, missing_value = missing_value), name = "cls_mask_loss{0}".format(mask_index) if 2 < len(proposals) else "cls_mask_loss")([cls_y_true, cls_mask_true, cls_mask_pred])
+                _cls_mask_loss = tf.keras.layers.Lambda(lambda args: mask_loss(*args, loss = cls_mask_loss, missing_value = missing_value), dtype = tf.float32, name = "cls_mask_loss{0}".format(mask_index) if 2 < len(proposals) else "cls_mask_loss")([cls_y_true, cls_mask_true, cls_mask_pred])
                 loss["cls_mask_loss{0}".format(mask_index) if 2 < len(proposals) else "cls_mask_loss"] = _cls_mask_loss * stage_weight[i]
 
         if semantic_regress is not None:
-            _semantic_loss = tf.keras.layers.Lambda(lambda args: semantic_loss_func(*args, method = method, weight = class_weight, missing_value = missing_value), name = "semantic_loss")([y_true, mask_true, semantic_regress])
+            _semantic_loss = tf.keras.layers.Lambda(lambda args: semantic_loss_func(*args, method = method, weight = class_weight, missing_value = missing_value), dtype = tf.float32, name = "semantic_loss")([y_true, mask_true, semantic_regress])
             loss["semantic_loss"] = _semantic_loss * semantic_weight
     
     metric = {k:tf.expand_dims(v, axis = -1) for k, v in metric.items()}
@@ -158,7 +156,7 @@ def train_model(input, rpn_score = None, rpn_regress = None, anchors = None, cls
 
     input = [input] + [l for l in [y_true, bbox_true, mask_true] if l is not None]
     output = FilterDetection(proposal_count = proposal_count, iou_threshold = iou_threshold, score_threshold = score_threshold, soft_nms = soft_nms, ensemble = ensemble, valid = valid, ignore_label = ignore_label, performance_count = performance_count,
-                             batch_size = batch_size, mean = cls_mean, std = cls_std, clip_ratio = cls_clip_ratio)(args)
+                             batch_size = batch_size, mean = cls_mean, std = cls_std, clip_ratio = cls_clip_ratio, dtype = tf.float32)(args)
     model = tf.keras.Model(input, list(output))
 
     for k, v in list(metric.items()) + list(loss.items()):
@@ -168,5 +166,5 @@ def train_model(input, rpn_score = None, rpn_regress = None, anchors = None, cls
         model.add_loss(v)
 
     if regularize:
-        model.add_loss(lambda: tf.reduce_sum(regularize_loss(model, weight_decay), keepdims = True, name = "regularize_loss"))
+        model.add_loss(lambda: tf.cast(tf.reduce_sum(regularize_loss(model, weight_decay), keepdims = True, name = "regularize_loss"), tf.float32))
     return model

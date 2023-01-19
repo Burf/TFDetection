@@ -22,17 +22,19 @@ class RegionProposalNetwork(tf.keras.layers.Layer):
 
         self.score_reshape = tf.keras.layers.Reshape((-1, 1), name = "score")
         self.delta = tf.keras.layers.Reshape((-1, 4), name = "delta")
+        self.score_act = tf.keras.layers.Activation(tf.keras.activations.sigmoid, dtype = tf.float32, name = "score_act")
+        self.delta_act = tf.keras.layers.Activation(tf.keras.activations.linear, dtype = tf.float32, name = "delta_act")
 
     def build(self, input_shape):
         if not isinstance(input_shape, list):
             input_shape = [input_shape]
         if self.feature_share:
             self.feature = [self.convolution(self.n_feature, 3, padding = "same", use_bias = False, activation = self.activation, name = "shared_feature_conv")] * len(input_shape)
-            self.score = [self.convolution(self.n_anchor, 1, use_bias = self.use_bias, activation = tf.keras.activations.sigmoid, name = "shared_score_conv")] * len(input_shape)
+            self.score = [self.convolution(self.n_anchor, 1, use_bias = self.use_bias, name = "shared_score_conv")] * len(input_shape)
             self.regress = [self.convolution(self.n_anchor * 4, 1, use_bias = self.use_bias, name = "shared_regress_conv")] * len(input_shape)
         else:
             self.feature = [self.convolution(self.n_feature, 3, padding = "same", use_bias = False, activation = self.activation, name = "feature_conv{0}".format(index + 1)) for index in range(len(input_shape))]
-            self.score = [self.convolution(self.n_anchor, 1, use_bias = self.use_bias, activation = tf.keras.activations.sigmoid, name = "score_conv{0}".format(index + 1)) for index in range(len(input_shape))]
+            self.score = [self.convolution(self.n_anchor, 1, use_bias = self.use_bias, name = "score_conv{0}".format(index + 1)) for index in range(len(input_shape))]
             self.regress = [self.convolution(self.n_anchor * 4, 1, use_bias = self.use_bias, name = "regress_conv{0}".format(index + 1)) for index in range(len(input_shape))]
         if self.normalize is not None:
             self.norm = [self.normalize(name = "feature_norm{0}".format(index + 1)) for index in range(len(input_shape))]
@@ -50,10 +52,8 @@ class RegionProposalNetwork(tf.keras.layers.Layer):
             feature = self.feature[i](x)
             if self.normalize is not None:
                 feature = self.norm[i](feature)
-            score = self.score[i](feature)
-            regress = self.regress[i](feature)
-            score = self.score_reshape(score)
-            delta = self.delta(regress)
+            score = self.score_reshape(self.score[i](feature))
+            delta = self.delta(self.regress[i](feature))
             out.append([score, delta])
         out = list(zip(*out))
         if len(out[0]) == 1:
@@ -61,6 +61,8 @@ class RegionProposalNetwork(tf.keras.layers.Layer):
         else:
             out[0] = self.score_concat(out[0])
             out[1] = self.delta_concat(out[1])
+        out[0] = self.score_act(out[0])
+        out[1] = self.delta_act(out[1])
         return out
     
     def get_config(self):
@@ -72,7 +74,8 @@ class RegionProposalNetwork(tf.keras.layers.Layer):
         return config
     
 class Rpn2Proposal(tf.keras.layers.Layer):
-    def __init__(self, proposal_count = 1000, iou_threshold = 0.7, soft_nms = False, valid = False, performance_count = 5000, batch_size = 1, mean = [0., 0., 0., 0.], std = [1., 1., 1., 1.], clip_ratio = 16 / 1000, **kwargs):
+    def __init__(self, proposal_count = 1000, iou_threshold = 0.7, soft_nms = False, valid = False, performance_count = 5000, batch_size = 1, mean = [0., 0., 0., 0.], std = [1., 1., 1., 1.], clip_ratio = 16 / 1000, dtype = tf.float32, **kwargs):
+        kwargs["dtype"] = dtype
         super(Rpn2Proposal, self).__init__(**kwargs)   
         self.proposal_count = proposal_count
         self.iou_threshold = iou_threshold
@@ -117,7 +120,7 @@ class Rpn2Proposal(tf.keras.layers.Layer):
         proposals = tf.concat([y1, x1, y2, x2], axis = -1)
 
         # NMS
-        proposals = map_fn(pad_nms, proposals, rpn_score, dtype = rpn_score.dtype, batch_size = self.batch_size, 
+        proposals = map_fn(pad_nms, proposals, rpn_score, dtype = self.dtype, batch_size = self.batch_size, 
                            proposal_count = self.proposal_count, iou_threshold = self.iou_threshold, soft_nms = self.soft_nms)
         proposals = tf.reshape(proposals, [-1, self.proposal_count, 4])
 
@@ -141,7 +144,8 @@ class Rpn2Proposal(tf.keras.layers.Layer):
         return config
 
 class RoiAlign(tf.keras.layers.Layer):
-    def __init__(self, pool_size = 7, method = "bilinear", batch_size = 1, **kwargs):
+    def __init__(self, pool_size = 7, method = "bilinear", batch_size = 1, dtype = tf.float32, **kwargs):
+        kwargs["dtype"] = dtype
         super(RoiAlign, self).__init__(**kwargs)
         self.pool_size = pool_size
         self.method = method
@@ -151,7 +155,7 @@ class RoiAlign(tf.keras.layers.Layer):
         proposals, feature = inputs
         if not isinstance(feature, (tuple, list)):
             feature = [feature]
-        out = map_fn(roi_align, proposals, *feature, dtype = proposals.dtype, batch_size = self.batch_size, image_shape = image_shape, pool_size = self.pool_size, method = self.method)
+        out = map_fn(roi_align, proposals, *feature, dtype = self.dtype, batch_size = self.batch_size, image_shape = image_shape, pool_size = self.pool_size, method = self.method)
         return out
     
     def get_config(self):
@@ -179,9 +183,11 @@ class RoiClassifier(tf.keras.layers.Layer):
             self.norm2 = tf.keras.layers.TimeDistributed(self.normalize(), name = "feature_norm")
         self.act2 = tf.keras.layers.Activation(activation, name = "feature_act")
         self.feature = tf.keras.layers.Reshape([-1, n_feature], name = "shared_feature")
-        self.logits = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(n_class, activation = tf.keras.activations.softmax), name = "logits")
+        self.logits = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(n_class), name = "logits")
         self.regress = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(n_class * 4), name = "regress")
         self.delta = tf.keras.layers.Reshape([-1, n_class, 4], name = "delta")
+        self.logits_act = tf.keras.layers.TimeDistributed(tf.keras.layers.Activation(tf.keras.activations.softmax, dtype = tf.float32), name = "logits_act")
+        self.delta_act = tf.keras.layers.TimeDistributed(tf.keras.layers.Activation(tf.keras.activations.linear, dtype = tf.float32), name = "delta_act")
 
     def build(self, input_shape):
         self.conv1 = tf.keras.layers.TimeDistributed(self.convolution(self.n_feature, input_shape[-3:-1], padding = "valid", use_bias = True), name = "pooling_conv")
@@ -194,9 +200,10 @@ class RoiClassifier(tf.keras.layers.Layer):
                 out = layer(out)
         out = self.feature(out)
         logits = self.logits(out)
-        regress = self.regress(out)
-        regress = self.delta(regress)
-        return logits, regress
+        delta = self.delta(self.regress(out))
+        logits = self.logits_act(logits)
+        delta = self.delta_act(delta)
+        return logits, delta
     
     def get_config(self):
         config = super(RoiClassifier, self).get_config()
@@ -221,7 +228,8 @@ class RoiMask(tf.keras.layers.Layer):
                 self.layers.append(tf.keras.layers.TimeDistributed(self.normalize(), name = "feature_norm{0}".format(index + 1)))
             self.layers.append(tf.keras.layers.Activation(activation, name = "feature_act{0}".format(index + 1)))
         self.deconv = tf.keras.layers.TimeDistributed(tf.keras.layers.Conv2DTranspose(256, (2, 2), strides = 2, activation = activation, kernel_initializer = "he_normal"), name = "deconv")
-        self.mask = tf.keras.layers.TimeDistributed(self.convolution(n_class, 1, activation = tf.keras.activations.sigmoid), name = "mask")
+        self.mask = tf.keras.layers.TimeDistributed(self.convolution(n_class, 1), name = "mask")
+        self.mask_act = tf.keras.layers.TimeDistributed(tf.keras.layers.Activation(tf.keras.activations.sigmoid, dtype = tf.float32), name = "mask_act")
         
     def build(self, input_shape):
         if isinstance(input_shape, list):
@@ -236,7 +244,7 @@ class RoiMask(tf.keras.layers.Layer):
         for layer in self.layers:
             out = layer(out)
         deconv = self.deconv(out)
-        mask = self.mask(deconv)
+        mask = self.mask_act(self.mask(deconv))
         if feature:
             return mask, out  
         else:
@@ -251,10 +259,11 @@ class RoiMask(tf.keras.layers.Layer):
 
 def classifier2proposal(cls_logit, cls_regress, proposal, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000):
     sampling_count = tf.shape(proposal)[0]
-    valid_indices = tf.where(0 < tf.reduce_max(proposal, axis = -1))
-    cls_logit = tf.gather_nd(cls_logit, valid_indices)
-    cls_regress = tf.gather_nd(cls_regress, valid_indices)
-    proposal = tf.gather_nd(proposal, valid_indices)
+    #valid_indices = tf.where(0 < tf.reduce_max(proposal, axis = -1))[:, 0]
+    valid_indices = tf.where(tf.reduce_any(tf.greater(proposal, 0), axis = -1))[:, 0]
+    cls_logit = tf.gather(cls_logit, valid_indices)
+    cls_regress = tf.gather(cls_regress, valid_indices)
+    proposal = tf.gather(proposal, valid_indices)
 
     logit_indices = tf.argmax(cls_logit, axis = -1, output_type = tf.int32)
     indices = tf.stack([tf.range(tf.shape(cls_logit)[0]), logit_indices], axis = -1)
@@ -269,7 +278,8 @@ def classifier2proposal(cls_logit, cls_regress, proposal, mean = [0., 0., 0., 0.
     return proposal
 
 class Classifier2Proposal(tf.keras.layers.Layer):
-    def __init__(self, batch_size = 1, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, **kwargs):
+    def __init__(self, batch_size = 1, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, dtype = tf.float32, **kwargs):
+        kwargs["dtype"] = dtype
         super(Classifier2Proposal, self).__init__(**kwargs)
         self.batch_size = batch_size
         self.mean = mean
@@ -278,7 +288,7 @@ class Classifier2Proposal(tf.keras.layers.Layer):
 
     def call(self, inputs):
         cls_logits, cls_regress, proposals = inputs[:3]
-        out = map_fn(classifier2proposal, cls_logits, cls_regress, proposals, dtype = proposals.dtype, batch_size = self.batch_size, mean = self.mean, std = self.std, clip_ratio = self.clip_ratio)
+        out = map_fn(classifier2proposal, cls_logits, cls_regress, proposals, dtype = self.dtype, batch_size = self.batch_size, mean = self.mean, std = self.std, clip_ratio = self.clip_ratio)
         out = tf.stop_gradient(out)
         return out
     
@@ -330,7 +340,8 @@ class FusedSemanticHead(tf.keras.layers.Layer):
             self.embed.append(self.normalize(axis = -1, name = "embed_norm"))
         self.embed.append(tf.keras.layers.Activation(self.activation, name = "embed_act"))
             
-        self.logits = tf.keras.layers.Conv2D(self.n_class, 1, use_bias = True, activation = self.logits_activation, kernel_initializer = "he_normal", name = "logits")
+        self.logits = tf.keras.layers.Conv2D(self.n_class, 1, use_bias = True, kernel_initializer = "he_normal", name = "logits")
+        self.logits_act = tf.keras.layers.Activation(self.logits_activation if self.logits_activation is not None else tf.keras.activations.linear, dtype = tf.float32, name = "logits_act")
         
     def call(self, inputs, level = 1, feature = False):
         if not isinstance(inputs, list):
@@ -349,7 +360,7 @@ class FusedSemanticHead(tf.keras.layers.Layer):
         for layer in self.convs:
             out = layer(out)
             
-        logits = self.logits(out)
+        logits = self.logits_act(self.logits(out))
         if feature:
             for layer in self.embed:
                 out = layer(out)
@@ -389,7 +400,7 @@ def rpn_head(feature, image_shape = [1024, 1024],
     if (len(feature) % len(scale)) == 0:
         n_anchor = len(scale[0]) * len(ratio)
     score, regress = RegionProposalNetwork(n_anchor, n_feature = n_feature, use_bias = use_bias, feature_share = feature_share, convolution = convolution, normalize = normalize, activation = activation, name = "region_proposal_network")(feature)
-    anchors = generate_anchors(feature, image_shape, scale, ratio, normalize = True, auto_scale = True, dtype = score.dtype)
+    anchors = generate_anchors(feature, image_shape, scale, ratio, normalize = True, auto_scale = True, dtype = tf.float32)
     return score, regress, anchors
 
 def rcnn_head(feature, proposals, mask_feature = None, semantic_feature = None,
@@ -407,10 +418,10 @@ def rcnn_head(feature, proposals, mask_feature = None, semantic_feature = None,
         feature = [feature]
     feature = list(feature)
     
-    roi_extractor = RoiAlign(pool_size, method)
+    roi_extractor = RoiAlign(pool_size, method, dtype = tf.float32)
     roi = roi_extractor([proposals, feature], image_shape)
     if semantic_feature is not None:
-        semantic_roi_extractor = RoiAlign(semantic_pool_size, method)
+        semantic_roi_extractor = RoiAlign(semantic_pool_size, method, dtype = tf.float32)
         semantic_roi = semantic_roi_extractor([proposals, semantic_feature], image_shape)
         if pool_size != semantic_pool_size:
             semantic_roi = tf.keras.layers.TimeDistributed(tf.keras.layers.Lambda(lambda args: tf.image.resize(args, [pool_size, pool_size], method = method)))(semantic_roi)

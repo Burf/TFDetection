@@ -27,9 +27,9 @@ class ClassNet(tf.keras.layers.Layer):
         self.acts = [tf.keras.layers.Activation(self.activation, name = "depth{0}_act".format(i + 1)) for i in range(self.n_depth)]
         self.head = self.convolution(self.n_anchor * self.n_class, 3, padding = "same", name = "head")
         self.reshape = tf.keras.layers.Reshape([-1, self.n_class], name = "head_reshape")
-        self.act = tf.keras.layers.Activation(tf.keras.activations.sigmoid, name = "logits")
         if self.concat and 1 < len(input_shape):
             self.post = tf.keras.layers.Concatenate(axis = -2, name = "logits_concat")
+        self.act = tf.keras.layers.Activation(tf.keras.activations.sigmoid, dtype = tf.float32, name = "logits")
 
     def call(self, inputs, feature = False):
         if not isinstance(inputs, list):
@@ -43,12 +43,16 @@ class ClassNet(tf.keras.layers.Layer):
                     x = self.norms[i][j](x)
                 x = self.acts[i](x)
             features.append(x)
-            x = self.act(self.reshape(self.head(x)))
+            x = self.reshape(self.head(x))
             out.append(x)
         if len(out) == 1:
             out = out[0]
         elif self.concat:
             out = self.post(out)
+        if isinstance(out, list):
+            out = [self.act(o) for o in out]
+        else:
+            out = self.act(out)
         if feature:
             out = [out, features]
         return out
@@ -82,9 +86,9 @@ class BoxNet(tf.keras.layers.Layer):
         self.acts = [tf.keras.layers.Activation(self.activation, name = "depth{0}_act".format(i + 1)) for i in range(self.n_depth)]
         self.head = self.convolution(self.n_anchor * 4, 3, padding = "same", name = "head")
         self.reshape = tf.keras.layers.Reshape([-1, 4], name = "regress")
-
         if self.concat and 1 < len(input_shape):
             self.post = tf.keras.layers.Concatenate(axis = -2, name = "regress_concat")
+        self.act = tf.keras.layers.Activation(tf.keras.activations.linear, dtype = tf.float32, name = "regress_act")
 
     def call(self, inputs, feature = False):
         if not isinstance(inputs, list):
@@ -104,6 +108,10 @@ class BoxNet(tf.keras.layers.Layer):
             out = out[0]
         elif self.concat:
             out = self.post(out)
+        if isinstance(out, list):
+            out = [self.act(o) for o in out]
+        else:
+            out = self.act(out)
         if feature:
             out = [out, features]
         return out
@@ -140,7 +148,7 @@ def retina_head(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 2
         n_anchor = len(scale[0]) * len(ratio)
     logits = ClassNet(n_anchor, n_class, n_feature, n_depth, convolution = convolution, normalize = normalize, activation = activation, name = "class_net")(feature)
     regress = BoxNet(n_anchor, n_feature, n_depth, convolution = convolution, normalize = normalize, activation = activation, name = "box_net")(feature)
-    anchors = generate_anchors(feature, image_shape, scale, ratio, normalize = True, auto_scale = True, dtype = logits.dtype)
+    anchors = generate_anchors(feature, image_shape, scale, ratio, normalize = True, auto_scale = True, dtype = tf.float32)
 
     #valid_flags = tf.logical_and(tf.less_equal(anchors[..., 2], 1),
     #                             tf.logical_and(tf.less_equal(anchors[..., 3], 1),

@@ -15,13 +15,13 @@ def rpn_target(bbox_true, rpn_score, rpn_regress, anchors, assign = rpn_assign, 
     rpn_score = score for FG/BG #(num_anchors, 1)
     rpn_regress = rpn regress #(num_anchors, delta)
     anchors = [[x1, y1, x2, y2], ...] #(num_anchors, bbox)
-
     y_true = -1 : negative / 0 : neutral / 1 : positive #(sampling_count, 1)
     box_true = [[x1, y1, x2, y2], ...] #(sampling_count, delta)
     y_pred = -1 : negative / 0 : neutral / 1 : positive #(sampling_count, 1)
     bbox_pred = [[x1, y1, x2, y2], ...] #(sampling_count, delta)
     """
-    valid_indices = tf.where(0 < tf.reduce_max(bbox_true, axis = -1))[:, 0]
+    #valid_indices = tf.where(0 < tf.reduce_max(bbox_true, axis = -1))[:, 0]
+    valid_indices = tf.where(tf.reduce_any(tf.greater(bbox_true, 0), axis = -1))[:, 0]
     bbox_true = tf.gather(bbox_true, valid_indices)
     if valid:
         valid_flags = tf.logical_and(tf.less_equal(anchors[..., 2], 1),
@@ -73,7 +73,6 @@ def sampling_target(y_true, bbox_true, proposal, mask_true = None, assign = cls_
     bbox_true = [[x1, y1, x2, y2], ...] #(padded_num_true, bbox)
     mask_true = mask #(padded_num_true, h, w, 1)
     proposal = [[x1, y1, x2, y2], ...] #(num_proposals, bbox)
-
     y_true = targeted label #(sampling_count, 1 or num_class) 
     bbox_true = [[x1, y1, x2, y2], ...] #(sampling_count, bbox)
     mask_true = targeted mask true #(sampling_count, h, w, 1)
@@ -84,10 +83,12 @@ def sampling_target(y_true, bbox_true, proposal, mask_true = None, assign = cls_
             mask_true = tf.expand_dims(mask_true, axis = -1)
             
     pred_count = tf.shape(proposal)[0]
-    valid_true_indices = tf.where(0 < tf.reduce_max(bbox_true, axis = -1))[:, 0]
+    #valid_true_indices = tf.where(0 < tf.reduce_max(bbox_true, axis = -1))[:, 0]
+    valid_true_indices = tf.where(tf.reduce_any(tf.greater(bbox_true, 0), axis = -1))[:, 0]
     y_true = tf.gather(y_true, valid_true_indices)
     bbox_true = tf.gather(bbox_true, valid_true_indices)
-    valid_pred_indices = tf.where(0 < tf.reduce_max(proposal, axis = -1))[:, 0]
+    #valid_pred_indices = tf.where(0 < tf.reduce_max(proposal, axis = -1))[:, 0]
+    valid_pred_indices = tf.where(tf.reduce_any(tf.greater(proposal, 0), axis = -1))[:, 0]
     proposal = tf.gather(proposal, valid_pred_indices)
     if mask_true is not None:
         mask_true = tf.gather(mask_true, valid_true_indices)
@@ -133,8 +134,10 @@ def sampling_postprocess(y_true, bbox_true, cls_logits, cls_regress, proposal, m
             mask_true = tf.expand_dims(mask_true, axis = -1)
 
     sampling_count = tf.shape(proposal)[0]
-    positive_indices = tf.where(0 < tf.reduce_max(bbox_true, axis = -1))[:, 0]
-    pred_indices = tf.where(0 < tf.reduce_max(proposal, axis = -1))[:, 0]
+    #positive_indices = tf.where(0 < tf.reduce_max(bbox_true, axis = -1))[:, 0]
+    positive_indices = tf.where(tf.reduce_any(tf.greater(bbox_true, 0), axis = -1))[:, 0]
+    #pred_indices = tf.where(0 < tf.reduce_max(proposal, axis = -1))[:, 0]
+    pred_indices = tf.where(tf.reduce_any(tf.greater(proposal, 0), axis = -1))[:, 0]
     y_true = tf.gather(y_true, positive_indices)
     bbox_true = tf.gather(bbox_true, positive_indices)
     y_pred = tf.gather(cls_logits, pred_indices)
@@ -159,7 +162,8 @@ def sampling_postprocess(y_true, bbox_true, cls_logits, cls_regress, proposal, m
             x1, y1, x2, y2 = tf.split(proposal, 4, axis = -1)
             mask_bbox = tf.concat([y1, x1, y2, x2], axis = -1)
             mask_shape = tf.shape(mask_pred)
-            mask_true = tf.image.crop_and_resize(image = tf.cast(mask_true, mask_pred.dtype), boxes = mask_bbox, box_indices = tf.range(0, positive_count), crop_size = mask_shape[1:3], method = method)
+            mask_true = tf.image.crop_and_resize(image = tf.cast(mask_true, tf.float32), boxes = tf.cast(mask_bbox, tf.float32), box_indices = tf.range(0, positive_count), crop_size = mask_shape[1:3], method = method)
+            mask_true = tf.cast(mask_true, mask_pred.dtype)
             mask_true = tf.clip_by_value(tf.round(mask_true), 0., 1.)
             mask_pred = tf.transpose(mask_pred, [0, 3, 1, 2])
             mask_pred = tf.gather(mask_pred, indices, batch_dims = 1)
@@ -192,7 +196,6 @@ def cls_target(y_true, bbox_true, cls_logit, cls_regress, proposal, mask_true = 
     cls_regress = classifier regress #(num_proposals, num_class, delta)
     mask_regress = mask regress #(num_proposals, h, w, num_class)
     proposal = [[x1, y1, x2, y2], ...] #(num_proposals, bbox)
-
     y_true = targeted label #(sampling_count, 1 or num_class) 
     bbox_true = [[x1, y1, x2, y2], ...] #(sampling_count, delta)
     mask_true = targeted mask true #(sampling_count, h, w, 1)
@@ -205,10 +208,12 @@ def cls_target(y_true, bbox_true, cls_logit, cls_regress, proposal, mask_true = 
             mask_true = tf.expand_dims(mask_true, axis = -1)
     
     pred_count = tf.shape(proposal)[0]
-    valid_true_indices = tf.where(0 < tf.reduce_max(bbox_true, axis = -1))[:, 0]
+    #valid_true_indices = tf.where(0 < tf.reduce_max(bbox_true, axis = -1))[:, 0]
+    valid_true_indices = tf.where(tf.reduce_any(tf.greater(bbox_true, 0), axis = -1))[:, 0]
     y_true = tf.gather(y_true, valid_true_indices)
     bbox_true = tf.gather(bbox_true, valid_true_indices)
-    valid_pred_indices = tf.where(0 < tf.reduce_max(proposal, axis = -1))[:, 0]
+    #valid_pred_indices = tf.where(0 < tf.reduce_max(proposal, axis = -1))[:, 0]
+    valid_pred_indices = tf.where(tf.reduce_any(tf.greater(proposal, 0), axis = -1))[:, 0]
     cls_logit = tf.gather(cls_logit, valid_pred_indices)
     cls_regress = tf.gather(cls_regress, valid_pred_indices)
     proposal = tf.gather(proposal, valid_pred_indices)
@@ -255,7 +260,8 @@ def cls_target(y_true, bbox_true, cls_logit, cls_regress, proposal, mask_true = 
             x1, y1, x2, y2 = tf.split(proposal, 4, axis = -1)
             mask_bbox = tf.concat([y1, x1, y2, x2], axis = -1)
             mask_shape = tf.shape(mask_pred)
-            mask_true = tf.image.crop_and_resize(image = tf.cast(mask_true, mask_pred.dtype), boxes = mask_bbox, box_indices = tf.range(0, tf.cast(positive_count, tf.int32)), crop_size = mask_shape[1:3], method = method)
+            mask_true = tf.image.crop_and_resize(image = tf.cast(mask_true, tf.float32), boxes = tf.cast(mask_bbox, tf.float32), box_indices = tf.range(0, tf.cast(positive_count, tf.int32)), crop_size = mask_shape[1:3], method = method)
+            mask_true = tf.cast(mask_true, mask_pred.dtype)
             mask_true = tf.clip_by_value(tf.round(mask_true), 0., 1.)
             mask_pred = tf.transpose(mask_pred, [0, 3, 1, 2])
             mask_pred = tf.gather(mask_pred, indices, batch_dims = 1)

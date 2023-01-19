@@ -14,7 +14,8 @@ def fcos_target(y_true, bbox_true, y_pred, bbox_pred, points, regress_range, cen
     centerness_pred = classifier centerness(heat map) #(num_points, 1)
     """
     pred_count = tf.shape(points)[0]
-    valid_indices = tf.where(0 < tf.reduce_max(bbox_true, axis = -1))[:, 0]
+    #valid_indices = tf.where(0 < tf.reduce_max(bbox_true, axis = -1))[:, 0]
+    valid_indices = tf.where(tf.reduce_any(tf.greater(bbox_true, 0), axis = -1))[:, 0]
     y_true = tf.gather(y_true, valid_indices)
     bbox_true = tf.gather(bbox_true, valid_indices)
     

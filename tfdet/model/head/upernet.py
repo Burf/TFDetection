@@ -48,5 +48,7 @@ def upernet_head(feature, n_class = 35, n_feature = 512, pool_scale = [1, 2, 3, 
     if normalize is not None:
         out = normalize(name = "head_norm")(out)
     out = tf.keras.layers.Activation(activation, name = "head_act")(out)
-    out = convolution(n_class, 1, use_bias = True, activation = logits_activation, name = "logits")(out)
+                                                                    
+    out = convolution(n_class, 1, use_bias = True, name = "logits")(out)
+    out = tf.keras.layers.Activation(logits_activation if logits_activation is not None else tf.keras.activations.linear, dtype = tf.float32, name = "logits_act")(out)
     return out

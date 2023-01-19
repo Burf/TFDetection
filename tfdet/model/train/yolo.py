@@ -24,18 +24,18 @@ def train_model(input, score, logits, regress, anchors,
                 batch_size = 1, clip_ratio = 16 / 1000, 
                 score_loss = binary_cross_entropy, class_loss = binary_cross_entropy, bbox_loss = giou_loss, regularize = True, weight_decay = 1e-4, 
                 class_weight = None, threshold = 0.5, missing_value = 0.):
-    y_true = tf.keras.layers.Input(shape = (None, None), name = "y_true", dtype = score.dtype)
-    bbox_true = tf.keras.layers.Input(shape = (None, 4), name = "bbox_true", dtype = regress.dtype)
+    y_true = tf.keras.layers.Input(shape = (None, None), name = "y_true")
+    bbox_true = tf.keras.layers.Input(shape = (None, 4), name = "bbox_true")
     
     tile_anchors = tf.tile(tf.expand_dims(anchors, axis = 0), [tf.shape(input)[0], 1, 1])
-    score_true, logits_true, _bbox_true, score_pred, logits_pred, bbox_pred = tf.keras.layers.Lambda(lambda args: map_fn(yolo_target, *args, dtype = (tf.int32, y_true.dtype, bbox_true.dtype, score.dtype, logits.dtype, regress.dtype), batch_size = batch_size, 
-                                                                                                                         assign = assign, sampling_count = sampling_count, positive_ratio = positive_ratio, valid = valid, clip_ratio = clip_ratio), name = "yolo_target")([y_true, bbox_true, score, logits, regress, tile_anchors])
+    score_true, logits_true, _bbox_true, score_pred, logits_pred, bbox_pred = tf.keras.layers.Lambda(lambda args: map_fn(yolo_target, *args, dtype = (tf.int32, tf.float32, tf.float32, tf.float32, tf.float32, tf.float32), batch_size = batch_size, 
+                                                                                                                         assign = assign, sampling_count = sampling_count, positive_ratio = positive_ratio, valid = valid, clip_ratio = clip_ratio), dtype = tf.float32, name = "yolo_target")([y_true, bbox_true, score, logits, regress, tile_anchors])
     
-    _score_accuracy = tf.keras.layers.Lambda(lambda args: score_accuracy(*args, threshold = threshold, missing_value = missing_value), name = "score_accuracy")([score_true, score_pred])
-    _logits_accuracy = tf.keras.layers.Lambda(lambda args: logits_accuracy(*args, missing_value = missing_value), name = "logits_accuracy")([score_true, logits_true, logits_pred])
-    _score_loss = tf.keras.layers.Lambda(lambda args: score_loss_func(*args, loss = score_loss, missing_value = missing_value), name = "score_loss")([score_true, score_pred])
-    _logits_loss = tf.keras.layers.Lambda(lambda args: logits_loss(*args, loss = class_loss, weight = class_weight, missing_value = missing_value), name = "logits_loss")([score_true, logits_true, logits_pred])
-    _regress_loss = tf.keras.layers.Lambda(lambda args: regress_loss(*args, loss = bbox_loss, missing_value = missing_value), name = "regress_loss")([score_true, _bbox_true, bbox_pred])
+    _score_accuracy = tf.keras.layers.Lambda(lambda args: score_accuracy(*args, threshold = threshold, missing_value = missing_value), dtype = tf.float32, name = "score_accuracy")([score_true, score_pred])
+    _logits_accuracy = tf.keras.layers.Lambda(lambda args: logits_accuracy(*args, missing_value = missing_value), dtype = tf.float32, name = "logits_accuracy")([score_true, logits_true, logits_pred])
+    _score_loss = tf.keras.layers.Lambda(lambda args: score_loss_func(*args, loss = score_loss, missing_value = missing_value), dtype = tf.float32, name = "score_loss")([score_true, score_pred])
+    _logits_loss = tf.keras.layers.Lambda(lambda args: logits_loss(*args, loss = class_loss, weight = class_weight, missing_value = missing_value), dtype = tf.float32, name = "logits_loss")([score_true, logits_true, logits_pred])
+    _regress_loss = tf.keras.layers.Lambda(lambda args: regress_loss(*args, loss = bbox_loss, missing_value = missing_value), dtype = tf.float32, name = "regress_loss")([score_true, _bbox_true, bbox_pred])
     
     _score_accuracy = tf.expand_dims(_score_accuracy, axis = -1)
     _logits_accuracy = tf.expand_dims(_logits_accuracy, axis = -1)
@@ -45,7 +45,7 @@ def train_model(input, score, logits, regress, anchors,
     
     
     y_pred, bbox_pred = FilterDetection(proposal_count = proposal_count, iou_threshold = iou_threshold, score_threshold = score_threshold, soft_nms = soft_nms, valid = valid, ignore_label = ignore_label, performance_count = performance_count,
-                                        batch_size = batch_size, clip_ratio = clip_ratio)([score, logits, regress, anchors])
+                                        batch_size = batch_size, clip_ratio = clip_ratio, dtype = tf.float32)([score, logits, regress, anchors])
     model = tf.keras.Model([input, y_true, bbox_true], [y_pred, bbox_pred])
     
     model.add_metric(_score_accuracy, name = "score_accuracy", aggregation = "mean")
@@ -58,5 +58,5 @@ def train_model(input, score, logits, regress, anchors,
     model.add_loss(_regress_loss)
     
     if regularize:
-        model.add_loss(lambda: tf.reduce_sum(regularize_loss(model, weight_decay), keepdims = True, name = "regularize_loss"))
+        model.add_loss(lambda: tf.cast(tf.reduce_sum(regularize_loss(model, weight_decay), keepdims = True, name = "regularize_loss"), tf.float32))
     return model

@@ -6,8 +6,9 @@ from tfdet.core.util import map_fn, multiclass_nms
 
 class FilterDetection(tf.keras.layers.Layer):
     def __init__(self, proposal_count = 100, iou_threshold = 0.5, score_threshold = 0.05, soft_nms = False, ensemble = True, valid = False, ignore_label = 0, performance_count = 5000,
-                 batch_size = 1, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000,
+                 batch_size = 1, mean = [0., 0., 0., 0.], std = [0.1, 0.1, 0.2, 0.2], clip_ratio = 16 / 1000, dtype = tf.float32,
                  tensorrt = False, **kwargs):
+        kwargs["dtype"] = dtype
         super(FilterDetection, self).__init__(**kwargs)
         self.proposal_count = proposal_count
         self.iou_threshold = iou_threshold
@@ -52,9 +53,9 @@ class FilterDetection(tf.keras.layers.Layer):
             if not self.tensorrt:
                 proposals = tf.tile(tf.expand_dims(proposals, axis = 0), [tf.shape(cls_logits)[0], 1, 1])
         
-        dtype = (cls_logits.dtype, cls_regress.dtype)
+        dtype = (self.dtype, self.dtype)
         if mask_regress is not None:
-            dtype += (mask_regress.dtype,)
+            dtype += (self.dtype,)
         args = [l for l in [cls_logits, cls_regress, proposals, mask_regress] if l is not None]
         if not self.tensorrt:
             out = map_fn(multiclass_nms, *args, dtype = dtype, batch_size = self.batch_size, 

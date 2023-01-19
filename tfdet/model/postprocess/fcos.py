@@ -5,8 +5,9 @@ from tfdet.core.util import map_fn, multiclass_nms
 
 class FilterDetection(tf.keras.layers.Layer):
     def __init__(self, proposal_count = 100, iou_threshold = 0.5, score_threshold = 0.05, soft_nms = False, ignore_label = 0, performance_count = 5000, 
-                 batch_size = 1,
+                 batch_size = 1, dtype = tf.float32,
                  tensorrt = False, **kwargs):
+        kwargs["dtype"] = dtype
         super(FilterDetection, self).__init__(**kwargs)
         self.proposal_count = proposal_count
         self.iou_threshold = iou_threshold
@@ -33,7 +34,7 @@ class FilterDetection(tf.keras.layers.Layer):
             
         if not self.tensorrt:
             points = tf.tile(tf.expand_dims(points, axis = 0), [tf.shape(logits)[0], 1, 1])
-            out = map_fn(multiclass_nms, logits, regress, points, dtype = (logits.dtype, regress.dtype), batch_size = self.batch_size,
+            out = map_fn(multiclass_nms, logits, regress, points, dtype = (self.dtype, self.dtype), batch_size = self.batch_size,
                          proposal_count = self.proposal_count, soft_nms = self.soft_nms, iou_threshold = self.iou_threshold, score_threshold = self.score_threshold, ignore_label = self.ignore_label, performance_count = self.performance_count, coder_func = offset2bbox)
         else:
             regress = offset2bbox(points, regress)

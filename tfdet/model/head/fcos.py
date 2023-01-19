@@ -24,9 +24,9 @@ class CenternessNet(tf.keras.layers.Layer):
         if self.normalize is not None:
             self.layers.append(self.normalize(name = "norm"))
         self.layers.append(tf.keras.layers.Reshape([-1, 1], name = "reshape"))
-        self.layers.append(tf.keras.layers.Activation(self.activation, name = "logits"))
         if self.concat and 1 < len(input_shape):
             self.post = tf.keras.layers.Concatenate(axis = -2, name = "logits_concat")
+        self.act = tf.keras.layers.Activation(self.activation, dtype = tf.float32, name = "logits")
 
     def call(self, inputs):
         if not isinstance(inputs, list):
@@ -40,6 +40,10 @@ class CenternessNet(tf.keras.layers.Layer):
             out = out[0]
         elif self.concat:
             out = self.post(out)
+        if isinstance(out, list):
+            out = [self.act(o) for o in out]
+        else:
+            out = self.act(out)
         return out
     
     def get_config(self):
@@ -90,10 +94,10 @@ def fcos_head(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256
     n_anchor = 1
     logits, logits_feature = ClassNet(n_anchor, n_class, n_feature, n_depth, convolution = convolution, normalize = normalize, activation = activation, concat = False, name = "class_net")(feature, feature = True)
     regress = BoxNet(n_anchor, n_feature, n_depth, convolution = convolution, normalize = normalize, activation = activation, concat = False, name = "box_net")(feature)
-    regress = Scale(1., name = "box_net_with_scale_factor")(regress)
+    regress = Scale(1., dtype = tf.float32, name = "box_net_with_scale_factor")(regress)
     if not isinstance(regress, list):
         regress = [regress]
-    act = tf.keras.layers.Activation(tf.exp, name = "box_net_exp_with_scale_factor")
+    act = tf.keras.layers.Activation(tf.exp, dtype = tf.float32, name = "box_net_exp_with_scale_factor")
     regress = [act(r) for r in regress]
     if len(regress) == 1:
         regress = regress[0]
@@ -101,6 +105,6 @@ def fcos_head(feature, n_class = 21, image_shape = [1024, 1024], n_feature = 256
         centerness = CenternessNet(n_anchor, concat = False, convolution = centerness_convolution, normalize = centerness_normalize, activation = centerness_activation, name = "centerness_net")(logits_feature)
     else:
         centerness = None
-    points = generate_points(feature, image_shape, stride = None, normalize = True, concat = False, dtype = logits[0].dtype if isinstance(logits, list) else logits.dtype) #stride = None > Auto Stride (ex: level 3~5 + pooling 6~7 > [8, 16, 32, 64, 128], level 2~5 + pooling 6 > [4, 8, 16, 32, 64])
+    points = generate_points(feature, image_shape, stride = None, normalize = True, concat = False, dtype = tf.float32) #stride = None > Auto Stride (ex: level 3~5 + pooling 6~7 > [8, 16, 32, 64, 128], level 2~5 + pooling 6 > [4, 8, 16, 32, 64])
     result = [r for r in [logits, regress, points, centerness] if r is not None]
     return result

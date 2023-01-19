@@ -23,16 +23,16 @@ def bbox2delta(bbox_true, bbox_pred, mean = [0., 0., 0., 0.], std = [1., 1., 1.,
 
     delta = tf.stack([x, y, w, h], axis = -1)
     if mean is not None:
-        delta = delta - mean
+        delta = delta - tf.cast(mean, delta.dtype)
     if std is not None:
         delta = delta / tf.maximum(tf.cast(std, delta.dtype), tf.keras.backend.epsilon())
     return delta
 
 def delta2bbox(bbox, delta, mean = [0., 0., 0., 0.], std = [1., 1., 1., 1.], clip_ratio = 16 / 1000):
     if std is not None:
-        delta = delta * std
+        delta = delta * tf.cast(std, delta.dtype)
     if mean is not None:
-        delta = delta + mean
+        delta = delta + tf.cast(mean, delta.dtype)
     h = bbox[..., 3] - bbox[..., 1]
     w = bbox[..., 2] - bbox[..., 0]
     center_x = bbox[..., 0] + 0.5 * w
@@ -43,6 +43,7 @@ def delta2bbox(bbox, delta, mean = [0., 0., 0., 0.], std = [1., 1., 1., 1.], cli
     delta_w = delta[..., 2]
     if isinstance(clip_ratio, float):
         clip_value = np.abs(np.log(clip_ratio))
+        clip_value = tf.cast(clip_value, delta_h.dtype)
         delta_h = tf.clip_by_value(delta_h, -clip_value, clip_value)
         delta_w = tf.clip_by_value(delta_w, -clip_value, clip_value)
     h *= tf.exp(delta_h)
@@ -63,6 +64,7 @@ def yolo2bbox(bbox, delta, clip_ratio = 16 / 1000):
     delta_w = delta[..., 2]
     if isinstance(clip_ratio, float):
         clip_value = np.abs(np.log(clip_ratio))
+        clip_value = tf.cast(clip_value, delta_h.dtype)
         delta_h = tf.clip_by_value(delta_h, -clip_value, clip_value)
         delta_w = tf.clip_by_value(delta_w, -clip_value, clip_value)
     h *= tf.exp(delta_h)

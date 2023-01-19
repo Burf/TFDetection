@@ -11,7 +11,9 @@ def anchor_target(y_true, bbox_true, y_pred, bbox_pred, anchors, assign = max_io
     bbox_pred = classifier regress #(num_anchors, delta)
     anchors = [[x1, y1, x2, y2], ...] #(num_anchors, bbox)
     """
-    valid_indices = tf.where(0 < tf.reduce_max(bbox_true, axis = -1))[:, 0]
+    #valid_indices = tf.where(0 < tf.reduce_max(bbox_true, axis = -1))[:, 0]
+    valid_indices = tf.where(tf.reduce_any(tf.greater(bbox_true, 0), axis = -1))[:, 0]
+    
     y_true = tf.gather(y_true, valid_indices)
     bbox_true = tf.gather(bbox_true, valid_indices)
     if valid:

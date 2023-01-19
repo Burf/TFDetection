@@ -46,7 +46,9 @@ def unet_head(x, n_class = 35, n_feature = 64, n_depth = 5, method = "bilinear",
         if normalize is not None:
             out = normalize(name = "upsample{0}_norm2".format(index + 1))(out)
         out = tf.keras.layers.Activation(activation, name = "upsample{0}_act2".format(index + 1))(out)
-    out = convolution(n_class, 1, padding = "same", use_bias = True, activation = logits_activation, name = "logits")(out)
+    
+    out = convolution(n_class, 1, padding = "same", use_bias = True, name = "logits")(out)
+    out = tf.keras.layers.Activation(logits_activation if logits_activation is not None else tf.keras.activations.linear, dtype = tf.float32, name = "logits_act")(out)
     return out
 
 def unet_2plus_head(feature, n_class = 35, n_feature = 256, deep_supervision = False, method = "bilinear", logits_activation = tf.keras.activations.sigmoid, convolution = conv, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu):
@@ -72,7 +74,9 @@ def unet_2plus_head(feature, n_class = 35, n_feature = 256, deep_supervision = F
         out = out[1:]
     else:
         out = out[-1:]
-    out = [convolution(n_class, 3, padding = "same", activation = logits_activation, name = "logits{0}".format(i) if 1 < len(out) else "logits")(o) for i, o in enumerate(out)]
+    out = [convolution(n_class, 3, padding = "same", name = "logits{0}".format(i) if 1 < len(out) else "logits")(o) for i, o in enumerate(out)]
+    act = tf.keras.layers.Activation(logits_activation if logits_activation is not None else tf.keras.activations.linear, dtype = tf.float32, name = "logits_act")
+    out = [act(o) for o in out]
     if len(out) == 1:
         out = out[0]
     return out

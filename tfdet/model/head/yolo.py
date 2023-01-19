@@ -32,10 +32,11 @@ def yolo_classifier(x, n_class, n_feature, n_anchor = 3, feature_share = True, n
         logits = tf.keras.layers.Reshape((-1, n_class))(logits)
         regress = tf.keras.layers.Reshape((-1, 4))(regress)
     xy, wh = tf.split(regress, num_or_size_splits = [2, 2], axis = -1)
-    xy = tf.keras.layers.Activation(tf.keras.activations.sigmoid)(xy)
-    score = tf.keras.layers.Activation(tf.keras.activations.sigmoid)(score)
-    logits = tf.keras.layers.Activation(tf.keras.activations.sigmoid)(logits)
+    xy = tf.keras.layers.Activation(tf.keras.activations.sigmoid, dtype = tf.float32)(xy)
+    score = tf.keras.layers.Activation(tf.keras.activations.sigmoid, dtype = tf.float32)(score)
+    logits = tf.keras.layers.Activation(tf.keras.activations.sigmoid, dtype = tf.float32)(logits)
     regress = tf.keras.layers.Concatenate(axis = -1)([xy, wh])
+    regress = tf.keras.layers.Activation(tf.keras.activations.linear, dtype = tf.float32)(regress)
     return score, logits, regress
 
 def yolo_head(feature, n_class = 80, image_shape = [608, 608],
@@ -108,8 +109,8 @@ def yolo_head(feature, n_class = 80, image_shape = [608, 608],
                     out = tf.keras.layers.Concatenate(axis = -1)([out, feature[-(index + 2)]])
             result = result[::-1]
     result = list(zip(*result))
-    score, logits, regress = [tf.keras.layers.Concatenate(axis = 1)(r) for r in result]
-    anchors = generate_yolo_anchors(feature, image_shape, size, normalize = True, auto_size = True, dtype = logits.dtype)
+    score, logits, regress = [tf.keras.layers.Concatenate(axis = 1, dtype = tf.float32)(r) for r in result]
+    anchors = generate_yolo_anchors(feature, image_shape, size, normalize = True, auto_size = True, dtype = tf.float32)
     
     #valid_flags = tf.logical_and(tf.less_equal(anchors[..., 2], 1),
     #                             tf.logical_and(tf.less_equal(anchors[..., 3], 1),
@@ -128,14 +129,14 @@ def yolo_v3_head(feature, n_class = 80, image_shape = [608, 608], size = [[ 10, 
                                                                           [116, 90], [156, 198], [373, 326]],
                  feature_share = True, method = "nearest",
                  normalize = tf.keras.layers.BatchNormalization, activation = mish, post_activation = leaky_relu):
-    score, logits, regress, anchors = yolo_head(feature, n_class = n_class, image_shape = image_shape, size = size, tiny = False, csp = False, feature_share = feature_share, method = method)
+    score, logits, regress, anchors = yolo_head(feature, n_class = n_class, image_shape = image_shape, size = size, tiny = False, csp = False, feature_share = feature_share, method = method, normalize = normalize, activation = activation, post_activation = post_activation)
     return score, logits, regress, anchors
 
 def yolo_tiny_v3_head(feature, n_class = 80, image_shape = [416, 416], size = [[23, 27], [ 37,  58], [ 81,  82],
                                                                                [81, 82], [135, 169], [344, 319]],
                       feature_share = True, method = "nearest",
                       normalize = tf.keras.layers.BatchNormalization, activation = mish, post_activation = leaky_relu):
-    score, logits, regress, anchors = yolo_head(feature, n_class = n_class, image_shape = image_shape, size = size, tiny = True, csp = False, feature_share = feature_share, method = method)
+    score, logits, regress, anchors = yolo_head(feature, n_class = n_class, image_shape = image_shape, size = size, tiny = True, csp = False, feature_share = feature_share, method = method, normalize = normalize, activation = activation, post_activation = post_activation)
     return score, logits, regress, anchors
 
 def yolo_v4_head(feature, n_class = 80, image_shape = [608, 608], size = [[ 10, 13], [ 16,  30], [ 33,  23],
@@ -143,13 +144,13 @@ def yolo_v4_head(feature, n_class = 80, image_shape = [608, 608], size = [[ 10, 
                                                                           [116, 90], [156, 198], [373, 326]],
                  feature_share = True, method = "nearest",
                  normalize = tf.keras.layers.BatchNormalization, activation = mish, post_activation = leaky_relu):
-    score, logits, regress, anchors = yolo_head(feature, n_class = n_class, image_shape = image_shape, size = size, tiny = False, csp = True, feature_share = feature_share, method = method)
+    score, logits, regress, anchors = yolo_head(feature, n_class = n_class, image_shape = image_shape, size = size, tiny = False, csp = True, feature_share = feature_share, method = method, normalize = normalize, activation = activation, post_activation = post_activation)
     return score, logits, regress, anchors
 
 def yolo_tiny_v4_head(feature, n_class = 80, image_shape = [416, 416], size = [[23, 27], [ 37,  58], [ 81,  82],
                                                                                [81, 82], [135, 169], [344, 319]],
                       feature_share = True, method = "nearest",
                       normalize = tf.keras.layers.BatchNormalization, activation = mish, post_activation = leaky_relu):
-    score, logits, regress, anchors = yolo_head(feature, n_class = n_class, image_shape = image_shape, size = size, tiny = True, csp = True, feature_share = feature_share, method = method)
+    score, logits, regress, anchors = yolo_head(feature, n_class = n_class, image_shape = image_shape, size = size, tiny = True, csp = True, feature_share = feature_share, method = method, normalize = normalize, activation = activation, post_activation = post_activation)
     return score, logits, regress, anchors
 

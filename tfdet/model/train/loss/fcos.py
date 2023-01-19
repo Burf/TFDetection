@@ -3,7 +3,10 @@ import tensorflow as tf
 from tfdet.core.loss import binary_cross_entropy, focal_binary_cross_entropy, iou
 from .retina import classnet_accuracy, classnet_loss as _classnet_loss, boxnet_loss as _boxnet_loss
 
-def classnet_loss(y_true, y_pred, loss = focal_binary_cross_entropy, weight = None, background = False, missing_value = 0.):
+def focal_loss(y_true, y_pred, alpha = .25, gamma = 2., weight = None, reduce = True):
+    return focal_binary_cross_entropy(y_true, y_pred, alpha = alpha, gamma = gamma, weight = weight, reduce = reduce)
+
+def classnet_loss(y_true, y_pred, loss = focal_loss, weight = None, background = False, missing_value = 0.):
     return _classnet_loss(y_true, y_pred, loss = loss, weight = weight, background = background, missing_value = missing_value)
     
 def boxnet_loss(y_true, bbox_true, bbox_pred, loss = iou, missing_value = 0.):
@@ -26,5 +29,5 @@ def centernessnet_loss(y_true, centerness_true, centerness_pred, loss = binary_c
     
     _loss = loss(centerness_true, centerness_pred, reduce = False)
     _loss = tf.reduce_mean(_loss)
-    _loss = tf.where(tf.math.is_nan(_loss), missing_value, _loss)
+    _loss = tf.where(tf.math.is_nan(_loss), tf.cast(missing_value, _loss.dtype), _loss)
     return _loss

@@ -45,16 +45,16 @@ def rcnn(feature, neck = neck, rpn_head = rpn_head, bbox_head = bbox_head, mask_
         feature = neck(name = "neck")(feature)
     
     rpn_score, rpn_regress, anchors = rpn_head(feature)
-    proposals = Rpn2Proposal(proposal_count, iou_threshold = iou_threshold, soft_nms = soft_nms, valid = valid, performance_count = performance_count, batch_size = batch_size, mean = rpn_mean, std = rpn_std, clip_ratio = rpn_clip_ratio, name = "proposals")([rpn_score, rpn_regress], anchors)
+    proposals = Rpn2Proposal(proposal_count, iou_threshold = iou_threshold, soft_nms = soft_nms, valid = valid, performance_count = performance_count, batch_size = batch_size, mean = rpn_mean, std = rpn_std, clip_ratio = rpn_clip_ratio, dtype = tf.float32, name = "proposals")([rpn_score, rpn_regress], anchors)
     
     sampling_tag = None
     if isinstance(sampling_count, int) and 0 < sampling_count:
-        sampling_y_true = y_true = tf.keras.layers.Input(shape = (None, None), name = "y_true", dtype = rpn_score.dtype) #(batch_size, padded_num_true, 1 or n_class)
-        sampling_bbox_true = bbox_true = tf.keras.layers.Input(shape = (None, 4), name = "bbox_true", dtype = rpn_regress.dtype) #(batch_size, padded_num_true, 4)
-        sampling_mask_true = mask_true = tf.keras.layers.Input(shape = (None, None, None, 1), name = "mask_true", dtype = rpn_score.dtype) if mask_head is not None or semantic_head is not None else None #(batch_size, padded_num_true, h, w)
+        sampling_y_true = y_true = tf.keras.layers.Input(shape = (None, None), name = "y_true") #(batch_size, padded_num_true, 1 or n_class)
+        sampling_bbox_true = bbox_true = tf.keras.layers.Input(shape = (None, 4), name = "bbox_true") #(batch_size, padded_num_true, 4)
+        sampling_mask_true = mask_true = tf.keras.layers.Input(shape = (None, None, None, 1), name = "mask_true") if mask_head is not None or semantic_head is not None else None #(batch_size, padded_num_true, h, w)
         
-        sampling_func = lambda args, **kwarg: map_fn(sampling_target, *args, dtype = (sampling_y_true.dtype, sampling_bbox_true.dtype, sampling_bbox_true.dtype), batch_size = batch_size, **kwargs)
-        sampling_mask_func = lambda args, **kwarg: map_fn(sampling_target, *args, dtype = (sampling_y_true.dtype, sampling_bbox_true.dtype, sampling_mask_true.dtype, sampling_bbox_true.dtype), batch_size = batch_size, **kwargs)
+        sampling_func = lambda args, **kwarg: map_fn(sampling_target, *args, dtype = (tf.float32, tf.float32, tf.float32), batch_size = batch_size, **kwargs)
+        sampling_mask_func = lambda args, **kwarg: map_fn(sampling_target, *args, dtype = (tf.float32, tf.float32, tf.float32, tf.float32), batch_size = batch_size, **kwargs)
         sampling_tag = {"sampling_assign":sampling_assign, "sampling_count":sampling_count, "positive_ratio":sampling_positive_ratio, 
                         "y_true":y_true, "bbox_true":bbox_true, "mask_true":mask_true, "sampling_y_true":[], "sampling_bbox_true":[], "sampling_mask_true":[]}
     
@@ -69,9 +69,9 @@ def rcnn(feature, neck = neck, rpn_head = rpn_head, bbox_head = bbox_head, mask_
         if sampling_tag is not None:
             kwargs = {"assign":sampling_assign[stage if stage < len(sampling_assign) else stage - 1], "sampling_count":sampling_count, "positive_ratio":sampling_positive_ratio}
             if mask_head:
-                sampling_y_true, sampling_bbox_true, sampling_mask_true, _proposals = tf.keras.layers.Lambda(sampling_mask_func, arguments = kwargs, name = "sampling_target_{0}".format(stage + 1))([sampling_y_true, sampling_bbox_true, _proposals, sampling_mask_true])
+                sampling_y_true, sampling_bbox_true, sampling_mask_true, _proposals = tf.keras.layers.Lambda(sampling_mask_func, arguments = kwargs, dtype = tf.float32, name = "sampling_target_{0}".format(stage + 1))([sampling_y_true, sampling_bbox_true, _proposals, sampling_mask_true])
             else:
-                sampling_y_true, sampling_bbox_true, _proposals = tf.keras.layers.Lambda(sampling_func, arguments = kwargs, name = "sampling_target_{0}".format(stage + 1))([sampling_y_true, sampling_bbox_true, _proposals])
+                sampling_y_true, sampling_bbox_true, _proposals = tf.keras.layers.Lambda(sampling_func, arguments = kwargs, dtype = tf.float32, name = "sampling_target_{0}".format(stage + 1))([sampling_y_true, sampling_bbox_true, _proposals])
             sampling_tag["sampling_y_true"].append(sampling_y_true)
             sampling_tag["sampling_bbox_true"].append(sampling_bbox_true)
             sampling_tag["sampling_mask_true"].append(sampling_mask_true)
@@ -82,7 +82,7 @@ def rcnn(feature, neck = neck, rpn_head = rpn_head, bbox_head = bbox_head, mask_
         cls_regress.append(_cls_regress)
         
         if (stage + 1) < (n_stage + int(mask_head is not None and interleaved)):
-            out = Classifier2Proposal(batch_size, cls_mean, np.divide(cls_std, stage + 1), cls_clip_ratio, name = "proposals_{0}".format(stage + 2))([cls_logits[-1], cls_regress[-1], proposals[-1]])
+            out = Classifier2Proposal(batch_size, mean = cls_mean, std = np.divide(cls_std, stage + 1), clip_ratio = cls_clip_ratio, dtype = tf.float32, name = "proposals_{0}".format(stage + 2))([cls_logits[-1], cls_regress[-1], proposals[-1]])
             if interleaved:
                 _proposals = out
             proposals.append(out)
