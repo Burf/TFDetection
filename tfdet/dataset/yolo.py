@@ -65,7 +65,8 @@ class YoloDataset(Dataset):
         else:
             args = self.old_get(index)
         args = (args,) if not isinstance(args, tuple) else args
-        return compose(*args, transform = [load, functools.partial(resize, image_shape = self.image_shape, keep_ratio = self.keep_ratio, method = self.method)])
+        return dict_function(self.keys)([load, 
+                                         functools.partial(resize, image_shape = self.image_shape, keep_ratio = self.keep_ratio, method = self.method)])(*args)
         
     def get(self, index, transform = None, preprocess = True):
         if transform is not None and preprocess:
@@ -103,46 +104,62 @@ class YoloDataset(Dataset):
                 store = {k:v for k, v in zip(unique_indices, args)}
                 
                 args = self.stack(*[store[i] for i in base_indices])
-                args = compose(*args, transform = [base_mosaic_func, 
-                                                   random_perspective_func, 
-                                                   #filter_annotation_func,
-                                                  ])
+                args = dict_function(self.keys)([base_mosaic_func, 
+                                                 random_perspective_func, 
+                                                 #filter_annotation_func,
+                                                ])(*args)
                 args = (args,) if not isinstance(args, tuple) else args
                 
                 if mix:
                     sample_args = self.stack(*[store[i] for i in mix_indices])
-                    sample_args = compose(*sample_args, transform = [base_mosaic_func, 
-                                                                     random_perspective_func, 
-                                                                     #filter_annotation_func,
-                                                                    ])
+                    sample_args = dict_function(self.keys)([mix_mosaic_func, 
+                                                            random_perspective_func, 
+                                                            #filter_annotation_func,
+                                                           ])(*sample_args)
                     sample_args = (sample_args,) if not isinstance(sample_args, tuple) else sample_args
                     args = self.stack(args, sample_args)
-                    args = mix_up(*args)
+                    #args = mix_up(*args)
+                    args = dict_function(self.keys)(mix_up)(*args)
                     args = (args,) if not isinstance(args, tuple) else args
                 del store
             else:
                 args = self.load_image(index)
                 args = (args,) if not isinstance(args, tuple) else args
-                args = compose(*args, transform = [functools.partial(pad, image_shape = self.image_shape, max_pad_size = 0, pad_val = self.pad_val),
-                                                   random_perspective_func,
-                                                   #filter_annotation_func,
-                                                  ])
+                args = dict_function(self.keys)([functools.partial(pad, image_shape = self.image_shape, max_pad_size = 0, pad_val = self.pad_val),
+                                                 random_perspective_func,
+                                                 #filter_annotation_func,
+                                                ])(*args)
                 args = (args,) if not isinstance(args, tuple) else args
                 
-            args = compose(*args, transform = [filter_annotation_func,
-                                               functools.partial(yolo_hsv, h = self.h, s = self.s, v = self.v)])
+            args = dict_function(self.keys)([filter_annotation_func,
+                                             functools.partial(yolo_hsv, h = self.h, s = self.s, v = self.v)])(*args)
             args = (args,) if not isinstance(args, tuple) else args
             
-            if np.random.random() < self.p_copy_paste and 2 < len(args):
+            if np.random.random() < self.p_copy_paste and ((isinstance(args[0], dict) and 1 < len(args[0])) or not (isinstance(args[0], dict) and 1 < len(args))):
                 cp_indices = np.random.choice(self.indices, 4, replace = True)
                 sample_args = [(index, self.load_image(index)) for index in np.unique(cp_indices)]
                 unique_indices = [arg[0] for arg in sample_args]
                 sample_args = [(arg[1],) if not isinstance(arg[1], tuple) else arg[1] for arg in sample_args]
                 store = {k:v for k, v in zip(unique_indices, sample_args)}
-                
+
                 sample_args = [store[i] for i in cp_indices]
                 for _ in range(10):
-                    if self.max_paste_count <= np.sum([len(s[1]) for s in sample_args]):
+                    object_count = 0
+                    if isinstance(args[0], dict):
+                        for s in sample_args:
+                            if "bbox_true" in s[0]:
+                                object_count += len(s[0]["bbox_true"])
+                            elif "mask_true" in s[0] and 3 < np.ndim(s[0]["mask_true"]):
+                                object_count += len(s[0]["mask_true"])
+                            elif "y_true" in s[0] and np.ndim(s[0]["y_true"]) == 2:
+                                object_count += len(s[0]["y_true"])
+                    else:
+                        for s in sample_args:
+                            for ss in s[1:]:
+                                if np.ndim(ss) in [2, 4]:
+                                    object_count += len(ss)
+                                    break
+                    if self.max_paste_count <= object_count:
                         break
                     index = np.random.choice(self.indices, 1, replace = True)[0]
                     sample_args2 = store[index] if index in store else self.load_image(index)
@@ -150,13 +167,29 @@ class YoloDataset(Dataset):
                     sample_args.append(sample_args2)
                     if index not in store:
                         store[index] = sample_args2
-                if 0 < np.sum([len(s[1]) for s in sample_args]):
+                object_count = 0
+                if isinstance(args[0], dict):
+                    for s in sample_args:
+                        if "bbox_true" in s[0]:
+                            object_count += len(s[0]["bbox_true"])
+                        elif "mask_true" in s[0] and 3 < np.ndim(s[0]["mask_true"]):
+                            object_count += len(s[0]["mask_true"])
+                        elif "y_true" in s[0] and np.ndim(s[0]["y_true"]) == 2:
+                            object_count += len(s[0]["y_true"])
+                else:
+                    for s in sample_args:
+                        for ss in s[1:]:
+                            if np.ndim(ss) in [2, 4]:
+                                object_count += len(ss)
+                                break
+                if 0 < object_count:
                     args = self.stack(args, *sample_args)
-                    args = copy_paste(*args,
-                                      max_paste_count = self.max_paste_count, scale_range = self.scale_range, clip_object = self.clip_object, replace = self.replace, random_count = self.random_count, label = self.label, min_scale = self.min_scale, min_instance_area = self.min_instance_area, iou_threshold = self.iou_threshold, copy_min_scale = self.copy_min_scale, copy_min_instance_area = self.copy_min_instance_area, copy_iou_threshold = self.copy_iou_threshold, p_flip = self.p_copy_paste_flip, method = self.method, 
-                                      min_area = self.min_area, min_visibility = self.min_visibility, e = self.e)
+                    args = dict_function(self.keys)(copy_paste)(*args, 
+                                                                max_paste_count = self.max_paste_count, scale_range = self.scale_range, clip_object = self.clip_object, replace = self.replace, random_count = self.random_count, label = self.label, min_scale = self.min_scale, min_instance_area = self.min_instance_area, iou_threshold = self.iou_threshold, copy_min_scale = self.copy_min_scale, copy_min_instance_area = self.copy_min_instance_area, copy_iou_threshold = self.copy_iou_threshold, p_flip = self.p_copy_paste_flip, method = self.method, 
+                                                                min_area = self.min_area, min_visibility = self.min_visibility, e = self.e)
+                    args = (args,) if not isinstance(args, tuple) else args
                 del store, sample_args
-            args = random_flip(*args, p = self.p_flip, mode = "horizontal")
+            args = dict_function(self.keys)(random_flip)(*args, p = self.p_flip, mode = "horizontal")
         args = (args,) if not isinstance(args, tuple) else args
         
         postprocess = self.postprocess if transform is None else transform

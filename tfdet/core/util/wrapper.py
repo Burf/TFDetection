@@ -14,8 +14,8 @@ def dict_function(function = None, keys = []):
             map_func = [map_func] if map_func is not None and not isinstance(map_func, (tuple, list)) else map_func #[func] or None
             return_keys = inspect.getfullargspec((map_func[0] if map_func is not None and 0 < len(map_func) else function[0])).args if len(keys) == 0 else keys
             if 0 < len(args) and isinstance(args[0], dict):
-                #args_keys = list(args[0].keys())
-                #return_keys = args_keys + [key for key in return_keys if key not in args_keys]
+                args_keys = list(args[0].keys())
+                return_keys = args_keys + [key for key in return_keys if key not in args_keys]
                 item = args[0].items()
                 return_args = False
             else:
