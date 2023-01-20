@@ -33,7 +33,7 @@ def overlap_bbox(bbox_true, bbox_pred, mode = "normal"):
         union = area_true + area_pred - inter
     else:
         union = area_true
-    iou = tf.clip_by_value((inter + tf.keras.backend.epsilon()) / (union + tf.keras.backend.epsilon()), 0, 1)
+    iou = tf.clip_by_value(inter / (union + tf.keras.backend.epsilon()), 0, 1)
     if mode in ["general", "complete", "distance"]:
         gx1 = tf.minimum(tx1, px1)
         gy1 = tf.minimum(ty1, py1)
@@ -42,7 +42,7 @@ def overlap_bbox(bbox_true, bbox_pred, mode = "normal"):
         
         if mode == "general":
             general_inter = tf.maximum(gx2 - gx1, 0) * tf.maximum(gy2 - gy1, 0)
-            iou = giou = tf.clip_by_value(iou - (general_inter - union + tf.keras.backend.epsilon()) / (general_inter + tf.keras.backend.epsilon()), 0, 1)
+            iou = giou = tf.clip_by_value(iou - (general_inter - union) / (general_inter + tf.keras.backend.epsilon()), 0, 1)
         else:
             tw = tf.maximum(tx2 - tx1, 0)
             th = tf.maximum(ty2 - ty1, 0)
@@ -55,13 +55,13 @@ def overlap_bbox(bbox_true, bbox_pred, mode = "normal"):
             c = (gx2 - gx1) ** 2 + (gy2 - gy1) ** 2
             rho = (ctx - cpx) ** 2 + (cty - cpy) ** 2
             
-            diou = tf.clip_by_value(iou - (rho + tf.keras.backend.epsilon()) / (c + tf.keras.backend.epsilon()), 0, 1)
+            diou = tf.clip_by_value(iou - rho / (c + tf.keras.backend.epsilon()), 0, 1)
             if mode == "distance": 
                 iou = diou
             else: #complete
-                v = ((tf.math.atan((pw + tf.keras.backend.epsilon()) / (ph + tf.keras.backend.epsilon()))
-                    - tf.math.atan((tw + tf.keras.backend.epsilon()) / (th + tf.keras.backend.epsilon()))) * 2 / np.pi) ** 2
-                alpha = (v + tf.keras.backend.epsilon()) / (1 - iou + v + tf.keras.backend.epsilon())
+                v = ((tf.math.atan(pw / (ph + tf.keras.backend.epsilon()))
+                    - tf.math.atan(tw / (th + tf.keras.backend.epsilon()))) * 2 / np.pi) ** 2
+                alpha = v / (1 - iou + v + tf.keras.backend.epsilon())
                 iou = ciou = tf.clip_by_value(diou - alpha * v, 0, 1)
     overlaps = tf.reshape(iou, [true_count, pred_count])
     return overlaps
@@ -124,7 +124,7 @@ def overlap_bbox_numpy(bbox_true, bbox_pred, mode = "normal", e = 1e-12):
         union = area_true + area_pred - inter
     else:
         union = area_true
-    iou = np.clip((inter + e) / (union + e), 0, 1)
+    iou = np.clip(inter / (union + e), 0, 1)
     if mode in ["general", "complete", "distance"]:
         gx1 = np.minimum(tx1, px1)
         gy1 = np.minimum(ty1, py1)
@@ -133,7 +133,7 @@ def overlap_bbox_numpy(bbox_true, bbox_pred, mode = "normal", e = 1e-12):
         
         if mode == "general":
             general_inter = np.maximum(gx2 - gx1, 0) * np.maximum(gy2 - gy1, 0)
-            iou = giou = np.clip(iou - (general_inter - union + e) / (general_inter + e), 0, 1)
+            iou = giou = np.clip(iou - (general_inter - union) / (general_inter + e), 0, 1)
         else:
             tw = np.maximum(tx2 - tx1, 0)
             th = np.maximum(ty2 - ty1, 0)
@@ -146,14 +146,14 @@ def overlap_bbox_numpy(bbox_true, bbox_pred, mode = "normal", e = 1e-12):
             c = (gx2 - gx1) ** 2 + (gy2 - gy1) ** 2
             rho = (ctx - cpx) ** 2 + (cty - cpy) ** 2
             
-            diou = np.clip(iou - (rho + e) / (c + e), 0, 1)
+            diou = np.clip(iou - rho / (c + e), 0, 1)
             if mode == "distance": 
                 iou = diou
             else: #complete
                 atan = np.vectorize(np.math.atan)
-                v = ((atan((pw + e) / (ph + e))
-                    - atan((tw + e) / (th + e))) * 2 / np.pi) ** 2
-                alpha = (v + e) / (1 - iou + v + e)
+                v = ((atan(pw / (ph + e))
+                    - atan(tw / (th + e))) * 2 / np.pi) ** 2
+                alpha = v / (1 - iou + v + e)
                 iou = ciou = np.clip(diou - alpha * v, 0, 1)
     overlaps = np.reshape(iou, [true_count, pred_count])
     return overlaps

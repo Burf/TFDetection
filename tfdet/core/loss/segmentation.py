@@ -13,7 +13,7 @@ def dice(y_true, y_pred, smooth = 1., weight = None, reduce = True):
     axis = tf.range(tf.rank(y_true))[1:-1]
     inter = tf.reduce_sum(y_true * y_pred, axis = axis)
     total = tf.reduce_sum(y_true + y_pred, axis = axis)
-    score = (2 * inter + smooth + tf.keras.backend.epsilon()) / (total + smooth + tf.keras.backend.epsilon())
+    score = (2 * inter + smooth) / (total + smooth + tf.keras.backend.epsilon())
     loss = 1 - score
     if weight is not None:
         loss *= weight
@@ -47,7 +47,7 @@ def tversky(y_true, y_pred, smooth = 1., alpha = 0.5, beta = 0.5, weight = None,
     FP = tf.reduce_sum(y_true * (1 - y_pred), axis = axis)
     FN = tf.reduce_sum((1 - y_true) * y_pred, axis = axis)
 
-    score = (TP + smooth + tf.keras.backend.epsilon()) / (TP + alpha * FP + beta * FN + smooth + tf.keras.backend.epsilon())
+    score = (TP + smooth) / (TP + alpha * FP + beta * FN + smooth + tf.keras.backend.epsilon())
     loss = 1 - score
     if weight is not None:
         loss *= weight
@@ -79,7 +79,7 @@ def iou_pixcel(y_true, y_pred, smooth = 1., weight = None, reduce = True):
     total = tf.reduce_sum(y_true + y_pred, axis = axis)
     union = total - inter
 
-    iou = (inter + smooth + tf.keras.backend.epsilon()) / (union + smooth + tf.keras.backend.epsilon())
+    iou = (inter + smooth) / (union + smooth + tf.keras.backend.epsilon())
     loss = 1 - iou
     if weight is not None:
         loss *= weight
@@ -102,7 +102,7 @@ def generalized_dice(y_true, y_pred, smooth = 1, weight = None, reduce = True):
     numerator = w * tf.reduce_sum(y_true * y_pred, axis = axis)
     denominator = w * tf.reduce_sum(y_true + y_pred, axis = axis)
     
-    score = (2 * numerator + smooth + tf.keras.backend.epsilon()) / (denominator + smooth + tf.keras.backend.epsilon())
+    score = (2 * numerator + smooth) / (denominator + smooth + tf.keras.backend.epsilon())
     loss = 1 - score
     if weight is not None:
         loss *= weight
