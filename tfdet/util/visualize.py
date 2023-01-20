@@ -15,18 +15,23 @@ def draw_bbox(x_true, bbox_true, y_true = None, mask_true = None, label = None, 
     result = []
     for batch_index in range(len(x_true)):
         image = np.array(x_true[batch_index])
-        bbox = np.array(bbox_true[batch_index])
+        bbox = bbox_true[batch_index]
+        bbox = np.array(bbox) if not isinstance(bbox, np.ndarray) else bbox
         h, w = np.shape(image)[:2]
         size = int(max(h, w) / 500 * size_ratio)
         font_size = max(h, w) / 1250 * size_ratio
-        normalize_flag = np.max(image) <= 1
+        #normalize_flag = np.max(image) <= 1
+        normalize_flag = image.dtype != np.uint8
         y_color = (1, 1, 1) if normalize_flag else (255, 255, 255)
         
-        valid_indices = np.where(0 < np.max(bbox, axis = -1))
+        #valid_indices = np.where(0 < np.max(bbox, axis = -1))[0]
+        valid_indices = np.where(np.any(0 < bbox, axis = -1))[0]
         bbox = bbox[valid_indices]
-        mask = np.array(mask_true[batch_index])[valid_indices] if mask_true is not None else None
+        mask = mask_true[batch_index] if mask_true is not None else None
+        mask = (np.array(mask) if not isinstance(mask, np.ndarray) else mask)[valid_indices] if mask is not None else None
         if y_true is not None:
-            y = np.array(y_true[batch_index])[valid_indices]
+            y = y_true[batch_index]
+            y = (np.array(y) if not isinstance(y, np.ndarray) else y)[valid_indices]
             if np.shape(y)[-1] != 1:
                 y_index = np.argmax(y, axis = -1)
                 score = np.max(y, axis = -1)
