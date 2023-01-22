@@ -6,6 +6,7 @@ from multiprocessing.pool import ThreadPool
 import numpy as np
 import tensorflow as tf
 
+from tfdet.builder import build_transform
 from tfdet.core.util import dict_function, py_func, pipeline
 from tfdet.dataset.util import save_pickle, load_pickle
 
@@ -26,12 +27,18 @@ class Dataset:
     def __init__(self, *args, transform = None, preprocess = None, shuffle = False, cache = None, keys = ["x_true", "y_true", "bbox_true", "mask_true"]):
         """
         args > x_true, y_true, bbox_true, mask_true(optional) style args or custom args(should change keys) or dataset
+        transform or preprocess > {'name':transform name or func, **kwargs} or transform name or func #find module in tfdet.dataset.transform and map kwargs.
+                                  kwargs["sample_size"] > Covnert transform into multi_transform.(If transform doesn't need sample_size.)
         
         <example>
         1. basic
         > dataset = tfdet.dataset.Dataset(x_true, y_true, bbox_true, mask_true,
-                                          transform = [load, resize, pad,
-                                                       filter_annotation, label_encode, normalize], #post-apply transform
+                                          transform = [{"name":"load"},
+                                                       {"name":"resize", "image_shape":[512, 512]},
+                                                       {"name":"pad", "image_shape":[512, 512]},
+                                                       {"name":"filter_annotation"},
+                                                       {"name":"label_encode", "label":tfdet.dataset.coco.LABEL},
+                                                       {"name":"normalize", "mean":[123.675, 116.28, 103.53], "std":[58.395, 57.12, 57.375]}], #post-apply transform
                                           preprocess = [], #pre-apply transform
                                           shuffle = False, #when item 0 is called, shuffle indices.(Recommended by 1 GPU)
                                           cache = "dataset.cache", #save cache after preprocess
@@ -43,20 +50,26 @@ class Dataset:
                                                     mask = False, crowd = False,
                                                     cache = "coco_train.cache")
         > dataset = tfdet.dataset.Dataset(dataset,
-                                          transform = [load, resize, pad,
-                                                       filter_annotation, label_encode, normalize])
+                                          transform = [{"name":"load"},
+                                                       {"name":"resize", "image_shape":[512, 512]},
+                                                       {"name":"pad", "image_shape":[512, 512]},
+                                                       {"name":"filter_annotation"},
+                                                       {"name":"label_encode", "label":tfdet.dataset.coco.LABEL},
+                                                       {"name":"normalize", "mean":[123.675, 116.28, 103.53], "std":[58.395, 57.12, 57.375]}])
         > dataset[i] #or next(iter(dataset))
         
         3. dataset to pipe
         > pipe = tfdet.dataset.PipeLoader(dataset)
         > pipe = tfdet.dataset.pipeline.args2dict(pipe) #optional for object detection
-        > pipe = tfdet.dataset.pipeline.collect(pipe) #optional for semantic segmentation
+        > pipe = tfdet.dataset.pipeline.collect(pipe) #filtered item by key
         > pipe = tfdet.dataset.pipeline.cast(pipe)
         > pipe = tfdet.dataset.pipeline.key_map(pipe, batch_size = 16, shuffle = False, prefetch = True)
         > next(iter(dataset))
         """
         self.args = args
         
+        transform = build_transform(transform, key = "name")
+        preprocess = build_transform(preprocess, key = "name")
         self.transform = [transform] if not isinstance(transform, (list, tuple)) else transform
         self.preprocess = [preprocess] if not isinstance(preprocess, (list, tuple)) else preprocess
         self.shuffle = shuffle
@@ -156,13 +169,14 @@ class Dataset:
             if any([callable(func) for func in self.preprocess]):
                 indices = self.indices
 
-                iter_data = list(ThreadPool(8).imap(lambda index: self.get(index, transform = self.preprocess), indices))
+                iter_data = ThreadPool(8).imap(lambda index: self.get(index, transform = self.preprocess), indices)
                 try:
                     from tqdm import tqdm
                     iter_data = tqdm(iter_data, total = len(indices), desc = "Preprocessing Data")
                 except:
                     pass
-
+                
+                iter_data = list(iter_data)
                 args = self.stack(*iter_data)
                 if hasattr(iter_data, "close"):
                     iter_data.close()

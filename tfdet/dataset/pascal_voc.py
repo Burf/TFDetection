@@ -46,26 +46,34 @@ def load_dataset(path, mask = False, truncated = True, difficult = False, instan
     
     <example>
     1. all-in-one
-    > dataset = tfdet.dataset.baloon.load_dataset("./VOC2007/ImageSets/Main/train.txt",
-                                                  transform = [load, resize, pad,
-                                                               filter_annotation, label_encode, normalize]
-                                                  mask = False, truncated = True, difficult = False, instance = True,
-                                                  shuffle = False, cache = "voc2007_train.cache")
+    > dataset = tfdet.dataset.pascal_voc.load_dataset("./VOC2007/ImageSets/Main/train.txt",
+                                                      mask = False, truncated = True, difficult = False, instance = True,
+                                                      transform = [{"name":"load"},
+                                                                   {"name":"resize", "image_shape":[512, 512]},
+                                                                   {"name":"pad", "image_shape":[512, 512]},
+                                                                   {"name":"filter_annotation"},
+                                                                   {"name":"label_encode", "label":tfdet.dataset.pascal_voc.LABEL},
+                                                                   {"name":"normalize", "mean":[123.675, 116.28, 103.53], "std":[58.395, 57.12, 57.375]}]
+                                                      shuffle = False, cache = "voc2007_train.cache")
     > dataset[i] #or next(iter(dataset))
     
     2. split
-    > dataset = tfdet.dataset.baloon.load_dataset("./VOC2007/ImageSets/Main/train.txt",
-                                                  mask = False, truncated = True, difficult = False, instance = True, 
-                                                  shuffle = False, cache = "voc2007_train.cache")
+    > dataset = tfdet.dataset.pascal_voc.load_dataset("./VOC2007/ImageSets/Main/train.txt",
+                                                      mask = False, truncated = True, difficult = False, instance = True, 
+                                                      shuffle = False, cache = "voc2007_train.cache")
     > dataset = tfdet.dataset.Dataset(dataset,
-                                      transform = [load, resize, pad,
-                                                   filter_annotation, label_encode, normalize])
+                                      transform = [{"name":"load"},
+                                                   {"name":"resize", "image_shape":[512, 512]},
+                                                   {"name":"pad", "image_shape":[512, 512]},
+                                                   {"name":"filter_annotation"},
+                                                   {"name":"label_encode", "label":tfdet.dataset.pascal_voc.LABEL},
+                                                   {"name":"normalize", "mean":[123.675, 116.28, 103.53], "std":[58.395, 57.12, 57.375]}])
     > dataset[i] #or next(iter(dataset))
         
     3. dataset to pipe
     > pipe = tfdet.dataset.PipeLoader(dataset)
     > pipe = tfdet.dataset.pipeline.args2dict(pipe) #optional for object detection
-    > pipe = tfdet.dataset.pipeline.collect(pipe) #optional for semantic segmentation
+    > pipe = tfdet.dataset.pipeline.collect(pipe) #filtered item by key
     > pipe = tfdet.dataset.pipeline.cast(pipe)
     > pipe = tfdet.dataset.pipeline.key_map(pipe, batch_size = 16, shuffle = False, prefetch = True)
     > next(iter(dataset))

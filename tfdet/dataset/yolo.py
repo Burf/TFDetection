@@ -3,6 +3,7 @@ import functools
 import cv2
 import numpy as np
 
+from tfdet.builder import build_transform
 from tfdet.core.util import dict_function
 from tfdet.dataset.transform import load, resize, pad, filter_annotation, mosaic, mosaic9, mix_up, copy_paste, yolo_hsv, random_perspective, random_flip, compose
 from .dataset import Dataset
@@ -19,12 +20,16 @@ class YoloDataset(Dataset):
                  shuffle = False, cache = None):
         """
         args > x_true, y_true, bbox_true, mask_true(optional) style args or dataset
+        transform or preprocess > {'name':transform name or func, **kwargs} or transform name or func #find module in tfdet.dataset.transform and map kwargs.
+                                  kwargs["sample_size"] > Covnert transform into multi_transform.(If transform doesn't need sample_size.)
         
         <example>
         1. basic
         > dataset = tfdet.dataset.YoloDataset(x_true, y_true, bbox_true, mask_true(optional),
                                               **kwargs,
-                                              transform = [filter_annotation, label_encode, normalize], #post-apply transform
+                                              transform = [{"name":"filter_annotation"},
+                                                           {"name":"label_encode", "label":tfdet.dataset.coco.LABEL},
+                                                           {"name":"normalize", "mean":[123.675, 116.28, 103.53], "std":[58.395, 57.12, 57.375]}], #post-apply transform
                                               preprocess = [], #pre-apply transform
                                               shuffle = False, #when item 0 is called, shuffle indices.(Recommended by 1 GPU)
                                               cache = "dataset.cache", #save cache after preprocess)
@@ -36,19 +41,22 @@ class YoloDataset(Dataset):
                                                     shuffle = False, cache = "coco_train.cache")
         > dataset = tfdet.dataset.YoloDataset(dataset,
                                               **kwargs,
-                                              transform = [filter_annotation, label_encode, normalize])
+                                              transform = [{"name":"filter_annotation"},
+                                                           {"name":"label_encode", "label":tfdet.dataset.coco.LABEL},
+                                                           {"name":"normalize", "mean":[123.675, 116.28, 103.53], "std":[58.395, 57.12, 57.375]}])
         > dataset[i] #or next(iter(dataset))
         
         3. dataset to pipe
         > pipe = tfdet.dataset.PipeLoader(dataset)
         > pipe = tfdet.dataset.pipeline.args2dict(pipe) #optional for object detection
-        > pipe = tfdet.dataset.pipeline.collect(pipe) #optional for semantic segmentation
+        > pipe = tfdet.dataset.pipeline.collect(pipe) #filtered item by key
         > pipe = tfdet.dataset.pipeline.cast(pipe)
         > pipe = tfdet.dataset.pipeline.key_map(pipe, batch_size = 16, shuffle = False, prefetch = True)
         > next(iter(dataset))
         """
         super(YoloDataset, self).__init__(*args, preprocess = preprocess, shuffle = shuffle, cache = cache, keys = ["x_true", "y_true", "bbox_true", "mask_true"])
         self.old_get = super(YoloDataset, self).get
+        transform = build_transform(transform, key = "name")
         self.postprocess = [transform] if not isinstance(transform, (list, tuple)) else transform
         
         self.image_shape, self.keep_ratio, self.pad_val = image_shape, keep_ratio, pad_val
