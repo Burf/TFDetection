@@ -304,25 +304,25 @@ class EMA:
                             update_callback,
                             apply_callback])
     """
-    def __init__(self, model, decay = 0.9999, n_update = 0, ramp = 2000):
+    def __init__(self, model, decay = 0.9999, n_update = 0, ramp = 2000, init_model = None):
         self.model = model
         self.decay = ((lambda x: decay * (1 - np.exp(-x / ramp))) if isinstance(ramp, (int, float)) and ramp != 0 else (lambda x: decay))
         self.n_update = n_update
         
         self.weights = {}
         self.backup = {}
-        self.reset()
+        self.reset(init_model)
     
-    def reset(self):
+    def reset(self, model = None):
         self.weights = {}
         self.backup = {}
-        for w in self.model.trainable_weights:
+        for w in (model if isinstance(model, tf.keras.Model) else self.model).trainable_weights:
             self.weights[w.name] = np.array(w)
             
-    def update(self):
+    def update(self, model = None):
         self.n_update += 1
         decay = self.decay(self.n_update)
-        for w in self.model.trainable_weights:
+        for w in (model if isinstance(model, tf.keras.Model) else self.model).trainable_weights:
             if w.dtype.is_floating:
                 self.weights[w.name] = (1 - decay) * np.array(w) + (decay * self.weights[w.name])
 
