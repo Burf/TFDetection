@@ -36,6 +36,7 @@ class EMA(tf.keras.callbacks.Callback):
     def on_train_begin(self, logs = None):
         if self.ema is None:
             self.ema = ema_util(self.model, decay = self.decay, n_update = self.n_update, ramp = self.ramp)
+        self.ema.model = self.model
     
     def on_epoch_begin(self, epoch, logs = None):
         if self.step is not None:
