@@ -3,7 +3,7 @@ import numpy as np
 from tfdet.core.util import metric2text
 
 class MeanIoU:
-    def __init__(self, beta = 1, e = 1e-12, label = None):
+    def __init__(self, beta = 1, e = 1e-12, label = None, dtype = np.float32):
         """
         run = MeanIoU()(*args)
         batch run = self.add(*batch_args) -> self.evaluate()
@@ -11,6 +11,7 @@ class MeanIoU:
         self.beta = beta
         self.e = e
         self.label = label
+        self.dtype = dtype
         
         self.reset()
         
@@ -100,10 +101,10 @@ class MeanIoU:
         else:
             n_class = np.shape(mask_pred)[-1]
             if self.area_true is None:
-                self.area_inter = np.zeros(n_class)
-                self.area_union = np.zeros(n_class)
-                self.area_true = np.zeros(n_class)
-                self.area_pred = np.zeros(n_class)
+                self.area_inter = np.zeros(n_class, dtype = self.dtype)
+                self.area_union = np.zeros(n_class, dtype = self.dtype)
+                self.area_true = np.zeros(n_class, dtype = self.dtype)
+                self.area_pred = np.zeros(n_class, dtype = self.dtype)
 
             if 1 < np.shape(mask_true)[-1]:
                 mask_true = np.expand_dims(np.argmax(mask_true, axis = -1), axis = -1)
@@ -113,6 +114,10 @@ class MeanIoU:
             area_inter = np.histogram(inter, bins = n_class, range = (0, n_class - 1))[0]
             area_true = np.histogram(mask_true, bins = n_class, range = (0, n_class - 1))[0]
             area_pred = np.histogram(mask_pred, bins = n_class, range = (0, n_class - 1))[0]
+            if self.dtype is not None:
+                area_inter = area_inter.astype(self.dtype)
+                area_true = area_true.astype(self.dtype)
+                area_pred = area_pred.astype(self.dtype)
             area_union = area_true + area_pred - area_inter
             self.area_inter += area_inter
             self.area_union += area_union

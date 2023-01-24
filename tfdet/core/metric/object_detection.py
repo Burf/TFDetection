@@ -5,7 +5,7 @@ from tfdet.core.util import metric2text
 from ..bbox import overlap_bbox_numpy as overlap_bbox
 
 class MeanAveragePrecision:
-    def __init__(self, iou_threshold = 0.5, score_threshold = 0.05, scale_range = None, mode = "normal", e = 1e-12, postfix = False, label = None):
+    def __init__(self, iou_threshold = 0.5, score_threshold = 0.05, scale_range = None, mode = "normal", e = 1e-12, postfix = False, label = None, dtype = np.float32):
         """
         run = MeanAveragePrecision()(*args)
         batch run = self.add(*batch_args) -> self.evaluate()
@@ -23,6 +23,7 @@ class MeanAveragePrecision:
         self.e = e
         self.postfix = postfix
         self.label = label
+        self.dtype = dtype
 
         if np.ndim(scale_range) == 0:
             scale_range = [scale_range]
@@ -188,15 +189,22 @@ class MeanAveragePrecision:
             if self._num_true is None:
                 self._num_true = np.zeros((len(self.area_range), n_class, 1))
                 self._num_pred = np.zeros((len(self.area_range), n_class, 1))
+                
+            y_true = np.array(y_true, dtype = self.dtype) if not isinstance(y_true, np.ndarray) else (y_true.astype(self.dtype) if self.dtype is not None else y_true)
+            bbox_true = np.array(bbox_true, dtype = self.dtype) if not isinstance(bbox_true, np.ndarray) else (bbox_true.astype(self.dtype) if self.dtype is not None else bbox_true)
+            y_pred = np.array(y_pred, dtype = self.dtype) if not isinstance(y_pred, np.ndarray) else (y_pred.astype(self.dtype) if self.dtype is not None else y_pred)
+            bbox_pred = np.array(bbox_pred, dtype = self.dtype) if not isinstance(bbox_pred, np.ndarray) else (bbox_pred.astype(self.dtype) if self.dtype is not None else bbox_pred)
             
             if 1 < np.shape(y_true)[-1]:
                 y_true = np.expand_dims(np.argmax(y_true, axis = -1), axis = -1)
-            valid_indices = np.where(np.max(0 < bbox_true, axis = -1))
-            y_true = np.array(y_true)[valid_indices]
-            bbox_true = np.array(bbox_true)[valid_indices]
-            valid_indices = np.where(np.max(0 < bbox_pred, axis = -1))
-            y_pred = np.array(y_pred)[valid_indices]
-            bbox_pred = np.array(bbox_pred)[valid_indices]
+            #valid_indices = np.where(np.max(0 < bbox_true, axis = -1))
+            valid_indices = np.where(np.any(0 < bbox_true, axis = -1))[0]
+            y_true = y_true[valid_indices]
+            bbox_true = bbox_true[valid_indices]
+            #valid_indices = np.where(np.max(0 < bbox_pred, axis = -1))
+            valid_indices = np.where(np.any(0 < bbox_pred, axis = -1))[0]
+            y_pred = y_pred[valid_indices]
+            bbox_pred = bbox_pred[valid_indices]
             
             label = np.argmax(y_pred, axis = -1)
             score = np.max(y_pred, axis = -1)
@@ -321,7 +329,7 @@ class MeanAveragePrecision:
             return average_precision
 
 class CoCoMeanAveragePrecision:
-    def __init__(self, iou_threshold = [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95], score_threshold = 0.05, scale_range = None, mode = "normal", e = 1e-12, postfix = False, label = None):
+    def __init__(self, iou_threshold = [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95], score_threshold = 0.05, scale_range = None, mode = "normal", e = 1e-12, postfix = False, label = None, dtype = np.float32):
         """
         run = CoCoMeanAveragePrecision()(*args)
         batch run = self.add(*batch_args) -> self.evaluate()
@@ -339,12 +347,13 @@ class CoCoMeanAveragePrecision:
         self.e = e
         self.postfix = postfix
         self.label = label
+        self.dtype = dtype
         
         self.reset()
         
     def reset(self):
-        self.metric = MeanAveragePrecision(iou_threshold = self.iou_threshold, score_threshold = self.score_threshold, scale_range = self.scale_range, mode = self.mode, e = self.e)
-        self.sub_metric = MeanAveragePrecision(iou_threshold = [0.5, 0.75], score_threshold = self.score_threshold, scale_range = None, mode = self.mode, e = self.e)
+        self.metric = MeanAveragePrecision(iou_threshold = self.iou_threshold, score_threshold = self.score_threshold, scale_range = self.scale_range, mode = self.mode, e = self.e, dtype = self.dtype)
+        self.sub_metric = MeanAveragePrecision(iou_threshold = [0.5, 0.75], score_threshold = self.score_threshold, scale_range = None, mode = self.mode, e = self.e, dtype = self.dtype)
     
     @property
     def num_true(self):

@@ -13,7 +13,7 @@ class MeanAveragePrecision(tf.keras.callbacks.Callback):
     scale_range = [None, 32, 96] > area_range = [[None, None], [None, 32^2], [32^2, 96^2], [96^2, None]] #0~INF, 0~32^2, 32^2~96^2, 96^2~INF
     scale_range = [32, None, 96] > area_range = [[None, 32^2], [32^2, None], [None, 96^2], [96^2, None]] #0~32^2, 32^2~INF, 0~96^2, 96^2~INF
     """
-    def __init__(self, data, iou_threshold = 0.5, score_threshold = 0.05, scale_range = None, mode = "normal", e = 1e-12, postfix = False, label = None, verbose = True, name = "mean_average_precision", **kwargs):
+    def __init__(self, data, iou_threshold = 0.5, score_threshold = 0.05, scale_range = None, mode = "normal", e = 1e-12, postfix = False, label = None, dtype = np.float32, verbose = True, name = "mean_average_precision", **kwargs):
         super(MeanAveragePrecision, self).__init__(**kwargs)
         self.data = data
         self.iou_threshold = iou_threshold
@@ -23,10 +23,11 @@ class MeanAveragePrecision(tf.keras.callbacks.Callback):
         self.e = e
         self.postfix = postfix
         self.label = label
+        self.dtype = dtype
         self.verbose = verbose
         self.name = name
         
-        self.metric = MeanAveragePrecisionMetric(iou_threshold = self.iou_threshold, score_threshold = self.score_threshold, scale_range = self.scale_range, mode = self.mode, e = self.e, postfix = self.postfix, label = self.label)
+        self.metric = MeanAveragePrecisionMetric(iou_threshold = self.iou_threshold, score_threshold = self.score_threshold, scale_range = self.scale_range, mode = self.mode, e = self.e, postfix = self.postfix, label = self.label, dtype = self.dtype)
     
     def evaluate(self):
         self.metric.reset()
@@ -45,9 +46,13 @@ class MeanAveragePrecision(tf.keras.callbacks.Callback):
 
                 y_pred, bbox_pred = self.model.predict(x, verbose = 0)[:2]
                 self.metric.add(y_true, bbox_true, y_pred, bbox_pred)
+                del data, x, y_true, bbox_true, y_pred, bbox_pred
             except:
                 break
         return self.metric.evaluate()
+    
+    def on_epoch_begin(self, epoch, logs = None):
+        self.metric.reset()
     
     def on_epoch_end(self, epoch, logs = {}):
         if self.postfix:
@@ -90,7 +95,7 @@ class CoCoMeanAveragePrecision(tf.keras.callbacks.Callback):
     scale_range = [None, 32, 96] > area_range = [[None, None], [None, 32^2], [32^2, 96^2], [96^2, None]] #0~INF, 0~32^2, 32^2~96^2, 96^2~INF
     scale_range = [32, None, 96] > area_range = [[None, 32^2], [32^2, None], [None, 96^2], [96^2, None]] #0~32^2, 32^2~INF, 0~96^2, 96^2~INF
     """
-    def __init__(self, data, iou_threshold = [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95], score_threshold = 0.05, scale_range = None, mode = "normal", e = 1e-12, postfix = False, label = None, verbose = True, name = "mean_average_precision", **kwargs):
+    def __init__(self, data, iou_threshold = [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95], score_threshold = 0.05, scale_range = None, mode = "normal", e = 1e-12, postfix = False, label = None, dtype = np.float32, verbose = True, name = "mean_average_precision", **kwargs):
         super(CoCoMeanAveragePrecision, self).__init__(**kwargs)
         self.data = data
         self.iou_threshold = iou_threshold
@@ -100,10 +105,11 @@ class CoCoMeanAveragePrecision(tf.keras.callbacks.Callback):
         self.e = e
         self.postfix = postfix
         self.label = label
+        self.dtype = dtype
         self.verbose = verbose
         self.name = name
         
-        self.metric = CoCoMeanAveragePrecisionMetric(iou_threshold = self.iou_threshold, score_threshold = self.score_threshold, scale_range = self.scale_range, mode = self.mode, e = self.e, postfix = self.postfix, label = self.label)
+        self.metric = CoCoMeanAveragePrecisionMetric(iou_threshold = self.iou_threshold, score_threshold = self.score_threshold, scale_range = self.scale_range, mode = self.mode, e = self.e, postfix = self.postfix, label = self.label, dtype = self.dtype)
     
     def evaluate(self):
         self.metric.reset()
@@ -122,10 +128,13 @@ class CoCoMeanAveragePrecision(tf.keras.callbacks.Callback):
 
                 y_pred, bbox_pred = self.model.predict(x, verbose = 0)[:2]
                 self.metric.add(y_true, bbox_true, y_pred, bbox_pred)
+                del data, x, y_true, bbox_true, y_pred, bbox_pred
             except:
                 break
         return self.metric.evaluate()
     
+    def on_epoch_begin(self, epoch, logs = None):
+        self.metric.reset()
     
     def on_epoch_end(self, epoch, logs = {}):
         if self.postfix:
@@ -170,16 +179,17 @@ class CoCoMeanAveragePrecision(tf.keras.callbacks.Callback):
                 print("\n{0}".format(text))
                 
 class MeanIoU(tf.keras.callbacks.Callback):
-    def __init__(self, data, beta = 1, e = 1e-12, label = None, verbose = True, name = "mean_iou", **kwargs):
+    def __init__(self, data, beta = 1, e = 1e-12, label = None, dtype = np.float32, verbose = True, name = "mean_iou", **kwargs):
         super(MeanIoU, self).__init__(**kwargs)
         self.data = data
         self.beta = beta
         self.e = e
         self.label = label
+        self.dtype = dtype
         self.verbose = verbose
         self.name = name
         
-        self.metric = MeanIoUMetric(beta = self.beta, e = self.e, label = self.label)
+        self.metric = MeanIoUMetric(beta = self.beta, e = self.e, label = self.label, dtype = self.dtype)
     
     def evaluate(self):
         self.metric.reset()
@@ -200,9 +210,13 @@ class MeanIoU(tf.keras.callbacks.Callback):
                 if isinstance(mask_pred, tuple):
                     mask_pred = mask_pred[0]
                 self.metric.add(mask_true, mask_pred)
+                del data, x, mask_true, mask_pred
             except:
                 break
         return self.metric.evaluate()
+    
+    def on_epoch_begin(self, epoch, logs = None):
+        self.metric.reset()
     
     def on_epoch_end(self, epoch, logs = {}):
         mean_iou = self.evaluate()
