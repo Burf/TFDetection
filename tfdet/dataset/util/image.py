@@ -45,7 +45,7 @@ def instance2semantic(y_true, mask_true, threshold = 0.5, ignore_label = 0, labe
         sort_indices = np.argsort(-area[:, 0])
         y_true = y_true[sort_indices]
         region = region[sort_indices]
-        semantic_true = np.full([h, w, 1], ignore_label, dtype = np.uint8)
+        semantic_true = np.full([h, w, 1], ignore_label, dtype = np.uint16)
         for y, r in zip(y_true, region):
             semantic_true[r] = y[0]
         mask_true = semantic_true
