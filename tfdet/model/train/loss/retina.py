@@ -22,7 +22,7 @@ def classnet_accuracy(y_true, y_pred, missing_value = 0.):
     y_true = tf.cast(y_true, y_pred.dtype)
     
     accuracy = tf.reduce_mean(tf.cast(tf.equal(y_true, y_pred), dtype))
-    accuracy = tf.where(tf.math.is_nan(accuracy), tf.cast(missing_value, dtype), accuracy)
+    accuracy = tf.where(tf.logical_or(tf.math.is_nan(accuracy), tf.math.is_inf(accuracy)), tf.cast(missing_value, dtype), accuracy)
     return accuracy
 
 def classnet_loss(y_true, y_pred, loss = focal_binary_cross_entropy, weight = None, background = False, missing_value = 0.):
@@ -46,13 +46,13 @@ def classnet_loss(y_true, y_pred, loss = focal_binary_cross_entropy, weight = No
     if not background:
         y_true = tf.where(true_flag, y_true, 0)
         
-    _loss = loss(y_true, y_pred, weight = weight, reduce = False)
+    _loss = loss(y_true, y_pred, weight = weight, reduce = None)
     #_loss = tf.reduce_sum(_loss, axis = -1)
     
     dtype = _loss.dtype
     true_count = tf.reduce_sum(tf.cast(true_flag, dtype))
     _loss = tf.reduce_sum(_loss) / tf.maximum(true_count, tf.cast(1., dtype))
-    _loss = tf.where(tf.math.is_nan(_loss), tf.cast(missing_value, dtype), _loss)
+    _loss = tf.where(tf.logical_or(tf.math.is_nan(_loss), tf.math.is_inf(_loss)), tf.cast(missing_value, dtype), _loss)
     return _loss
 
 def boxnet_loss(y_true, bbox_true, bbox_pred, loss = smooth_l1, missing_value = 0.):
@@ -70,9 +70,9 @@ def boxnet_loss(y_true, bbox_true, bbox_pred, loss = smooth_l1, missing_value = 
     bbox_true = tf.gather(bbox_true, true_indices)
     bbox_pred = tf.gather(bbox_pred, true_indices)
     
-    _loss = loss(bbox_true, bbox_pred, reduce = False)
+    _loss = loss(bbox_true, bbox_pred, reduce = None)
     _loss = tf.reduce_sum(_loss, axis = -1)
     
     _loss = tf.reduce_mean(_loss)
-    _loss = tf.where(tf.math.is_nan(_loss), tf.cast(missing_value, _loss.dtype), _loss)
+    _loss = tf.where(tf.logical_or(tf.math.is_nan(_loss), tf.math.is_inf(_loss)), tf.cast(missing_value, _loss.dtype), _loss)
     return _loss

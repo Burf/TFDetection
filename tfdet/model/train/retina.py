@@ -1,5 +1,3 @@
-import functools
-
 import tensorflow as tf
 
 from tfdet.core.assign import max_iou
@@ -9,14 +7,11 @@ from .loss.retina import classnet_accuracy, classnet_loss, boxnet_loss
 from .target import anchor_target
 from ..postprocess.retina import FilterDetection
 
-def focal_loss(y_true, y_pred, alpha = .25, gamma = 1.5, weight = None, reduce = True):
-    return focal_binary_cross_entropy(y_true, y_pred, alpha = alpha, gamma = gamma, weight = weight, reduce = reduce)
-
 def train_model(input, logits, regress, anchors,
                 assign = max_iou, sampling_count = None, positive_ratio = 0.5,
                 proposal_count = 100, iou_threshold = 0.5, score_threshold = 0.05, soft_nms = False, valid = False, ignore_label = 0, performance_count = 5000,
                 batch_size = 1, mean = [0., 0., 0., 0.], std = [1., 1., 1., 1.], clip_ratio = 16 / 1000,
-                class_loss = focal_loss, bbox_loss = smooth_l1, regularize = True, weight_decay = 1e-4, 
+                class_loss = focal_binary_cross_entropy, bbox_loss = smooth_l1, regularize = True, weight_decay = 1e-4, 
                 class_weight = None, background = False, missing_value = 0.):
     y_true = tf.keras.layers.Input(shape = (None, None), name = "y_true")
     bbox_true = tf.keras.layers.Input(shape = (None, 4), name = "bbox_true")

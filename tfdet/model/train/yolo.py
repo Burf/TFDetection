@@ -7,15 +7,15 @@ from .loss.yolo import score_accuracy, score_loss as score_loss_func, logits_acc
 from .target import yolo_target
 from ..postprocess.yolo import FilterDetection
 
-def giou_loss(bbox_true, bbox_pred, reduce = True, mode = "general"):
+def giou_loss(bbox_true, bbox_pred, reduce = tf.reduce_mean, mode = "general"):
     bbox_true = tf.reshape(bbox_true, (-1, 4))
     bbox_pred = tf.reshape(bbox_pred, (-1, 4))
     
-    loss = giou(bbox_true, bbox_pred, reduce = False, mode = mode)
+    loss = giou(bbox_true, bbox_pred, reduce = None, mode = mode)
     bbox_loss_scale = 1. - ((bbox_true[..., 2] - bbox_true[..., 0]) * (bbox_true[..., 3] - bbox_true[..., 1])) #2 - 1 * bbox_area / input_area
     loss = bbox_loss_scale * loss
     if reduce:
-        loss = tf.reduce_mean(loss)
+        loss = reduce(loss)
     return loss
 
 def train_model(input, score, logits, regress, anchors,

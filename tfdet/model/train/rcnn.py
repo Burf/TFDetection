@@ -20,7 +20,7 @@ def cls_assign2(y_true, bbox_true, y_pred, bbox_pred, positive_threshold = 0.6, 
 def cls_assign3(y_true, bbox_true, y_pred, bbox_pred, positive_threshold = 0.7, negative_threshold = 0.7, min_threshold = 0.7, match_low_quality = False, mode = "normal"):
     return max_iou(y_true, bbox_true, y_pred, bbox_pred, positive_threshold = positive_threshold, negative_threshold = negative_threshold, min_threshold = min_threshold, match_low_quality = match_low_quality, mode = mode)
 
-def smooth_l1_sigma1(y_true, y_pred, sigma = 1, reduce = True):
+def smooth_l1_sigma1(y_true, y_pred, sigma = 1, reduce = tf.reduce_mean):
     return smooth_l1(y_true, y_pred, sigma = sigma, reduce = reduce)
 
 def train_model(input, rpn_score = None, rpn_regress = None, anchors = None, cls_logits = None, cls_regress = None, proposals = None, mask_regress = None, semantic_regress = None,
