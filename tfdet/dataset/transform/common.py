@@ -482,7 +482,7 @@ def flip(x_true, y_true = None, bbox_true = None, mask_true = None, mode = "hori
             y = shape[0] - y
         x1, y1 = x - (0.5 * w), y - (0.5 * h)
         x2, y2 = x1 + w, y1 + h
-        bbox_true = np.hstack([p.astype(bbox_true.dtype) for p in [x1, y1, x2, y2]], dtype = bbox_true.dtype)
+        bbox_true = np.hstack([p.astype(bbox_true.dtype) for p in [x1, y1, x2, y2]])
         bbox_true = np.where(flag, bbox_true, 0)
     if mask_true is not None:
         if 3 < np.ndim(mask_true):
