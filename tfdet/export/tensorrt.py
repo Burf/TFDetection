@@ -4,7 +4,7 @@ import tempfile
 import numpy as np
 import tensorflow as tf
 
-def tf2trt(model, save_path, dtype = "FP32", memory_limit = 1, dynamic_batch = False, n_thread = 1, data = None):
+def tf2trt(model, save_path, dtype = "FP16", memory_limit = 1, dynamic_batch = False, n_thread = 1, data = None):
     """
     dtype = dtype in [tf.int8, tf.float16, tf.float32, np.int8, np.float16, np.float32, 'INT8', 'FP16', 'FP32']
     dynamic_batch = static batch size or dynamic batch size
@@ -49,7 +49,7 @@ def tf2trt(model, save_path, dtype = "FP32", memory_limit = 1, dynamic_batch = F
         converter.save(save_path)
     return save_path
 
-def onnx2trt(path, save_path, dtype = "FP32", memory_limit = 1, data = None, verbose = True):
+def onnx2trt(path, save_path, dtype = "FP16", memory_limit = 1, data = None, verbose = True):
     try:
         import tensorrt as trt
     except Exception as e:
@@ -268,16 +268,109 @@ def add_trt_nms(path, save_path, dtype = None,
     onnx.save(model, save_path)
     return save_path
 
-def load_trt(path, predict = True):
+def load_trt(path, faster = True, predict = True):
     """
     - path
     file_path or "trt" in ext > load_trt_onnx
     dir_path > load_trt_tf
+    
+    - faster(for load_trt_onnx)
+    Create pre-context, and speed up. but if you use thread or async, sometimes it becomes difficult to free some GPU memory.
     """
     if not os.path.isdir(path) or "trt" in os.path.splitext(path)[1] or os.path.exists(path + ".trt"):
-        return load_trt_onnx(path, predict)
+        return load_trt_onnx(path, faster = faster, predict = predict)
     else:
-        return load_trt_tf(path, predict)
+        return load_trt_tf(path, predict = predict)
+    
+def load_trt_onnx(path, faster = True, predict = True):
+    """
+    path = onnx2trt model_path
+    faster = Create pre-context, and speed up. but if you use thread or async, sometimes it becomes difficult to free some GPU memory.
+    """
+    try:
+        import tensorrt as trt
+        import pycuda.autoinit
+        import pycuda.driver as cuda
+    except Exception as e:
+        print("If you want to use 'load_trt_onnx', please install 'tensorrt' and 'pycuda'")
+        raise e
+        
+    name, ext = os.path.splitext(path)
+    if len(ext) < 2:
+        path = "{0}{1}".format(name, ".trt")
+
+    with open(path, "rb") as file, trt.Runtime(trt.Logger(trt.Logger.INFO)) as runtime:
+        trt.init_libnvinfer_plugins(None, "")
+        engine = runtime.deserialize_cuda_engine(file.read())
+    
+    device_context = pycuda.autoinit.context
+    batch_size = max(int(engine.max_batch_size), 1)
+    stream = cuda.Stream()
+    model_info = {"inputs":[],
+                  "outputs":[],
+                  "allocations":[]}
+    for i in range(engine.num_bindings):
+        name = engine.get_binding_name(i)
+        dtype = np.dtype(trt.nptype(engine.get_binding_dtype(i)))
+        shape = engine.get_binding_shape(i)
+        
+        profile_shape = None
+        if engine.binding_is_input(i) and shape[0] < 0: #input_node and dynamic shape
+            shape = profile_shape = engine.get_profile_shape(0, name)
+            
+        size = dtype.itemsize
+        for s in shape:
+            size *= s
+        size *= batch_size
+        allocation = cuda.mem_alloc(size)
+        
+        binding = {"index":i,
+                   "name":name,
+                   "dtype":dtype,
+                   "shape":list(shape),
+                   "profile_shape":profile_shape,
+                   "allocation":allocation}
+        
+        model_info["allocations"].append(allocation)
+        if engine.binding_is_input(i):
+            model_info["inputs"].append(binding)
+        else:
+            model_info["outputs"].append(binding)
+    
+    input_keys = [node["name"] for node in model_info["inputs"]]
+    pre_context = engine.create_execution_context() if faster else None
+    if predict:
+        def predict(*args, **kwargs):
+            args = {k:v for k, v in zip(input_keys[:len(args)], args)}
+            kwargs.update(args)
+
+            device_context.push()
+            context = engine.create_execution_context() if not faster else pre_context
+            for node in model_info["inputs"]:
+                cuda.memcpy_htod_async(node["allocation"], kwargs[node["name"]], stream) #from host to gpu
+            context.execute_async_v2(model_info["allocations"], stream_handle = stream.handle) #inference
+            pred = []
+            for node in model_info["outputs"]:
+                profile_shape = node["profile_shape"]
+                if profile_shape is not None:
+                    context.set_binding_shape(node["index"], profile_shape[-1])
+                out = np.empty(node["shape"], dtype = node["dtype"])
+                pred.append(out)
+                cuda.memcpy_dtoh_async(out, node["allocation"], stream) # from gpu to host
+                del profile_shape, out
+            stream.synchronize()
+            if not faster:
+                del context
+            device_context.pop()
+            
+            if len(pred) == 0:
+                pred = None
+            elif len(pred) == 1:
+                pred = pred[0]
+            return pred
+        return predict
+    else:
+        return model_info
 
 def load_trt_tf(path, predict = True):
     """
@@ -303,74 +396,3 @@ def load_trt_tf(path, predict = True):
         return predict
     else:
         return model
-    
-def load_trt_onnx(path, predict = True):
-    """
-    path = onnx2trt model_path
-    """
-    try:
-        import tensorrt as trt
-        import pycuda.autoinit
-        import pycuda.driver as cuda
-    except Exception as e:
-        print("If you want to use 'load_trt_onnx', please install 'tensorrt' and 'pycuda'")
-        raise e
-        
-    name, ext = os.path.splitext(path)
-    if len(ext) < 2:
-        path = "{0}{1}".format(name, ".trt")
-    
-    with open(path, "rb") as file, trt.Runtime(trt.Logger(trt.Logger.INFO)) as runtime:
-        trt.init_libnvinfer_plugins(None, "")
-        engine = runtime.deserialize_cuda_engine(file.read())
-    context = engine.create_execution_context()
-    
-    model_info = {"inputs":[],
-                  "outputs":[],
-                  "allocations":[]}
-    for i in range(engine.num_bindings):
-        name = engine.get_binding_name(i)
-        dtype = np.dtype(trt.nptype(engine.get_binding_dtype(i)))
-        shape = context.get_binding_shape(i)
-
-        if engine.binding_is_input(i) and shape[0] < 0: #input_node and dynamic shape
-            profile_shape = engine.get_profile_shape(0, name)
-            context.set_binding_shape(i, profile_shape[-1])
-            shape = context.get_binding_shape(i)
-
-        size = dtype.itemsize
-        for s in shape:
-            size *= s
-        allocation = cuda.mem_alloc(size)
-
-        binding = {"index":i,
-                   "name":name,
-                   "dtype":dtype,
-                   "shape":list(shape),
-                   "allocation":allocation,
-                   "host_allocation":None if engine.binding_is_input(i) else np.zeros(shape, dtype)}
-
-        model_info["allocations"].append(allocation)
-        if engine.binding_is_input(i):
-            model_info["inputs"].append(binding)
-        else:
-            model_info["outputs"].append(binding)
-    if predict:
-        input_keys = [node["name"] for node in model_info["inputs"]]
-        def predict(*args, **kwargs):
-            args = {k:v for k, v in zip(input_keys[:len(args)], args)}
-            kwargs.update(args)
-            for node in model_info["inputs"]:
-                cuda.memcpy_htod(node["allocation"], kwargs[node["name"]]) #from host to gpu
-            context.execute_v2(model_info["allocations"]) #inference
-            for node in model_info["outputs"]:
-                cuda.memcpy_dtoh(node["host_allocation"], node["allocation"]) # from gpu to host
-            pred = [node["host_allocation"] for node in model_info["outputs"]]
-            if len(pred) == 0:
-                pred = None
-            elif len(pred) == 1:
-                pred = pred[0]
-            return pred
-        return predict
-    else:
-        return model_info
