@@ -152,10 +152,8 @@ class RoiAlign(tf.keras.layers.Layer):
         self.batch_size = batch_size
 
     def call(self, inputs, image_shape = [1024, 1024]):
-        proposals, feature = inputs
-        if not isinstance(feature, (tuple, list)):
-            feature = [feature]
-        out = map_fn(roi_align, proposals, *feature, dtype = self.dtype, batch_size = self.batch_size, image_shape = image_shape, pool_size = self.pool_size, method = self.method)
+        feature, proposals = inputs
+        out = map_fn(roi_align, feature, proposals, dtype = self.dtype, batch_size = self.batch_size, image_shape = image_shape, pool_size = self.pool_size, method = self.method)
         return out
     
     def get_config(self):
@@ -419,10 +417,10 @@ def rcnn_head(feature, proposals, mask_feature = None, semantic_feature = None,
     feature = list(feature)
     
     roi_extractor = RoiAlign(pool_size, method, dtype = tf.float32)
-    roi = roi_extractor([proposals, feature], image_shape)
+    roi = roi_extractor([feature, proposals], image_shape)
     if semantic_feature is not None:
         semantic_roi_extractor = RoiAlign(semantic_pool_size, method, dtype = tf.float32)
-        semantic_roi = semantic_roi_extractor([proposals, semantic_feature], image_shape)
+        semantic_roi = semantic_roi_extractor([semantic_feature, proposals], image_shape)
         if pool_size != semantic_pool_size:
             semantic_roi = tf.keras.layers.TimeDistributed(tf.keras.layers.Lambda(lambda args: tf.image.resize(args, [pool_size, pool_size], method = method)))(semantic_roi)
         roi = tf.keras.layers.Add()([roi, semantic_roi])

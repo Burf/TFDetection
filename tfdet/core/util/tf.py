@@ -7,13 +7,27 @@ import numpy as np
 
 from .wrapper import dict_function
 
+def get_batch_size(*args):
+    batch_size = [get_batch_size(*arg) if isinstance(arg, (tuple, list)) else tf.keras.backend.int_shape(arg)[0] for arg in args]
+    if any([not isinstance(b, int) for b in batch_size]):
+        return -1
+    else:
+        return min(batch_size)
+    
+def get_item(*args, index):
+    item = [get_item(*arg, index = index) if isinstance(arg, (tuple, list)) else arg[index] for arg in args]
+    if len(args) == 1:
+        item = item[0]
+    return item
+
 def map_fn(function, *args, dtype = tf.float32, batch_size = 1, name = None, **kwargs):
     func = functools.partial(function, **kwargs)
-    batch_shape = [tf.keras.backend.int_shape(arg)[0] for arg in args]
-    if np.all([isinstance(b, int) for b in batch_shape]):
+    min_batch_size = get_batch_size(args)
+    if 0 < min_batch_size:
         out = []
-        for i in range(np.min(batch_shape)):
-            x = [arg[i] for arg in args]
+        for i in range(min_batch_size):
+            x = get_item(*args, index = i)
+            x = (x,) if not isinstance(x, (tuple, list)) else x
             o = func(*x)
             o = (o,) if not isinstance(o, (tuple, list)) else o
             out.append(o)
