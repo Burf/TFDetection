@@ -192,8 +192,6 @@ class Dataset:
             self.set_indices(self.shuffle)
         return self.get(self.indices[index])
     
-def load_iter_data(dataset, index):
-    return dataset[index]
 
 def PipeLoader(dataset, batch_size = 0, repeat = 1, shuffle = False, prefetch = False, num_parallel_calls = True, dtype = None):
     """
@@ -214,22 +212,20 @@ def PipeLoader(dataset, batch_size = 0, repeat = 1, shuffle = False, prefetch = 
     if shuffle:
         dataset.shuffle = False
     
-    indices = np.arange(len(dataset))
+    indices = np.expand_dims(np.arange(len(dataset)), axis = -1)
     if dtype is None:
         dtype = tuple([tf.convert_to_tensor(v).dtype for v in ((args,) if not isinstance(args, tuple) else args)])
         if not isinstance(args, tuple):
             dtype = dtype[0]
-    load_func = functools.partial(load_iter_data, dataset)
-    data_func = functools.partial(py_func, load_func, Tout = dtype)
-    return pipeline(indices, function = data_func,
+
+    def load_iter_data(index = None):
+        if index is None:
+            index = [np.random.randint(len(dataset))]
+        return dataset[index[0]]
+    load_func = functools.partial(py_func, load_iter_data, Tout = dtype)
+    return pipeline(indices, function = load_func,
                     batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
                     num_parallel_calls = num_parallel_calls)
-
-#def load_generator(dataset, num_parallel_calls = True):
-#    num_parallel_calls = max(num_parallel_calls if not isinstance(num_parallel_calls, bool) else (8 if num_parallel_calls else 0), 1)
-#    return ThreadPool(num_parallel_calls).imap(lambda index:dataset[index], np.arange(len(dataset)))
-def load_generator(dataset):
-    return dataset
 
 def GenPipeLoader(dataset, batch_size = 0, repeat = 1, shuffle = False, prefetch = False, num_parallel_calls = True, dtype = None):
     """
@@ -254,10 +250,10 @@ def GenPipeLoader(dataset, batch_size = 0, repeat = 1, shuffle = False, prefetch
         dtype = tuple([tf.convert_to_tensor(v).dtype for v in ((args,) if not isinstance(args, tuple) else args)])
         if not isinstance(args, tuple):
             dtype = dtype[0]
-    #load_func = functools.partial(load_generator, dataset, num_parallel_calls)
-    #return pipeline(pipe, batch_size = batch_size, repeat = repeat, prefetch = prefetch)
-    load_func = functools.partial(load_generator, dataset)
-    pipe = tf.data.Dataset.from_generator(load_func, dtype)
+    
+    def load_generator(dataset):
+        return dataset
+    pipe = tf.data.Dataset.from_generator(load_generator, dtype)
     return pipeline(pipe,
                     batch_size = batch_size, repeat = repeat, shuffle = shuffle, prefetch = prefetch,
                     num_parallel_calls = num_parallel_calls)
