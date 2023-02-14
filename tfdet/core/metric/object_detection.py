@@ -197,6 +197,8 @@ class MeanAveragePrecision:
             
             if 1 < np.shape(y_true)[-1]:
                 y_true = np.expand_dims(np.argmax(y_true, axis = -1), axis = -1)
+            if np.shape(y_pred)[-1] == 1:
+                y_true = (y_true != 0).astype(y_true.dtype)
             #valid_indices = np.where(np.max(0 < bbox_true, axis = -1))
             valid_indices = np.where(np.any(0 < bbox_true, axis = -1))[0]
             y_true = y_true[valid_indices]

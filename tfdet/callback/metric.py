@@ -47,7 +47,7 @@ class MeanAveragePrecision(tf.keras.callbacks.Callback):
                 y_pred, bbox_pred = self.model.predict(x, verbose = 0)[:2]
                 self.metric.add(y_true, bbox_true, y_pred, bbox_pred)
                 del data, x, y_true, bbox_true, y_pred, bbox_pred
-            except:
+            except StopIteration:
                 break
         return self.metric.evaluate()
     
@@ -129,7 +129,7 @@ class CoCoMeanAveragePrecision(tf.keras.callbacks.Callback):
                 y_pred, bbox_pred = self.model.predict(x, verbose = 0)[:2]
                 self.metric.add(y_true, bbox_true, y_pred, bbox_pred)
                 del data, x, y_true, bbox_true, y_pred, bbox_pred
-            except:
+            except StopIteration:
                 break
         return self.metric.evaluate()
     
@@ -211,7 +211,7 @@ class MeanIoU(tf.keras.callbacks.Callback):
                     mask_pred = mask_pred[0]
                 self.metric.add(mask_true, mask_pred)
                 del data, x, mask_true, mask_pred
-            except:
+            except StopIteration:
                 break
         return self.metric.evaluate()
     
