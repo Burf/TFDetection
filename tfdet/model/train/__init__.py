@@ -1,5 +1,4 @@
 from . import loss
-from . import target
 
 from . import fcos
 from . import rcnn

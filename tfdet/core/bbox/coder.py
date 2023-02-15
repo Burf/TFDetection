@@ -55,6 +55,22 @@ def delta2bbox(bbox, delta, mean = [0., 0., 0., 0.], std = [1., 1., 1., 1.], cli
     bbox = tf.stack([x1, y1, x2, y2], axis = -1)
     return bbox
 
+def bbox2yolo(bbox_true, bbox_pred):
+    pred_h = bbox_pred[..., 3] - bbox_pred[..., 1]
+    pred_w = bbox_pred[..., 2] - bbox_pred[..., 0]
+    pred_h = tf.maximum(pred_h, tf.keras.backend.epsilon()) #tf.where(pred_h <= 0, tf.keras.backend.epsilon(), pred_h)
+    pred_w = tf.maximum(pred_w, tf.keras.backend.epsilon()) #tf.where(pred_w <= 0, tf.keras.backend.epsilon(), pred_w)
+    
+    x = (bbox_true[..., 0] - bbox_pred[..., 0]) / pred_w
+    y = (bbox_true[..., 1] - bbox_pred[..., 1]) / pred_h
+    w = (bbox_true[..., 2] - bbox_true[..., 0]) / pred_w
+    h = (bbox_true[..., 3] - bbox_true[..., 1]) / pred_h
+    w = tf.math.log(tf.maximum(w, tf.keras.backend.epsilon())) #tf.where(w <= 0, tf.keras.backend.epsilon(), w)
+    h = tf.math.log(tf.maximum(h, tf.keras.backend.epsilon())) #tf.where(h <= 0, tf.keras.backend.epsilon(), h)
+
+    delta = tf.stack([x, y, w, h], axis = -1)
+    return delta
+
 def yolo2bbox(bbox, delta, clip_ratio = 16 / 1000):
     h = bbox[..., 3] - bbox[..., 1]
     w = bbox[..., 2] - bbox[..., 0]

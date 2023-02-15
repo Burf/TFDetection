@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 
-def generate_anchors(feature, image_shape = [1024, 1024], scale = [32, 64, 128, 256, 512], ratio = [0.5, 1, 2], normalize = True, auto_scale = True, flatten = True, concat = True, dtype = tf.float32):
+def generate_anchors(feature, image_shape = [1024, 1024], scale = [32, 64, 128, 256, 512], ratio = [0.5, 1, 2], normalize = True, auto_scale = True, flatten = True, concat = False, dtype = tf.float32):
     """
     feature = feature or [features] or shape or [shapes]
     scale = anchor_size scale
@@ -90,7 +90,7 @@ def generate_anchors(feature, image_shape = [1024, 1024], scale = [32, 64, 128, 
 def generate_yolo_anchors(feature, image_shape = [608, 608], size = [[ 10, 13], [ 16,  30], [ 33,  23],
                                                                      [ 30, 61], [ 62,  45], [ 59, 119],
                                                                      [116, 90], [156, 198], [373, 326]],
-                          normalize = True, auto_size = True, flatten = True, concat = True, dtype = tf.float32):
+                          normalize = True, auto_size = True, flatten = True, concat = False, dtype = tf.float32):
     """
     feature = feature or [features] or shape or [shapes]
     size = anchor_size (w, h)
@@ -166,7 +166,7 @@ def generate_yolo_anchors(feature, image_shape = [608, 608], size = [[ 10, 13], 
         out = tf.concat(out, axis = 0)
     return out
 
-def generate_points(feature, image_shape = [1024, 1024], stride = None, normalize = True, flatten = True, concat = True, dtype = tf.float32):
+def generate_points(feature, image_shape = [1024, 1024], stride = None, normalize = True, flatten = True, concat = False, dtype = tf.float32):
     if tf.is_tensor(feature) or not isinstance(feature, list) or isinstance(feature[0], int):
         feature = [feature]
     if np.ndim(stride) == 0:

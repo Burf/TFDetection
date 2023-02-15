@@ -2,7 +2,7 @@ import tensorflow as tf
 import cv2
 import numpy as np
 
-from tfdet.core.util import feature_extract, mahalanobis
+from tfdet.core.ops import feature_extract, mahalanobis
 
 class FeatureExtractor(tf.keras.layers.Layer):
     def __init__(self, sampling_index = None, memory_reduce = True, **kwargs):

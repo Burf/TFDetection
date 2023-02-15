@@ -2,22 +2,7 @@ import tensorflow as tf
 
 from ..bbox.coder import delta2bbox
 
-def pad_nms(proposal, score, proposal_count, iou_threshold, score_threshold = float('-inf'), soft_nms = False):
-    soft_nms_sigma = soft_nms
-    if not isinstance(soft_nms, float):
-        soft_nms_sigma = 0.5 if soft_nms else 0.
-        
-    dtype = proposal.dtype
-    iou_threshold = tf.cast(iou_threshold, dtype)
-    score_threshold = tf.cast(score_threshold, dtype)
-    soft_nms_sigma = tf.cast(soft_nms_sigma, dtype)
-    
-    indices = tf.image.non_max_suppression_with_scores(proposal, score, max_output_size = tf.minimum(proposal_count, tf.shape(proposal)[0]), iou_threshold = iou_threshold, score_threshold = score_threshold, soft_nms_sigma = soft_nms_sigma)[0]
-    proposal = tf.gather(proposal, indices)
-    pad_size = proposal_count - tf.shape(proposal)[0]
-    proposal = tf.pad(proposal, [[0, pad_size], [0, 0]])
-    return proposal
-
+@tf.function
 def multiclass_nms(y_pred, bbox_pred, anchors = None, mask_pred = None, proposal_count = 100, iou_threshold = 0.5, score_threshold = 0.05, soft_nms = False, 
                    ignore_label = 0, performance_count = 5000, coder_func = delta2bbox, **kwargs):
     """
@@ -35,7 +20,10 @@ def multiclass_nms(y_pred, bbox_pred, anchors = None, mask_pred = None, proposal
     soft_nms_sigma = soft_nms
     if not isinstance(soft_nms, float):
         soft_nms_sigma = 0.5 if soft_nms else 0.
-    ignore_label = [ignore_label] if isinstance(ignore_label, int) else ignore_label
+    if n_class == 1:
+        ignore_label = None
+    else:
+        ignore_label = [ignore_label] if isinstance(ignore_label, int) else ignore_label
     keep_label = [i for i in range(n_class) if ignore_label is None or i not in ignore_label]
     
     #filtered by label
@@ -66,14 +54,14 @@ def multiclass_nms(y_pred, bbox_pred, anchors = None, mask_pred = None, proposal
     bbox_flag = (tf.keras.backend.ndim(bbox_pred) == 3)
     mask_flag = (mask_pred is not None and tf.keras.backend.int_shape(mask_pred)[-1] != 1)
     if bbox_flag or mask_flag:
-        #label_indices = tf.stack([tf.range(tf.shape(bbox_pred)[0]), ], axis = -1)
-        label_indices = tf.argmax(y_pred, axis = -1, output_type = tf.int32)
+        if n_class == 1:
+            label_indices = tf.zeros(tf.shape(y_pred)[0], dtype = tf.int32)
+        else:
+            label_indices = tf.argmax(y_pred, axis = -1, output_type = tf.int32)
         if bbox_flag:
-            #bbox_pred = tf.gather_nd(bbox_pred, label_indices)
             bbox_pred = tf.gather(bbox_pred, label_indices, batch_dims = 1)
         if mask_flag:
             mask_pred = tf.transpose(mask_pred, [0, 3, 1, 2])
-            #mask_pred = tf.gather_nd(mask_pred, label_indices)
             mask_pred = tf.gather(mask_pred, label_indices, batch_dims = 1)
             mask_pred = tf.expand_dims(mask_pred, axis = -1)
         

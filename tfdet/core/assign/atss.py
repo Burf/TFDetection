@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from ..bbox import overlap_bbox, isin
-from ..util import euclidean_matrix
+from ..ops import euclidean_matrix
 
 def atss(y_true, bbox_true, y_pred, bbox_pred, k = 9, threshold = 0.01, min_threshold = 0.0001, extra_length = None, mode = "normal"):
     #https://arxiv.org/abs/1912.02424

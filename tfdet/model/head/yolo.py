@@ -23,21 +23,21 @@ def yolo_classifier(x, n_class, n_feature, n_anchor = 3, feature_share = True, n
     if feature_share:
         out = darknet_conv_block(out, n_anchor * (n_class + 5), 1, normalize = None, activation = None)
         out = tf.keras.layers.Reshape((-1, (n_class + 5)))(out)
-        regress, score, logits = tf.split(out, num_or_size_splits = [4, 1, n_class], axis = -1)
+        bbox_pred, score_pred, logit_pred = tf.split(out, num_or_size_splits = [4, 1, n_class], axis = -1)
     else:
-        score = darknet_conv_block(out, n_anchor * 1, 1, normalize = None, activation = None)
-        logits = darknet_conv_block(out, n_anchor * n_class, 1, normalize = None, activation = None)
-        regress = darknet_conv_block(out, n_anchor * 4, 1, normalize = None, activation = None)
-        score = tf.keras.layers.Reshape((-1, 1))(score)
-        logits = tf.keras.layers.Reshape((-1, n_class))(logits)
-        regress = tf.keras.layers.Reshape((-1, 4))(regress)
-    xy, wh = tf.split(regress, num_or_size_splits = [2, 2], axis = -1)
+        score_pred = darknet_conv_block(out, n_anchor * 1, 1, normalize = None, activation = None)
+        logit_pred = darknet_conv_block(out, n_anchor * n_class, 1, normalize = None, activation = None)
+        bbox_pred = darknet_conv_block(out, n_anchor * 4, 1, normalize = None, activation = None)
+        score_pred = tf.keras.layers.Reshape((-1, 1))(score_pred)
+        logit_pred = tf.keras.layers.Reshape((-1, n_class))(logit_pred)
+        bbox_pred = tf.keras.layers.Reshape((-1, 4))(bbox_pred)
+    xy, wh = tf.split(bbox_pred, num_or_size_splits = [2, 2], axis = -1)
     xy = tf.keras.layers.Activation(tf.keras.activations.sigmoid, dtype = tf.float32)(xy)
-    score = tf.keras.layers.Activation(tf.keras.activations.sigmoid, dtype = tf.float32)(score)
-    logits = tf.keras.layers.Activation(tf.keras.activations.sigmoid, dtype = tf.float32)(logits)
-    regress = tf.keras.layers.Concatenate(axis = -1)([xy, wh])
-    regress = tf.keras.layers.Activation(tf.keras.activations.linear, dtype = tf.float32)(regress)
-    return score, logits, regress
+    score_pred = tf.keras.layers.Activation(tf.keras.activations.sigmoid, dtype = tf.float32)(score_pred)
+    logit_pred = tf.keras.layers.Activation(tf.keras.activations.sigmoid, dtype = tf.float32)(logit_pred)
+    bbox_pred = tf.keras.layers.Concatenate(axis = -1)([xy, wh])
+    bbox_pred = tf.keras.layers.Activation(tf.keras.activations.linear, dtype = tf.float32)(bbox_pred)
+    return score_pred, logit_pred, bbox_pred
 
 def yolo_head(feature, n_class = 80, image_shape = [608, 608],
               size = [[ 10, 13], [ 16,  30], [ 33,  23],
@@ -49,7 +49,7 @@ def yolo_head(feature, n_class = 80, image_shape = [608, 608],
         image_shape = tf.shape(image_shape) if tf.keras.backend.int_shape(image_shape)[-3] is None else tf.keras.backend.int_shape(image_shape)
     if 2 < np.shape(image_shape)[0]:
         image_shape = image_shape[-3:-1]
-    if not isinstance(feature, list):
+    if not isinstance(feature, (tuple, list)):
         feature = [feature]
     if np.ndim(size) == 0:
         size = [[size, size]]
@@ -65,16 +65,16 @@ def yolo_head(feature, n_class = 80, image_shape = [608, 608],
     result = []
     if tiny:
         out = darknet_conv_block(out, 256, 1, normalize = normalize, activation = post_activation)
-        score, logits, regress = yolo_classifier(out, n_class, 512, n_anchor = n_anchor, feature_share = feature_share, normalize = normalize, activation = post_activation)
-        result.append([score, logits, regress])
+        score_pred, logit_pred, bbox_pred = yolo_classifier(out, n_class, 512, n_anchor = n_anchor, feature_share = feature_share, normalize = normalize, activation = post_activation)
+        result.append([score_pred, logit_pred, bbox_pred])
         
         out = darknet_conv_block(out, 128, 1, normalize = normalize, activation = post_activation)
         target_size = tf.shape(feature[-2])[-3:-1]
         out = tf.image.resize(out, target_size, method = method)
         out = tf.keras.layers.Concatenate(axis = -1)([out, feature[-2]])
         
-        score, logits, regress = yolo_classifier(out, n_class, 256, n_anchor = n_anchor, feature_share = feature_share, normalize = normalize, activation = post_activation)
-        result.append([score, logits, regress])
+        score_pred, logit_pred, bbox_pred = yolo_classifier(out, n_class, 256, n_anchor = n_anchor, feature_share = feature_share, normalize = normalize, activation = post_activation)
+        result.append([score_pred, logit_pred, bbox_pred])
         result = result[::-1]
     else:
         if csp:
@@ -91,8 +91,8 @@ def yolo_head(feature, n_class = 80, image_shape = [608, 608],
             n_feature = [128, 256, 512]
             for index, _n_feature in enumerate(n_feature):
                 out = yolo_conv_block(out, _n_feature, normalize = normalize, activation = post_activation)
-                score, logits, regress = yolo_classifier(out, n_class, _n_feature * 2, n_anchor = n_anchor, feature_share = feature_share, normalize = normalize, activation = post_activation)
-                result.append([score, logits, regress])
+                score_pred, logit_pred, bbox_pred = yolo_classifier(out, n_class, _n_feature * 2, n_anchor = n_anchor, feature_share = feature_share, normalize = normalize, activation = post_activation)
+                result.append([score_pred, logit_pred, bbox_pred])
                 if index < len(n_feature) - 1:
                     out = darknet_conv_block(out, _n_feature * 2, 3, stride_size = 2, normalize = normalize, activation = post_activation)
                     out = tf.keras.layers.Concatenate(axis = -1)([out, feature[index + 1]])
@@ -100,8 +100,8 @@ def yolo_head(feature, n_class = 80, image_shape = [608, 608],
             n_feature = [512, 256, 128]
             for index, _n_feature in enumerate(n_feature):
                 out = yolo_conv_block(out, _n_feature, normalize = normalize, activation = post_activation)
-                score, logits, regress = yolo_classifier(out, n_class, _n_feature * 2, n_anchor = n_anchor, feature_share = feature_share, normalize = normalize, activation = post_activation)
-                result.append([score, logits, regress])
+                score_pred, logit_pred, bbox_pred = yolo_classifier(out, n_class, _n_feature * 2, n_anchor = n_anchor, feature_share = feature_share, normalize = normalize, activation = post_activation)
+                result.append([score_pred, logit_pred, bbox_pred])
                 if index < len(n_feature) - 1:
                     out = darknet_conv_block(out, _n_feature // 2, 1, normalize = normalize, activation = post_activation)
                     target_size = tf.shape(feature[-(index + 2)])[-3:-1]
@@ -109,48 +109,37 @@ def yolo_head(feature, n_class = 80, image_shape = [608, 608],
                     out = tf.keras.layers.Concatenate(axis = -1)([out, feature[-(index + 2)]])
             result = result[::-1]
     result = list(zip(*result))
-    score, logits, regress = [tf.keras.layers.Concatenate(axis = 1, dtype = tf.float32)(r) for r in result]
-    anchors = generate_yolo_anchors(feature, image_shape, size, normalize = True, auto_size = True, dtype = tf.float32)
-    
-    #valid_flags = tf.logical_and(tf.less_equal(anchors[..., 2], 1),
-    #                             tf.logical_and(tf.less_equal(anchors[..., 3], 1),
-    #                                            tf.logical_and(tf.greater_equal(anchors[..., 0], 0),
-    #                                                           tf.greater_equal(anchors[..., 1], 0))))
-    ##valid_indices = tf.range(tf.shape(anchors)[0])[valid_flags]
-    #valid_indices = tf.where(valid_flags)[:, 0]
-    #score = tf.gather(score, valid_indices, axis = 1)
-    #logits = tf.gather(logits, valid_indices, axis = 1)
-    #regress = tf.gather(regress, valid_indices, axis = 1)
-    #anchors = tf.gather(anchors, valid_indices)
-    return score, logits, regress, anchors
+    #score_pred, logit_pred, bbox_pred = [tf.keras.layers.Concatenate(axis = 1, dtype = tf.float32)(r) for r in result]
+    score_pred, logit_pred, bbox_pred = result
+    anchors = generate_yolo_anchors(feature, image_shape, size, normalize = True, auto_size = True, concat = False, dtype = tf.float32)
+    return score_pred, logit_pred, bbox_pred, anchors
 
 def yolo_v3_head(feature, n_class = 80, image_shape = [608, 608], size = [[ 10, 13], [ 16,  30], [ 33,  23],
                                                                           [ 30, 61], [ 62,  45], [ 59, 119],
                                                                           [116, 90], [156, 198], [373, 326]],
                  feature_share = True, method = "nearest",
                  normalize = tf.keras.layers.BatchNormalization, activation = mish, post_activation = leaky_relu):
-    score, logits, regress, anchors = yolo_head(feature, n_class = n_class, image_shape = image_shape, size = size, tiny = False, csp = False, feature_share = feature_share, method = method, normalize = normalize, activation = activation, post_activation = post_activation)
-    return score, logits, regress, anchors
+    score_pred, logit_pred, bbox_pred, anchors = yolo_head(feature, n_class = n_class, image_shape = image_shape, size = size, tiny = False, csp = False, feature_share = feature_share, method = method, normalize = normalize, activation = activation, post_activation = post_activation)
+    return score_pred, logit_pred, bbox_pred, anchors
 
 def yolo_tiny_v3_head(feature, n_class = 80, image_shape = [416, 416], size = [[23, 27], [ 37,  58], [ 81,  82],
                                                                                [81, 82], [135, 169], [344, 319]],
                       feature_share = True, method = "nearest",
                       normalize = tf.keras.layers.BatchNormalization, activation = mish, post_activation = leaky_relu):
-    score, logits, regress, anchors = yolo_head(feature, n_class = n_class, image_shape = image_shape, size = size, tiny = True, csp = False, feature_share = feature_share, method = method, normalize = normalize, activation = activation, post_activation = post_activation)
-    return score, logits, regress, anchors
+    score_pred, logit_pred, bbox_pred, anchors = yolo_head(feature, n_class = n_class, image_shape = image_shape, size = size, tiny = True, csp = False, feature_share = feature_share, method = method, normalize = normalize, activation = activation, post_activation = post_activation)
+    return score_pred, logit_pred, bbox_pred, anchors
 
 def yolo_v4_head(feature, n_class = 80, image_shape = [608, 608], size = [[ 10, 13], [ 16,  30], [ 33,  23],
                                                                           [ 30, 61], [ 62,  45], [ 59, 119],
                                                                           [116, 90], [156, 198], [373, 326]],
                  feature_share = True, method = "nearest",
                  normalize = tf.keras.layers.BatchNormalization, activation = mish, post_activation = leaky_relu):
-    score, logits, regress, anchors = yolo_head(feature, n_class = n_class, image_shape = image_shape, size = size, tiny = False, csp = True, feature_share = feature_share, method = method, normalize = normalize, activation = activation, post_activation = post_activation)
-    return score, logits, regress, anchors
+    score_pred, logit_pred, bbox_pred, anchors = yolo_head(feature, n_class = n_class, image_shape = image_shape, size = size, tiny = False, csp = True, feature_share = feature_share, method = method, normalize = normalize, activation = activation, post_activation = post_activation)
+    return score_pred, logit_pred, bbox_pred, anchors
 
 def yolo_tiny_v4_head(feature, n_class = 80, image_shape = [416, 416], size = [[23, 27], [ 37,  58], [ 81,  82],
                                                                                [81, 82], [135, 169], [344, 319]],
                       feature_share = True, method = "nearest",
                       normalize = tf.keras.layers.BatchNormalization, activation = mish, post_activation = leaky_relu):
-    score, logits, regress, anchors = yolo_head(feature, n_class = n_class, image_shape = image_shape, size = size, tiny = True, csp = True, feature_share = feature_share, method = method, normalize = normalize, activation = activation, post_activation = post_activation)
-    return score, logits, regress, anchors
-
+    score_pred, logit_pred, bbox_pred, anchors = yolo_head(feature, n_class = n_class, image_shape = image_shape, size = size, tiny = True, csp = True, feature_share = feature_share, method = method, normalize = normalize, activation = activation, post_activation = post_activation)
+    return score_pred, logit_pred, bbox_pred, anchors

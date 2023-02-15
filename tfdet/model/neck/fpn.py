@@ -1,10 +1,13 @@
 import tensorflow as tf
 
-def conv(filters, kernel_size, strides = 1, padding = "same", use_bias = True, kernel_initializer = "he_normal", **kwargs):
+def conv(filters, kernel_size, strides = 1, padding = "same", use_bias = True, kernel_initializer = "glorot_uniform", **kwargs):
     return tf.keras.layers.Conv2D(filters, kernel_size, strides = strides, padding = padding, use_bias = use_bias, kernel_initializer = kernel_initializer, **kwargs)
 
-def separable_conv(filters, kernel_size, strides = 1, padding = "same", use_bias = True, depthwise_initializer = "he_normal", pointwise_initializer = "he_normal", **kwargs):
+def separable_conv(filters, kernel_size, strides = 1, padding = "same", use_bias = True, depthwise_initializer = "glorot_uniform", pointwise_initializer = "glorot_uniform", **kwargs):
     return tf.keras.layers.SeparableConv2D(filters, kernel_size, strides = strides, padding = padding, use_bias = use_bias, depthwise_initializer = depthwise_initializer, pointwise_initializer = pointwise_initializer, **kwargs)
+
+def normalize(axis = -1, momentum = 0.9, epsilon = 1e-5, **kwargs):
+    return tf.keras.layers.BatchNormalization(axis = axis, momentum = momentum, epsilon = epsilon, **kwargs)
 
 class WeightedAdd(tf.keras.layers.Layer):
     def __init__(self, **kwargs):
@@ -27,7 +30,7 @@ class WeightedAdd(tf.keras.layers.Layer):
         return input_shape[0]
 
 class FeaturePyramidNetwork(tf.keras.layers.Layer):
-    def __init__(self, mode = "bifpn", n_feature = 256, use_bias = True, weighted_add = True, method = "nearest", convolution = separable_conv, normalize = tf.keras.layers.BatchNormalization, activation = tf.nn.swish, **kwargs):
+    def __init__(self, mode = "bifpn", n_feature = 256, use_bias = None, weighted_add = True, method = "nearest", convolution = separable_conv, normalize = normalize, activation = tf.nn.swish, **kwargs):
         """
         fpn > mode = "fpn", use_bias = True, weighted_add = False, normalize = None
         panet > mode = "panet", use_bias = True, weighted_add = False, normalize = None
@@ -38,7 +41,7 @@ class FeaturePyramidNetwork(tf.keras.layers.Layer):
             raise ValueError("unknown mode '{0}'".format(mode))
         self.mode = mode
         self.n_feature = n_feature
-        self.use_bias = use_bias
+        self.use_bias = (normalize is None) if use_bias is None else use_bias
         self.weighted_add = weighted_add
         self.method = method
         self.convolution = convolution
@@ -47,7 +50,7 @@ class FeaturePyramidNetwork(tf.keras.layers.Layer):
         self.upsample = tf.keras.layers.Lambda(lambda args: tf.image.resize(args[0], args[1], method = method), name = "upsample")
         
     def build(self, input_shape):
-        if not isinstance(input_shape, list):
+        if not isinstance(input_shape, (tuple, list)):
             input_shape = [input_shape]
 
         self.u2b_resample = []
@@ -126,7 +129,7 @@ class FeaturePyramidNetwork(tf.keras.layers.Layer):
                 self.post_conv.append(conv)
 
     def call(self, inputs):
-        if not isinstance(inputs, list):
+        if not isinstance(inputs, (tuple, list)):
             inputs = [inputs]
         
         feature = list(inputs)
@@ -187,12 +190,12 @@ class FeaturePyramidNetwork(tf.keras.layers.Layer):
         config["method"] = self.method
         return config
         
-def fpn(n_feature = 256, use_bias = True, weighted_add = False, method = "nearest", convolution = conv, normalize = None, activation = None, mode = "fpn", **kwargs):
+def fpn(n_feature = 256, use_bias = None, weighted_add = False, method = "nearest", convolution = conv, normalize = None, activation = None, mode = "fpn", **kwargs):
     return FeaturePyramidNetwork(mode = mode, n_feature = n_feature, use_bias = use_bias, weighted_add = weighted_add, method = method, convolution = convolution, normalize = normalize, activation = activation, **kwargs)
     
-def panet(n_feature = 256, use_bias = True, weighted_add = False, method = "nearest", convolution = conv, normalize = None, activation = None, mode = "panet", **kwargs):
+def panet(n_feature = 256, use_bias = None, weighted_add = False, method = "nearest", convolution = conv, normalize = None, activation = None, mode = "panet", **kwargs):
     return FeaturePyramidNetwork(mode = mode, n_feature = n_feature, use_bias = use_bias, weighted_add = weighted_add, method = method, convolution = convolution, normalize = normalize, activation = activation, **kwargs)
     
-def bifpn(n_feature = 256, use_bias = True, weighted_add = True, method = "nearest", convolution = separable_conv, normalize = tf.keras.layers.BatchNormalization, activation = tf.nn.swish, mode = "bifpn", **kwargs):
+def bifpn(n_feature = 256, use_bias = True, weighted_add = True, method = "nearest", convolution = separable_conv, normalize = normalize, activation = tf.nn.swish, mode = "bifpn", **kwargs):
     return FeaturePyramidNetwork(mode = mode, n_feature = n_feature, use_bias = use_bias, weighted_add = weighted_add, method = method, convolution = convolution, normalize = normalize, activation = activation, **kwargs)
     
