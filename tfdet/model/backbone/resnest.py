@@ -239,7 +239,7 @@ def load_weight(keras_model, torch_url, group_size = 2):
         import torch
         torch_weight = torch.hub.load_state_dict_from_url(torch_url, map_location = "cpu", progress = True, check_hash = True)
     except:
-        print("If you want to use 'ResNeSt Weight', please install 'torch 1.1▲'\n{0}".format(traceback.format_exc()))
+        print("If you want to use 'resnest weight', please install 'torch 1.1▲'\n{0}".format(traceback.format_exc()))
         return keras_model
     
     weight = {}
@@ -275,7 +275,10 @@ def load_weight(keras_model, torch_url, group_size = 2):
         tf.keras.backend.set_value(w, new_w)
     return keras_model
 
-def resnest50(x, dropout_rate = 0., weights = "imagenet", indices = None):
+def resnest50(x, dropout_rate = 0., weights = "imagenet", indices = [0, 1, 2, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     out = ResNet(x, [3, 4, 6, 3], include_top = False, radix = 2, group_size = 1, block_width = 64, stem_width = 32, deep_stem = True, avg_down = True, avd = True, avd_first = False, dropout_rate = dropout_rate)
     model = tf.keras.Model(x, out)
     
@@ -284,8 +287,14 @@ def resnest50(x, dropout_rate = 0., weights = "imagenet", indices = None):
     elif weights is not None:
         model.load_weights(weights)
         
-    layers = ["stage1_block3_shorcut_act", "stage2_block4_shorcut_act", "stage3_block6_shorcut_act", "stage4_block3_shorcut_act"]
-    feature = [model.get_layer(l).output for l in layers]
+    layers = ["stem_pooling", "stage1_block3_shorcut_act", "stage2_block4_shorcut_act", "stage3_block6_shorcut_act", "stage4_block3_shorcut_act"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
+    feature = [model.get_layer(l).output for l in layers[1:]]
+    
     if indices is None:
         indices = list(range(len(feature)))
     elif not isinstance(indices, list):
@@ -293,7 +302,10 @@ def resnest50(x, dropout_rate = 0., weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
     
-def resnest101(x, dropout_rate = 0., weights = "imagenet", indices = None):
+def resnest101(x, dropout_rate = 0., weights = "imagenet", indices = [0, 1, 2, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     out = ResNet(x, [3, 4, 23, 3], include_top = False, radix = 2, group_size = 1, block_width = 64, stem_width = 64, deep_stem = True, avg_down = True, avd = True, avd_first = False, dropout_rate = dropout_rate)
     model = tf.keras.Model(x, out)
     
@@ -302,8 +314,14 @@ def resnest101(x, dropout_rate = 0., weights = "imagenet", indices = None):
     elif weights is not None:
         model.load_weights(weights)
         
-    layers = ["stage1_block3_shorcut_act", "stage2_block4_shorcut_act", "stage3_block23_shorcut_act", "stage4_block3_shorcut_act"]
-    feature = [model.get_layer(l).output for l in layers]
+    layers = ["stem_pooling", "stage1_block3_shorcut_act", "stage2_block4_shorcut_act", "stage3_block23_shorcut_act", "stage4_block3_shorcut_act"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
+    feature = [model.get_layer(l).output for l in layers[1:]]
+    
     if indices is None:
         indices = list(range(len(feature)))
     elif not isinstance(indices, list):
@@ -311,7 +329,10 @@ def resnest101(x, dropout_rate = 0., weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
 
-def resnest200(x, dropout_rate = 0., weights = "imagenet", indices = None):
+def resnest200(x, dropout_rate = 0., weights = "imagenet", indices = [0, 1, 2, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     out = ResNet(x, [3, 24, 36, 3], include_top = False, radix = 2, group_size = 1, block_width = 64, stem_width = 64, deep_stem = True, avg_down = True, avd = True, avd_first = False, dropout_rate = dropout_rate)
     model = tf.keras.Model(x, out)
     
@@ -320,8 +341,14 @@ def resnest200(x, dropout_rate = 0., weights = "imagenet", indices = None):
     elif weights is not None:
         model.load_weights(weights)
         
-    layers = ["stage1_block3_shorcut_act", "stage2_block24_shorcut_act", "stage3_block36_shorcut_act", "stage4_block3_shorcut_act"]
-    feature = [model.get_layer(l).output for l in layers]
+    layers = ["stem_pooling", "stage1_block3_shorcut_act", "stage2_block24_shorcut_act", "stage3_block36_shorcut_act", "stage4_block3_shorcut_act"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
+    feature = [model.get_layer(l).output for l in layers[1:]]
+    
     if indices is None:
         indices = list(range(len(feature)))
     elif not isinstance(indices, list):
@@ -329,7 +356,10 @@ def resnest200(x, dropout_rate = 0., weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
 
-def resnest269(x, dropout_rate = 0., weights = "imagenet", indices = None):
+def resnest269(x, dropout_rate = 0., weights = "imagenet", indices = [0, 1, 2, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     out = ResNet(x, [3, 30, 48, 8], include_top = False, radix = 2, group_size = 1, block_width = 64, stem_width = 64, deep_stem = True, avg_down = True, avd = True, avd_first = False, dropout_rate = dropout_rate)
     model = tf.keras.Model(x, out)
     
@@ -338,8 +368,14 @@ def resnest269(x, dropout_rate = 0., weights = "imagenet", indices = None):
     elif weights is not None:
         model.load_weights(weights)
         
-    layers = ["stage1_block3_shorcut_act", "stage2_block30_shorcut_act", "stage3_block48_shorcut_act", "stage4_block8_shorcut_act"]
-    feature = [model.get_layer(l).output for l in layers]
+    layers = ["stem_pooling", "stage1_block3_shorcut_act", "stage2_block30_shorcut_act", "stage3_block48_shorcut_act", "stage4_block8_shorcut_act"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
+    feature = [model.get_layer(l).output for l in layers[1:]]
+    
     if indices is None:
         indices = list(range(len(feature)))
     elif not isinstance(indices, list):

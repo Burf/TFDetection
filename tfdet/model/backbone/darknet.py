@@ -57,6 +57,9 @@ def darknet_tiny_block(x, n_feature, stride_size = 2, csp_filter = None, feature
     return out
 
 def darknet53(x, csp = False, normalize = tf.keras.layers.BatchNormalization, activation = mish, post_activation = leaky_relu, weights = "darknet", indices = None):
+    """
+    darknet > normalize(x, rescale = 1 / 255, mean = None, std = None)
+    """
     csp_filter = [None, None, None, None, None]
     if csp:
         csp_filter = [64, 64, 128, 256, 512]
@@ -101,6 +104,9 @@ def darknet53(x, csp = False, normalize = tf.keras.layers.BatchNormalization, ac
     return feature
 
 def darknet19(x, csp = False, normalize = tf.keras.layers.BatchNormalization, activation = mish, weights = "darknet", indices = None):
+    """
+    darknet > normalize(x, rescale = 1 / 255, mean = None, std = None)
+    """
     if csp:
         n_feature = [64, 128, 256]
         csp_filter = [32, 64, 128]
@@ -140,9 +146,15 @@ def darknet19(x, csp = False, normalize = tf.keras.layers.BatchNormalization, ac
     return feature
     
 def csp_darknet53(x, csp = True, normalize = tf.keras.layers.BatchNormalization, activation = mish, post_activation = leaky_relu, weights = "darknet", indices = None):
+    """
+    darknet > normalize(x, rescale = 1 / 255, mean = None, std = None)
+    """
     return darknet53(x, csp = csp, normalize = normalize, activation = activation, post_activation = post_activation, weights = weights)
     
 def csp_darknet19(x, csp = True, normalize = tf.keras.layers.BatchNormalization, activation = mish, weights = "darknet", indices = None):
+    """
+    darknet > normalize(x, rescale = 1 / 255, mean = None, std = None)
+    """
     return darknet19(x, csp = csp, normalize = normalize, activation = activation, weights = weights)
     
 darknet_urls = {"darknet53":"https://pjreddie.com/media/files/yolov3.weights",

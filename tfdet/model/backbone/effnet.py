@@ -163,19 +163,19 @@ def block(inputs, activation_fn=tf.nn.swish, drop_rate=0., name='',
 def efficientnet(width_coefficient,
                  depth_coefficient,
                  default_size,
-                 dropout_rate=0.2,
-                 drop_connect_rate=0.2,
-                 depth_divisor=8,
-                 activation_fn=tf.nn.relu6,
-                 blocks_args=DEFAULT_BLOCKS_ARGS,
+                 dropout_rate = 0.2,
+                 drop_connect_rate = 0.2,
+                 depth_divisor = 8,
+                 activation_fn = tf.nn.swish,
+                 blocks_args = DEFAULT_BLOCKS_ARGS,
                  block = block,
                  conv_kernel_initializer = CONV_KERNEL_INITIALIZER,
                  dense_kernel_initializer = DENSE_KERNEL_INITIALIZER,
-                 include_top=True,
-                 input_tensor=None,
-                 input_shape=None,
-                 pooling=None,
-                 classes=1000,
+                 include_top = True,
+                 input_tensor = None,
+                 input_shape = None,
+                 pooling = None,
+                 classes =1000,
                  weights = None,
                  **kwargs):
     #https://github.com/keras-team/keras-applications/blob/master/keras_applications/efficientnet.py
@@ -264,19 +264,19 @@ def efficientnet(width_coefficient,
 def efficientnet_lite(width_coefficient,
                       depth_coefficient,
                       default_size,
-                      dropout_rate=0.2,
-                      drop_connect_rate=0.2,
-                      depth_divisor=8,
-                      activation_fn=tf.nn.relu6,
-                      blocks_args=[{k:v if "se_ratio" not in k else 0. for k, v in arg.items()} for arg in DEFAULT_BLOCKS_ARGS],
+                      dropout_rate = 0.2,
+                      drop_connect_rate = 0.2,
+                      depth_divisor = 8,
+                      activation_fn = tf.nn.relu6,
+                      blocks_args = [{k:v if "se_ratio" not in k else 0. for k, v in arg.items()} for arg in DEFAULT_BLOCKS_ARGS],
                       block = block,
                       conv_kernel_initializer = CONV_KERNEL_INITIALIZER,
                       dense_kernel_initializer = DENSE_KERNEL_INITIALIZER,
-                      include_top=True,
-                      input_tensor=None,
-                      input_shape=None,
-                      pooling=None,
-                      classes=1000,
+                      include_top = True,
+                      input_tensor = None,
+                      input_shape = None,
+                      pooling = None,
+                      classes = 1000,
                       weights = None,
                       **kwargs):
     #https://github.com/keras-team/keras-applications/blob/master/keras_applications/efficientnet.py
@@ -394,7 +394,10 @@ effnet_lite_urls = {
     "effnet_lite_b4":"https://tfhub.dev/tensorflow/efficientnet/lite4/classification/2"
 }
 
-def effnet_b0(x, weights = "imagenet", indices = None):
+def effnet_b0(x, weights = "imagenet", indices = [0, 1, 2, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     keras_weight = False
     if weights == "imagenet":
         keras_weight = True
@@ -406,8 +409,15 @@ def effnet_b0(x, weights = "imagenet", indices = None):
                                               cache_subdir = "models",
                                               file_hash = effnet_hashs["b0"])
         model.load_weights(weight_path)
-    layers = ["block2b_add", "block3b_add", "block5c_add", "block7a_project_bn"]
-    feature = [model.get_layer(l).output for l in layers]
+    
+    layers = ["stem_activation", "block2b_add", "block3b_add", "block5c_add", "block7a_project_bn"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
+    feature = [model.get_layer(l).output for l in layers[1:]]
+    
     if indices is None:
         indices = list(range(len(feature)))
     elif not isinstance(indices, list):
@@ -415,7 +425,10 @@ def effnet_b0(x, weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
 
-def effnet_b1(x, weights = "imagenet", indices = None):
+def effnet_b1(x, weights = "imagenet", indices = [0, 1, 2, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     keras_weight = False
     if weights == "imagenet":
         keras_weight = True
@@ -427,8 +440,15 @@ def effnet_b1(x, weights = "imagenet", indices = None):
                                               cache_subdir = "models",
                                               file_hash = effnet_hashs["b1"])
         model.load_weights(weight_path)
-    layers = ["block2c_add", "block3c_add", "block5d_add", "block7b_add"]
-    feature = [model.get_layer(l).output for l in layers]
+        
+    layers = ["stem_activation", "block2c_add", "block3c_add", "block5d_add", "block7b_add"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
+    feature = [model.get_layer(l).output for l in layers[1:]]
+    
     if indices is None:
         indices = list(range(len(feature)))
     elif not isinstance(indices, list):
@@ -436,7 +456,10 @@ def effnet_b1(x, weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
 
-def effnet_b2(x, weights = "imagenet", indices = None):
+def effnet_b2(x, weights = "imagenet", indices = [0, 1, 2, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     keras_weight = False
     if weights == "imagenet":
         keras_weight = True
@@ -448,8 +471,15 @@ def effnet_b2(x, weights = "imagenet", indices = None):
                                               cache_subdir = "models",
                                               file_hash = effnet_hashs["b2"])
         model.load_weights(weight_path)
-    layers = ["block2c_add", "block3c_add", "block5d_add", "block7b_add"]
-    feature = [model.get_layer(l).output for l in layers]
+        
+    layers = ["stem_activation", "block2c_add", "block3c_add", "block5d_add", "block7b_add"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
+    feature = [model.get_layer(l).output for l in layers[1:]]
+    
     if indices is None:
         indices = list(range(len(feature)))
     elif not isinstance(indices, list):
@@ -457,7 +487,10 @@ def effnet_b2(x, weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
 
-def effnet_b3(x, weights = "imagenet", indices = None):
+def effnet_b3(x, weights = "imagenet", indices = [0, 1, 2, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     keras_weight = False
     if weights == "imagenet":
         keras_weight = True
@@ -469,8 +502,15 @@ def effnet_b3(x, weights = "imagenet", indices = None):
                                               cache_subdir = "models",
                                               file_hash = effnet_hashs["b3"])
         model.load_weights(weight_path)
-    layers = ["block2c_add", "block3c_add", "block5e_add", "block7b_add"]
-    feature = [model.get_layer(l).output for l in layers]
+        
+    layers = ["stem_activation", "block2c_add", "block3c_add", "block5e_add", "block7b_add"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
+    feature = [model.get_layer(l).output for l in layers[1:]]
+    
     if indices is None:
         indices = list(range(len(feature)))
     elif not isinstance(indices, list):
@@ -478,7 +518,10 @@ def effnet_b3(x, weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
 
-def effnet_b4(x, weights = "imagenet", indices = None): 
+def effnet_b4(x, weights = "imagenet", indices = [0, 1, 2, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """ 
     keras_weight = False
     if weights == "imagenet":
         keras_weight = True
@@ -490,8 +533,15 @@ def effnet_b4(x, weights = "imagenet", indices = None):
                                               cache_subdir = "models",
                                               file_hash = effnet_hashs["b4"])
         model.load_weights(weight_path)
-    layers = ["block2d_add", "block3d_add", "block5f_add", "block7b_add"]
-    feature = [model.get_layer(l).output for l in layers]
+        
+    layers = ["stem_activation", "block2d_add", "block3d_add", "block5f_add", "block7b_add"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
+    feature = [model.get_layer(l).output for l in layers[1:]]
+    
     if indices is None:
         indices = list(range(len(feature)))
     elif not isinstance(indices, list):
@@ -499,7 +549,10 @@ def effnet_b4(x, weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
 
-def effnet_b5(x, weights = "imagenet", indices = None):
+def effnet_b5(x, weights = "imagenet", indices = [0, 1, 2, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     keras_weight = False
     if weights == "imagenet":
         keras_weight = True
@@ -511,8 +564,15 @@ def effnet_b5(x, weights = "imagenet", indices = None):
                                               cache_subdir = "models",
                                               file_hash = effnet_hashs["b5"])
         model.load_weights(weight_path)
-    layers = ["block2e_add", "block3e_add", "block5g_add", "block7c_add"]
-    feature = [model.get_layer(l).output for l in layers]
+        
+    layers = ["stem_activation", "block2e_add", "block3e_add", "block5g_add", "block7c_add"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
+    feature = [model.get_layer(l).output for l in layers[1:]]
+    
     if indices is None:
         indices = list(range(len(feature)))
     elif not isinstance(indices, list):
@@ -520,7 +580,10 @@ def effnet_b5(x, weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
 
-def effnet_b6(x, weights = "imagenet", indices = None):
+def effnet_b6(x, weights = "imagenet", indices = [0, 1, 2, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     keras_weight = False
     if weights == "imagenet":
         keras_weight = True
@@ -532,8 +595,15 @@ def effnet_b6(x, weights = "imagenet", indices = None):
                                               cache_subdir = "models",
                                               file_hash = effnet_hashs["b6"])
         model.load_weights(weight_path)
-    layers = ["block2f_add", "block3f_add", "block5h_add", "block7c_add"]
-    feature = [model.get_layer(l).output for l in layers]
+        
+    layers = ["stem_activation", "block2f_add", "block3f_add", "block5h_add", "block7c_add"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
+    feature = [model.get_layer(l).output for l in layers[1:]]
+    
     if indices is None:
         indices = list(range(len(feature)))
     elif not isinstance(indices, list):
@@ -541,7 +611,10 @@ def effnet_b6(x, weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
 
-def effnet_b7(x, weights = "imagenet", indices = None):
+def effnet_b7(x, weights = "imagenet", indices = [0, 1, 2, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     keras_weight = False
     if weights == "imagenet":
         keras_weight = True
@@ -553,8 +626,15 @@ def effnet_b7(x, weights = "imagenet", indices = None):
                                               cache_subdir = "models",
                                               file_hash = effnet_hashs["b7"])
         model.load_weights(weight_path)
-    layers = ["block2g_add", "block3g_add", "block5j_add", "block7d_add"]
-    feature = [model.get_layer(l).output for l in layers]
+        
+    layers = ["stem_activation", "block2g_add", "block3g_add", "block5j_add", "block7d_add"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
+    feature = [model.get_layer(l).output for l in layers[1:]]
+    
     if indices is None:
         indices = list(range(len(feature)))
     elif not isinstance(indices, list):
@@ -581,7 +661,10 @@ def load_weight(model, url):
         tf.keras.backend.set_value(w, new_w.numpy())
     return model
 
-def effnet_lite_b0(x, activation = tf.nn.relu6, weights = "imagenet", indices = None):
+def effnet_lite_b0(x, activation = tf.nn.relu6, weights = "imagenet", indices = [0, 1, 2, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rescale = 1 / 255, mean = None, std = None)
+    """
     hub_weight = False
     if weights == "imagenet":
         hub_weight = True
@@ -589,8 +672,15 @@ def effnet_lite_b0(x, activation = tf.nn.relu6, weights = "imagenet", indices = 
     model = efficientnet_lite(1.0, 1.0, 224, 0.2, activation_fn = activation, input_tensor = x, include_top = False, weights = weights)
     if hub_weight:
         model = load_weight(model, effnet_lite_urls["effnet_lite_b0"])
-    layers = ["block2b_add", "block3b_add", "block5c_add", "block7a_project_bn"]
-    feature = [model.get_layer(l).output for l in layers]
+        
+    layers = ["stem_activation", "block2b_add", "block3b_add", "block5c_add", "block7a_project_bn"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
+    feature = [model.get_layer(l).output for l in layers[1:]]
+    
     if indices is None:
         indices = list(range(len(feature)))
     elif not isinstance(indices, list):
@@ -598,7 +688,10 @@ def effnet_lite_b0(x, activation = tf.nn.relu6, weights = "imagenet", indices = 
     feature = [feature[index] for index in indices]
     return feature
 
-def effnet_lite_b1(x, activation = tf.nn.relu6, weights = "imagenet", indices = None):
+def effnet_lite_b1(x, activation = tf.nn.relu6, weights = "imagenet", indices = [0, 1, 2, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rescale = 1 / 255, mean = None, std = None)
+    """
     hub_weight = False
     if weights == "imagenet":
         hub_weight = True
@@ -606,8 +699,15 @@ def effnet_lite_b1(x, activation = tf.nn.relu6, weights = "imagenet", indices = 
     model = efficientnet_lite(1.0, 1.1, 240, 0.2, activation_fn = activation, input_tensor = x, include_top = False, weights = weights)
     if hub_weight:
         model = load_weight(model, effnet_lite_urls["effnet_lite_b1"])
-    layers = ["block2c_add", "block3c_add", "block5d_add", "block7a_project_bn"]
-    feature = [model.get_layer(l).output for l in layers]
+        
+    layers = ["stem_activation", "block2c_add", "block3c_add", "block5d_add", "block7a_project_bn"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
+    feature = [model.get_layer(l).output for l in layers[1:]]
+    
     if indices is None:
         indices = list(range(len(feature)))
     elif not isinstance(indices, list):
@@ -615,7 +715,10 @@ def effnet_lite_b1(x, activation = tf.nn.relu6, weights = "imagenet", indices = 
     feature = [feature[index] for index in indices]
     return feature
 
-def effnet_lite_b2(x, activation = tf.nn.relu6, weights = "imagenet", indices = None):
+def effnet_lite_b2(x, activation = tf.nn.relu6, weights = "imagenet", indices = [0, 1, 2, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rescale = 1 / 255, mean = None, std = None)
+    """
     hub_weight = False
     if weights == "imagenet":
         hub_weight = True
@@ -623,8 +726,15 @@ def effnet_lite_b2(x, activation = tf.nn.relu6, weights = "imagenet", indices = 
     model = efficientnet_lite(1.1, 1.2, 260, 0.3, activation_fn = activation, input_tensor = x, include_top = False, weights = weights)
     if hub_weight:
         model = load_weight(model, effnet_lite_urls["effnet_lite_b2"])
-    layers = ["block2c_add", "block3c_add", "block5d_add", "block7a_project_bn"]
-    feature = [model.get_layer(l).output for l in layers]
+        
+    layers = ["stem_activation", "block2c_add", "block3c_add", "block5d_add", "block7a_project_bn"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
+    feature = [model.get_layer(l).output for l in layers[1:]]
+    
     if indices is None:
         indices = list(range(len(feature)))
     elif not isinstance(indices, list):
@@ -632,7 +742,10 @@ def effnet_lite_b2(x, activation = tf.nn.relu6, weights = "imagenet", indices = 
     feature = [feature[index] for index in indices]
     return feature
 
-def effnet_lite_b3(x, activation = tf.nn.relu6, weights = "imagenet", indices = None):
+def effnet_lite_b3(x, activation = tf.nn.relu6, weights = "imagenet", indices = [0, 1, 2, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rescale = 1 / 255, mean = None, std = None)
+    """
     hub_weight = False
     if weights == "imagenet":
         hub_weight = True
@@ -640,8 +753,15 @@ def effnet_lite_b3(x, activation = tf.nn.relu6, weights = "imagenet", indices = 
     model = efficientnet_lite(1.2, 1.4, 280, 0.3, activation_fn = activation, input_tensor = x, include_top = False, weights = weights)
     if hub_weight:
         model = load_weight(model, effnet_lite_urls["effnet_lite_b3"])
-    layers = ["block2c_add", "block3c_add", "block5e_add", "block7a_project_bn"]
-    feature = [model.get_layer(l).output for l in layers]
+        
+    layers = ["stem_activation", "block2c_add", "block3c_add", "block5e_add", "block7a_project_bn"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
+    feature = [model.get_layer(l).output for l in layers[1:]]
+    
     if indices is None:
         indices = list(range(len(feature)))
     elif not isinstance(indices, list):
@@ -649,7 +769,10 @@ def effnet_lite_b3(x, activation = tf.nn.relu6, weights = "imagenet", indices = 
     feature = [feature[index] for index in indices]
     return feature
 
-def effnet_lite_b4(x, activation = tf.nn.relu6, weights = "imagenet", indices = None):
+def effnet_lite_b4(x, activation = tf.nn.relu6, weights = "imagenet", indices = [0, 1, 2, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rescale = 1 / 255, mean = None, std = None)
+    """
     hub_weight = False
     if weights == "imagenet":
         hub_weight = True
@@ -657,8 +780,15 @@ def effnet_lite_b4(x, activation = tf.nn.relu6, weights = "imagenet", indices = 
     model = efficientnet_lite(1.4, 1.8, 300, 0.3, activation_fn = activation, input_tensor = x, include_top = False, weights = weights)
     if hub_weight:
         model = load_weight(model, effnet_lite_urls["effnet_lite_b4"])
-    layers = ["block2d_add", "block3d_add", "block5f_add", "block7a_project_bn"]
-    feature = [model.get_layer(l).output for l in layers]
+        
+    layers = ["stem_activation", "block2d_add", "block3d_add", "block5f_add", "block7a_project_bn"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
+    feature = [model.get_layer(l).output for l in layers[1:]]
+    
     if indices is None:
         indices = list(range(len(feature)))
     elif not isinstance(indices, list):
@@ -666,14 +796,25 @@ def effnet_lite_b4(x, activation = tf.nn.relu6, weights = "imagenet", indices = 
     feature = [feature[index] for index in indices]
     return feature
 
-def effnet_v2_b0(x, weights = "imagenet", indices = None):
+def effnet_v2_b0(x, weights = "imagenet", indices = [0, 1, 2, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     try:
-        model = tf.keras.applications.EfficientNetV2B0(input_tensor = x, include_top = False, include_preprocessing = False, weights = weights)
+        tf.keras.applications.EfficientNetV2B0
     except Exception as e:
         print("If you want to use 'EfficientNetV2', please install 'tensorflow 2.8▲'")
         raise e
-    layers = ["block2b_add", "block3b_add", "block5e_add", "block6h_add"]
-    feature = [model.get_layer(l).output for l in layers]
+    model = tf.keras.applications.EfficientNetV2B0(input_tensor = x, include_top = False, include_preprocessing = False, weights = weights)
+    
+    layers = ["stem_activation", "block2b_add", "block3b_add", "block5e_add", "block6h_add"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
+    feature = [model.get_layer(l).output for l in layers[1:]]
+    
     if indices is None:
         indices = list(range(len(feature)))
     elif not isinstance(indices, list):
@@ -681,14 +822,25 @@ def effnet_v2_b0(x, weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
     
-def effnet_v2_b1(x, weights = "imagenet", indices = None):
+def effnet_v2_b1(x, weights = "imagenet", indices = [0, 1, 2, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     try:
-        model = tf.keras.applications.EfficientNetV2B1(input_tensor = x, include_top = False, include_preprocessing = False, weights = weights)
+        tf.keras.applications.EfficientNetV2B1
     except Exception as e:
         print("If you want to use 'EfficientNetV2', please install 'tensorflow 2.8▲'")
         raise e
-    layers = ["block2c_add", "block3c_add", "block5f_add", "block6i_add"]
-    feature = [model.get_layer(l).output for l in layers]
+    model = tf.keras.applications.EfficientNetV2B1(input_tensor = x, include_top = False, include_preprocessing = False, weights = weights)
+    
+    layers = ["stem_activation", "block2c_add", "block3c_add", "block5f_add", "block6i_add"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
+    feature = [model.get_layer(l).output for l in layers[1:]]
+    
     if indices is None:
         indices = list(range(len(feature)))
     elif not isinstance(indices, list):
@@ -696,14 +848,25 @@ def effnet_v2_b1(x, weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
     
-def effnet_v2_b2(x, weights = "imagenet", indices = None):
+def effnet_v2_b2(x, weights = "imagenet", indices = [0, 1, 2, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     try:
-        model = tf.keras.applications.EfficientNetV2B2(input_tensor = x, include_top = False, include_preprocessing = False, weights = weights)
+        tf.keras.applications.EfficientNetV2B2
     except Exception as e:
         print("If you want to use 'EfficientNetV2', please install 'tensorflow 2.8▲'")
         raise e
-    layers = ["block2c_add", "block3c_add", "block5f_add", "block6j_add"]
-    feature = [model.get_layer(l).output for l in layers]
+    model = tf.keras.applications.EfficientNetV2B2(input_tensor = x, include_top = False, include_preprocessing = False, weights = weights)
+    
+    layers = ["stem_activation", "block2c_add", "block3c_add", "block5f_add", "block6j_add"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
+    feature = [model.get_layer(l).output for l in layers[1:]]
+    
     if indices is None:
         indices = list(range(len(feature)))
     elif not isinstance(indices, list):
@@ -711,14 +874,25 @@ def effnet_v2_b2(x, weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
     
-def effnet_v2_b3(x, weights = "imagenet", indices = None):
+def effnet_v2_b3(x, weights = "imagenet", indices = [0, 1, 2, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     try:
-        model = tf.keras.applications.EfficientNetV2B3(input_tensor = x, include_top = False, include_preprocessing = False, weights = weights)
+        tf.keras.applications.EfficientNetV2B3
     except Exception as e:
         print("If you want to use 'EfficientNetV2', please install 'tensorflow 2.8▲'")
         raise e
-    layers = ["block2c_add", "block3c_add", "block5g_add", "block6l_add"]
-    feature = [model.get_layer(l).output for l in layers]
+    model = tf.keras.applications.EfficientNetV2B3(input_tensor = x, include_top = False, include_preprocessing = False, weights = weights)
+    
+    layers = ["stem_activation", "block2c_add", "block3c_add", "block5g_add", "block6l_add"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
+    feature = [model.get_layer(l).output for l in layers[1:]]
+    
     if indices is None:
         indices = list(range(len(feature)))
     elif not isinstance(indices, list):
@@ -726,14 +900,25 @@ def effnet_v2_b3(x, weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
     
-def effnet_v2_s(x, weights = "imagenet", indices = None):
+def effnet_v2_s(x, weights = "imagenet", indices = [0, 1, 2, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     try:
-        model = tf.keras.applications.EfficientNetV2S(input_tensor = x, include_top = False, include_preprocessing = False, weights = weights)
+        tf.keras.applications.EfficientNetV2S
     except Exception as e:
         print("If you want to use 'EfficientNetV2', please install 'tensorflow 2.8▲'")
         raise e
-    layers = ["block2d_add", "block3d_add", "block5i_add", "block6o_add"]
-    feature = [model.get_layer(l).output for l in layers]
+    model = tf.keras.applications.EfficientNetV2S(input_tensor = x, include_top = False, include_preprocessing = False, weights = weights)
+    
+    layers = ["stem_activation", "block2d_add", "block3d_add", "block5i_add", "block6o_add"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
+    feature = [model.get_layer(l).output for l in layers[1:]]
+    
     if indices is None:
         indices = list(range(len(feature)))
     elif not isinstance(indices, list):
@@ -741,14 +926,25 @@ def effnet_v2_s(x, weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
     
-def effnet_v2_m(x, weights = "imagenet", indices = None):
+def effnet_v2_m(x, weights = "imagenet", indices = [0, 1, 2, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     try:
-        model = tf.keras.applications.EfficientNetV2M(input_tensor = x, include_top = False, include_preprocessing = False, weights = weights)
+        tf.keras.applications.EfficientNetV2M
     except Exception as e:
         print("If you want to use 'EfficientNetV2', please install 'tensorflow 2.8▲'")
         raise e
-    layers = ["block2e_add", "block3e_add", "block5n_add", "block7e_add"]
-    feature = [model.get_layer(l).output for l in layers]
+    model = tf.keras.applications.EfficientNetV2M(input_tensor = x, include_top = False, include_preprocessing = False, weights = weights)
+    
+    layers = ["stem_activation", "block2e_add", "block3e_add", "block5n_add", "block7e_add"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
+    feature = [model.get_layer(l).output for l in layers[1:]]
+    
     if indices is None:
         indices = list(range(len(feature)))
     elif not isinstance(indices, list):
@@ -756,14 +952,25 @@ def effnet_v2_m(x, weights = "imagenet", indices = None):
     feature = [feature[index] for index in indices]
     return feature
     
-def effnet_v2_l(x, weights = "imagenet", indices = None):
+def effnet_v2_l(x, weights = "imagenet", indices = [0, 1, 2, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     try:
-        model = tf.keras.applications.EfficientNetV2L(input_tensor = x, include_top = False, include_preprocessing = False, weights = weights)
+        tf.keras.applications.EfficientNetV2L
     except Exception as e:
         print("If you want to use 'EfficientNetV2', please install 'tensorflow 2.8▲'")
         raise e
-    layers = ["block2g_add", "block3g_add", "block5s_add", "block7g_add"]
-    feature = [model.get_layer(l).output for l in layers]
+    model = tf.keras.applications.EfficientNetV2L(input_tensor = x, include_top = False, include_preprocessing = False, weights = weights)
+    
+    layers = ["stem_activation", "block2g_add", "block3g_add", "block5s_add", "block7g_add"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
+    feature = [model.get_layer(l).output for l in layers[1:]]
+    
     if indices is None:
         indices = list(range(len(feature)))
     elif not isinstance(indices, list):

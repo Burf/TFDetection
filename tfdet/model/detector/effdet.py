@@ -48,6 +48,8 @@ def effdet_d0(x, n_class = 21,
               convolution = separable_conv, normalize = normalize, activation = tf.nn.swish):
     """
     The recommended image shape is 512.
+    
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
     """
     feature = effnet_b0(x, weights = weights, indices = [-3, -2, -1])
     out = effdet(feature, n_class = n_class, image_shape = x, n_feature = n_feature, n_depth = n_depth, use_bias = use_bias,
@@ -67,6 +69,8 @@ def effdet_d1(x, n_class = 21,
               convolution = separable_conv, normalize = normalize, activation = tf.nn.swish):
     """
     The recommended image shape is 640.
+    
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
     """
     feature = effnet_b1(x, weights = weights, indices = [-3, -2, -1])
     out = effdet(feature, n_class = n_class, image_shape = x, n_feature = n_feature, n_depth = n_depth, use_bias = use_bias,
@@ -86,6 +90,8 @@ def effdet_d2(x, n_class = 21,
               convolution = separable_conv, normalize = normalize, activation = tf.nn.swish):
     """
     The recommended image shape is 768.
+    
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
     """
     feature = effnet_b2(x, weights = weights, indices = [-3, -2, -1])
     out = effdet(feature, n_class = n_class, image_shape = x, n_feature = n_feature, n_depth = n_depth, use_bias = use_bias,
@@ -105,6 +111,8 @@ def effdet_d3(x, n_class = 21,
               convolution = separable_conv, normalize = normalize, activation = tf.nn.swish):
     """
     The recommended image shape is 896.
+    
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
     """
     feature = effnet_b3(x, weights = weights, indices = [-3, -2, -1])
     out = effdet(feature, n_class = n_class, image_shape = x, n_feature = n_feature, n_depth = n_depth, use_bias = use_bias,
@@ -124,6 +132,8 @@ def effdet_d4(x, n_class = 21,
               convolution = separable_conv, normalize = normalize, activation = tf.nn.swish):
     """
     The recommended image shape is 1024.
+    
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
     """
     feature = effnet_b4(x, weights = weights, indices = [-3, -2, -1])
     out = effdet(feature, n_class = n_class, image_shape = x, n_feature = n_feature, n_depth = n_depth, use_bias = use_bias,
@@ -143,6 +153,8 @@ def effdet_d5(x, n_class = 21,
               convolution = separable_conv, normalize = normalize, activation = tf.nn.swish):
     """
     The recommended image shape is 1280.
+    
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
     """
     feature = effnet_b5(x, weights = weights, indices = [-3, -2, -1])
     out = effdet(feature, n_class = n_class, image_shape = x, n_feature = n_feature, n_depth = n_depth, use_bias = use_bias,
@@ -162,6 +174,8 @@ def effdet_d6(x, n_class = 21,
               convolution = separable_conv, normalize = normalize, activation = tf.nn.swish):
     """
     The recommended image shape is 1280.
+    
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
     """
     feature = effnet_b6(x, weights = weights, indices = [-3, -2, -1])
     out = effdet(feature, n_class = n_class, image_shape = x, n_feature = n_feature, n_depth = n_depth, use_bias = use_bias,
@@ -181,6 +195,8 @@ def effdet_d7(x, n_class = 21,
               convolution = separable_conv, normalize = normalize, activation = tf.nn.swish):
     """
     The recommended image shape is 1536.
+    
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
     """
     feature = effnet_b6(x, weights = weights, indices = [-3, -2, -1])
     out = effdet(feature, n_class = n_class, image_shape = x, n_feature = n_feature, n_depth = n_depth, use_bias = use_bias,
@@ -200,6 +216,8 @@ def effdet_d7x(x, n_class = 21,
                convolution = separable_conv, normalize = normalize, activation = tf.nn.swish):
     """
     The recommended image shape is 1536.
+    
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
     """
     feature = effnet_b7(x, weights = weights, indices = [-3, -2, -1])
     out = effdet(feature, n_class = n_class, image_shape = x, n_feature = n_feature, n_depth = n_depth, use_bias = use_bias,
@@ -233,6 +251,8 @@ def effdet_lite_d0(x, n_class = 21,
                    convolution = separable_conv, normalize = normalize, activation = tf.nn.relu6):
     """
     The recommended image shape is 320.
+    
+    imagenet > normalize(x, rescale = 1 / 255, mean = None, std = None)
     """
     feature = effnet_lite_b0(x, weights = weights, indices = [-3, -2, -1])
     out = effdet_lite(feature, n_class = n_class, image_shape = x, n_feature = n_feature, n_depth = n_depth, use_bias = use_bias,
@@ -252,6 +272,8 @@ def effdet_lite_d1(x, n_class = 21,
                    convolution = separable_conv, normalize = normalize, activation = tf.nn.relu6):
     """
     The recommended image shape is 384.
+    
+    imagenet > normalize(x, rescale = 1 / 255, mean = None, std = None)
     """
     feature = effnet_lite_b1(x, weights = weights, indices = [-3, -2, -1])
     out = effdet_lite(feature, n_class = n_class, image_shape = x, n_feature = n_feature, n_depth = n_depth, use_bias = use_bias,
@@ -271,6 +293,8 @@ def effdet_lite_d2(x, n_class = 21,
                    convolution = separable_conv, normalize = normalize, activation = tf.nn.relu6):
     """
     The recommended image shape is 448.
+    
+    imagenet > normalize(x, rescale = 1 / 255, mean = None, std = None)
     """
     feature = effnet_lite_b2(x, weights = weights, indices = [-3, -2, -1])
     out = effdet_lite(feature, n_class = n_class, image_shape = x, n_feature = n_feature, n_depth = n_depth, use_bias = use_bias,
@@ -290,6 +314,8 @@ def effdet_lite_d3(x, n_class = 21,
                    convolution = separable_conv, normalize = normalize, activation = tf.nn.relu6):
     """
     The recommended image shape is 512.
+    
+    imagenet > normalize(x, rescale = 1 / 255, mean = None, std = None)
     """
     feature = effnet_lite_b3(x, weights = weights, indices = [-3, -2, -1])
     out = effdet_lite(feature, n_class = n_class, image_shape = x, n_feature = n_feature, n_depth = n_depth, use_bias = use_bias,
@@ -309,6 +335,8 @@ def effdet_lite_d3x(x, n_class = 21,
                     convolution = separable_conv, normalize = normalize, activation = tf.nn.relu6):
     """
     The recommended image shape is 640.
+    
+    imagenet > normalize(x, rescale = 1 / 255, mean = None, std = None)
     """
     feature = effnet_lite_b3(x, weights = weights, indices = [-3, -2, -1])
     out = effdet_lite(feature, n_class = n_class, image_shape = x, n_feature = n_feature, n_depth = n_depth, use_bias = use_bias,
@@ -328,6 +356,8 @@ def effdet_lite_d4(x, n_class = 21,
                    convolution = separable_conv, normalize = normalize, activation = tf.nn.relu6):
     """
     The recommended image shape is 640.
+    
+    imagenet > normalize(x, rescale = 1 / 255, mean = None, std = None)
     """
     feature = effnet_lite_b4(x, weights = weights, indices = [-3, -2, -1])
     out = effdet_lite(feature, n_class = n_class, image_shape = x, n_feature = n_feature, n_depth = n_depth, use_bias = use_bias,

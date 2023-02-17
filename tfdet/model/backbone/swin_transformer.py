@@ -766,7 +766,10 @@ def get_shape(size, input_shape = None):
         shape = shape[::-1]
     return shape
 
-def swin_transformer_tiny_224_w7_1k(x, window_size = 7, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = None):
+def swin_transformer_tiny_224_w7_1k(x, window_size = 7, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
 
     out = swin_transformer(x, include_top = False, patch_size = 4, n_feature = 96, n_blocks = [2, 2, 6, 2], n_heads = [3, 6, 12, 24], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation)
@@ -777,9 +780,14 @@ def swin_transformer_tiny_224_w7_1k(x, window_size = 7, dropout_rate = 0., atten
     elif weights is not None:
         model.load_weights(weights)
     
-    layers = ["layers_0", "layers_1", "layers_3"]
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
     feature = []
-    for i, l in enumerate(layers):
+    for i, l in enumerate(layers[1:]):
         out = model.get_layer(l).output
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
@@ -792,7 +800,10 @@ def swin_transformer_tiny_224_w7_1k(x, window_size = 7, dropout_rate = 0., atten
     feature = [feature[index] for index in indices]
     return feature
 
-def swin_transformer_tiny_224_w7_22k(x, window_size = 7, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.1, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = None):
+def swin_transformer_tiny_224_w7_22k(x, window_size = 7, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.1, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
     
     out = swin_transformer(x, include_top = False, patch_size = 4, n_feature = 96, n_blocks = [2, 2, 6, 2], n_heads = [3, 6, 12, 24], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation)
@@ -803,9 +814,14 @@ def swin_transformer_tiny_224_w7_22k(x, window_size = 7, dropout_rate = 0., atte
     elif weights is not None:
         model.load_weights(weights)
     
-    layers = ["layers_0", "layers_1", "layers_3"]
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
     feature = []
-    for i, l in enumerate(layers):
+    for i, l in enumerate(layers[1:]):
         out = model.get_layer(l).output
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
@@ -818,7 +834,10 @@ def swin_transformer_tiny_224_w7_22k(x, window_size = 7, dropout_rate = 0., atte
     feature = [feature[index] for index in indices]
     return feature
 
-def swin_transformer_tiny_224_w7_22kto1k(x, window_size = 7, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.1, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = None):
+def swin_transformer_tiny_224_w7_22kto1k(x, window_size = 7, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.1, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
 
     out = swin_transformer(x, include_top = False, patch_size = 4, n_feature = 96, n_blocks = [2, 2, 6, 2], n_heads = [3, 6, 12, 24], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation)
@@ -829,9 +848,14 @@ def swin_transformer_tiny_224_w7_22kto1k(x, window_size = 7, dropout_rate = 0., 
     elif weights is not None:
         model.load_weights(weights)
     
-    layers = ["layers_0", "layers_1", "layers_3"]
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
     feature = []
-    for i, l in enumerate(layers):
+    for i, l in enumerate(layers[1:]):
         out = model.get_layer(l).output
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
@@ -844,7 +868,10 @@ def swin_transformer_tiny_224_w7_22kto1k(x, window_size = 7, dropout_rate = 0., 
     feature = [feature[index] for index in indices]
     return feature
 
-def swin_transformer_small_224_w7_1k(x, window_size = 7, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.3, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = None):
+def swin_transformer_small_224_w7_1k(x, window_size = 7, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.3, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
 
     out = swin_transformer(x, include_top = False, patch_size = 4, n_feature = 96, n_blocks = [2, 2, 18, 2], n_heads = [3, 6, 12, 24], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation)
@@ -855,9 +882,14 @@ def swin_transformer_small_224_w7_1k(x, window_size = 7, dropout_rate = 0., atte
     elif weights is not None:
         model.load_weights(weights)
     
-    layers = ["layers_0", "layers_1", "layers_3"]
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
     feature = []
-    for i, l in enumerate(layers):
+    for i, l in enumerate(layers[1:]):
         out = model.get_layer(l).output
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
@@ -870,7 +902,10 @@ def swin_transformer_small_224_w7_1k(x, window_size = 7, dropout_rate = 0., atte
     feature = [feature[index] for index in indices]
     return feature
 
-def swin_transformer_small_224_w7_22k(x, window_size = 7, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = None):
+def swin_transformer_small_224_w7_22k(x, window_size = 7, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
 
     out = swin_transformer(x, include_top = False, patch_size = 4, n_feature = 96, n_blocks = [2, 2, 18, 2], n_heads = [3, 6, 12, 24], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation)
@@ -881,9 +916,14 @@ def swin_transformer_small_224_w7_22k(x, window_size = 7, dropout_rate = 0., att
     elif weights is not None:
         model.load_weights(weights)
     
-    layers = ["layers_0", "layers_1", "layers_3"]
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
     feature = []
-    for i, l in enumerate(layers):
+    for i, l in enumerate(layers[1:]):
         out = model.get_layer(l).output
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
@@ -896,7 +936,10 @@ def swin_transformer_small_224_w7_22k(x, window_size = 7, dropout_rate = 0., att
     feature = [feature[index] for index in indices]
     return feature
 
-def swin_transformer_small_224_w7_22kto1k(x, window_size = 7, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = None):
+def swin_transformer_small_224_w7_22kto1k(x, window_size = 7, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
 
     out = swin_transformer(x, include_top = False, patch_size = 4, n_feature = 96, n_blocks = [2, 2, 18, 2], n_heads = [3, 6, 12, 24], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation)
@@ -907,9 +950,14 @@ def swin_transformer_small_224_w7_22kto1k(x, window_size = 7, dropout_rate = 0.,
     elif weights is not None:
         model.load_weights(weights)
     
-    layers = ["layers_0", "layers_1", "layers_3"]
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
     feature = []
-    for i, l in enumerate(layers):
+    for i, l in enumerate(layers[1:]):
         out = model.get_layer(l).output
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
@@ -922,7 +970,10 @@ def swin_transformer_small_224_w7_22kto1k(x, window_size = 7, dropout_rate = 0.,
     feature = [feature[index] for index in indices]
     return feature
 
-def swin_transformer_base_224_w7_1k(x, window_size = 7, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.5, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = None):
+def swin_transformer_base_224_w7_1k(x, window_size = 7, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.5, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
     
     out = swin_transformer(x, include_top = False, patch_size = 4, n_feature = 128, n_blocks = [2, 2, 18, 2], n_heads = [4, 8, 16, 32], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation)
@@ -933,9 +984,14 @@ def swin_transformer_base_224_w7_1k(x, window_size = 7, dropout_rate = 0., atten
     elif weights is not None:
         model.load_weights(weights)
     
-    layers = ["layers_0", "layers_1", "layers_3"]
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
     feature = []
-    for i, l in enumerate(layers):
+    for i, l in enumerate(layers[1:]):
         out = model.get_layer(l).output
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
@@ -948,7 +1004,10 @@ def swin_transformer_base_224_w7_1k(x, window_size = 7, dropout_rate = 0., atten
     feature = [feature[index] for index in indices]
     return feature
 
-def swin_transformer_base_224_w7_22k(x, window_size = 7, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = None):
+def swin_transformer_base_224_w7_22k(x, window_size = 7, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
     
     out = swin_transformer(x, include_top = False, patch_size = 4, n_feature = 128, n_blocks = [2, 2, 18, 2], n_heads = [4, 8, 16, 32], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation)
@@ -959,9 +1018,14 @@ def swin_transformer_base_224_w7_22k(x, window_size = 7, dropout_rate = 0., atte
     elif weights is not None:
         model.load_weights(weights)
     
-    layers = ["layers_0", "layers_1", "layers_3"]
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
     feature = []
-    for i, l in enumerate(layers):
+    for i, l in enumerate(layers[1:]):
         out = model.get_layer(l).output
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
@@ -974,7 +1038,10 @@ def swin_transformer_base_224_w7_22k(x, window_size = 7, dropout_rate = 0., atte
     feature = [feature[index] for index in indices]
     return feature
 
-def swin_transformer_base_224_w7_22kto1k(x, window_size = 7, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = None):
+def swin_transformer_base_224_w7_22kto1k(x, window_size = 7, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
     
     out = swin_transformer(x, include_top = False, patch_size = 4, n_feature = 128, n_blocks = [2, 2, 18, 2], n_heads = [4, 8, 16, 32], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation)
@@ -985,9 +1052,14 @@ def swin_transformer_base_224_w7_22kto1k(x, window_size = 7, dropout_rate = 0., 
     elif weights is not None:
         model.load_weights(weights)
     
-    layers = ["layers_0", "layers_1", "layers_3"]
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
     feature = []
-    for i, l in enumerate(layers):
+    for i, l in enumerate(layers[1:]):
         out = model.get_layer(l).output
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
@@ -1000,7 +1072,10 @@ def swin_transformer_base_224_w7_22kto1k(x, window_size = 7, dropout_rate = 0., 
     feature = [feature[index] for index in indices]
     return feature
 
-def swin_transformer_base_384_w12_1k(x, window_size = 12, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.5, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = None):
+def swin_transformer_base_384_w12_1k(x, window_size = 12, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.5, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
     
     out = swin_transformer(x, include_top = False, patch_size = 4, n_feature = 128, n_blocks = [2, 2, 18, 2], n_heads = [4, 8, 16, 32], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation)
@@ -1011,9 +1086,14 @@ def swin_transformer_base_384_w12_1k(x, window_size = 12, dropout_rate = 0., att
     elif weights is not None:
         model.load_weights(weights)
     
-    layers = ["layers_0", "layers_1", "layers_3"]
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
     feature = []
-    for i, l in enumerate(layers):
+    for i, l in enumerate(layers[1:]):
         out = model.get_layer(l).output
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
@@ -1026,7 +1106,10 @@ def swin_transformer_base_384_w12_1k(x, window_size = 12, dropout_rate = 0., att
     feature = [feature[index] for index in indices]
     return feature
 
-def swin_transformer_base_384_w12_22k(x, window_size = 12, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = None):
+def swin_transformer_base_384_w12_22k(x, window_size = 12, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
     
     out = swin_transformer(x, include_top = False, patch_size = 4, n_feature = 128, n_blocks = [2, 2, 18, 2], n_heads = [4, 8, 16, 32], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation)
@@ -1037,9 +1120,14 @@ def swin_transformer_base_384_w12_22k(x, window_size = 12, dropout_rate = 0., at
     elif weights is not None:
         model.load_weights(weights)
     
-    layers = ["layers_0", "layers_1", "layers_3"]
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
     feature = []
-    for i, l in enumerate(layers):
+    for i, l in enumerate(layers[1:]):
         out = model.get_layer(l).output
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
@@ -1052,7 +1140,10 @@ def swin_transformer_base_384_w12_22k(x, window_size = 12, dropout_rate = 0., at
     feature = [feature[index] for index in indices]
     return feature
 
-def swin_transformer_base_384_w12_22kto1k(x, window_size = 12, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = None):
+def swin_transformer_base_384_w12_22kto1k(x, window_size = 12, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
     
     out = swin_transformer(x, include_top = False, patch_size = 4, n_feature = 128, n_blocks = [2, 2, 18, 2], n_heads = [4, 8, 16, 32], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation)
@@ -1063,9 +1154,14 @@ def swin_transformer_base_384_w12_22kto1k(x, window_size = 12, dropout_rate = 0.
     elif weights is not None:
         model.load_weights(weights)
     
-    layers = ["layers_0", "layers_1", "layers_3"]
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
     feature = []
-    for i, l in enumerate(layers):
+    for i, l in enumerate(layers[1:]):
         out = model.get_layer(l).output
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
@@ -1078,7 +1174,10 @@ def swin_transformer_base_384_w12_22kto1k(x, window_size = 12, dropout_rate = 0.
     feature = [feature[index] for index in indices]
     return feature
 
-def swin_transformer_large_224_w7_22k(x, window_size = 7, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = None):
+def swin_transformer_large_224_w7_22k(x, window_size = 7, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
     
     out = swin_transformer(x, include_top = False, patch_size = 4, n_feature = 192, n_blocks = [2, 2, 18, 2], n_heads = [6, 12, 24, 48], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation)
@@ -1089,9 +1188,14 @@ def swin_transformer_large_224_w7_22k(x, window_size = 7, dropout_rate = 0., att
     elif weights is not None:
         model.load_weights(weights)
     
-    layers = ["layers_0", "layers_1", "layers_3"]
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
     feature = []
-    for i, l in enumerate(layers):
+    for i, l in enumerate(layers[1:]):
         out = model.get_layer(l).output
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
@@ -1104,7 +1208,10 @@ def swin_transformer_large_224_w7_22k(x, window_size = 7, dropout_rate = 0., att
     feature = [feature[index] for index in indices]
     return feature
 
-def swin_transformer_large_224_w7_22kto1k(x, window_size = 7, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = None):
+def swin_transformer_large_224_w7_22kto1k(x, window_size = 7, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
     
     out = swin_transformer(x, include_top = False, patch_size = 4, n_feature = 192, n_blocks = [2, 2, 18, 2], n_heads = [6, 12, 24, 48], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation)
@@ -1115,9 +1222,14 @@ def swin_transformer_large_224_w7_22kto1k(x, window_size = 7, dropout_rate = 0.,
     elif weights is not None:
         model.load_weights(weights)
     
-    layers = ["layers_0", "layers_1", "layers_3"]
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
     feature = []
-    for i, l in enumerate(layers):
+    for i, l in enumerate(layers[1:]):
         out = model.get_layer(l).output
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
@@ -1130,7 +1242,10 @@ def swin_transformer_large_224_w7_22kto1k(x, window_size = 7, dropout_rate = 0.,
     feature = [feature[index] for index in indices]
     return feature
 
-def swin_transformer_large_384_w12_22k(x, window_size = 12, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = None):
+def swin_transformer_large_384_w12_22k(x, window_size = 12, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
     
     out = swin_transformer(x, include_top = False, patch_size = 4, n_feature = 192, n_blocks = [2, 2, 18, 2], n_heads = [6, 12, 24, 48], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation)
@@ -1141,9 +1256,14 @@ def swin_transformer_large_384_w12_22k(x, window_size = 12, dropout_rate = 0., a
     elif weights is not None:
         model.load_weights(weights)
     
-    layers = ["layers_0", "layers_1", "layers_3"]
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
     feature = []
-    for i, l in enumerate(layers):
+    for i, l in enumerate(layers[1:]):
         out = model.get_layer(l).output
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
@@ -1156,7 +1276,10 @@ def swin_transformer_large_384_w12_22k(x, window_size = 12, dropout_rate = 0., a
     feature = [feature[index] for index in indices]
     return feature
 
-def swin_transformer_large_384_w12_22kto1k(x, window_size = 12, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = None):
+def swin_transformer_large_384_w12_22kto1k(x, window_size = 12, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
     
     out = swin_transformer(x, include_top = False, patch_size = 4, n_feature = 192, n_blocks = [2, 2, 18, 2], n_heads = [6, 12, 24, 48], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation)
@@ -1167,9 +1290,14 @@ def swin_transformer_large_384_w12_22kto1k(x, window_size = 12, dropout_rate = 0
     elif weights is not None:
         model.load_weights(weights)
     
-    layers = ["layers_0", "layers_1", "layers_3"]
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
     feature = []
-    for i, l in enumerate(layers):
+    for i, l in enumerate(layers[1:]):
         out = model.get_layer(l).output
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
@@ -1182,7 +1310,10 @@ def swin_transformer_large_384_w12_22kto1k(x, window_size = 12, dropout_rate = 0
     feature = [feature[index] for index in indices]
     return feature
 
-def swin_transformer_v2_tiny_256_w8_1k(x, window_size = 8, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, pre_window_size = [8, 8, 8, 8], weights = "imagenet", indices = None):
+def swin_transformer_v2_tiny_256_w8_1k(x, window_size = 8, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, pre_window_size = [8, 8, 8, 8], weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
     
     out = swin_transformer_v2(x, include_top = False, patch_size = 4, n_feature = 96, n_blocks = [2, 2, 6, 2], n_heads = [3, 6, 12, 24], window_size = window_size, ratio = 4., use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation, pre_window_size = pre_window_size)
@@ -1193,9 +1324,14 @@ def swin_transformer_v2_tiny_256_w8_1k(x, window_size = 8, dropout_rate = 0., at
     elif weights is not None:
         model.load_weights(weights)
     
-    layers = ["layers_0", "layers_1", "layers_3"]
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
     feature = []
-    for i, l in enumerate(layers):
+    for i, l in enumerate(layers[1:]):
         out = model.get_layer(l).output
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
@@ -1208,7 +1344,10 @@ def swin_transformer_v2_tiny_256_w8_1k(x, window_size = 8, dropout_rate = 0., at
     feature = [feature[index] for index in indices]
     return feature
 
-def swin_transformer_v2_tiny_256_w16_1k(x, window_size = 16, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, pre_window_size = [16, 16, 16, 8], weights = "imagenet", indices = None):
+def swin_transformer_v2_tiny_256_w16_1k(x, window_size = 16, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, pre_window_size = [16, 16, 16, 8], weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
 
     out = swin_transformer_v2(x, include_top = False, patch_size = 4, n_feature = 96, n_blocks = [2, 2, 6, 2], n_heads = [3, 6, 12, 24], window_size = window_size, ratio = 4., use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation, pre_window_size = pre_window_size)
@@ -1219,9 +1358,14 @@ def swin_transformer_v2_tiny_256_w16_1k(x, window_size = 16, dropout_rate = 0., 
     elif weights is not None:
         model.load_weights(weights)
     
-    layers = ["layers_0", "layers_1", "layers_3"]
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
     feature = []
-    for i, l in enumerate(layers):
+    for i, l in enumerate(layers[1:]):
         out = model.get_layer(l).output
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
@@ -1234,7 +1378,10 @@ def swin_transformer_v2_tiny_256_w16_1k(x, window_size = 16, dropout_rate = 0., 
     feature = [feature[index] for index in indices]
     return feature
 
-def swin_transformer_v2_small_256_w8_1k(x, window_size = 8, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.3, normalize = normalize, activation = tf.keras.activations.gelu, pre_window_size = [8, 8, 8, 8], weights = "imagenet", indices = None):
+def swin_transformer_v2_small_256_w8_1k(x, window_size = 8, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.3, normalize = normalize, activation = tf.keras.activations.gelu, pre_window_size = [8, 8, 8, 8], weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
 
     out = swin_transformer_v2(x, include_top = False, patch_size = 4, n_feature = 96, n_blocks = [2, 2, 18, 2], n_heads = [3, 6, 12, 24], window_size = window_size, ratio = 4., use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation, pre_window_size = pre_window_size)
@@ -1245,9 +1392,14 @@ def swin_transformer_v2_small_256_w8_1k(x, window_size = 8, dropout_rate = 0., a
     elif weights is not None:
         model.load_weights(weights)
     
-    layers = ["layers_0", "layers_1", "layers_3"]
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
     feature = []
-    for i, l in enumerate(layers):
+    for i, l in enumerate(layers[1:]):
         out = model.get_layer(l).output
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
@@ -1260,7 +1412,10 @@ def swin_transformer_v2_small_256_w8_1k(x, window_size = 8, dropout_rate = 0., a
     feature = [feature[index] for index in indices]
     return feature
 
-def swin_transformer_v2_small_256_w16_1k(x, window_size = 16, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.3, normalize = normalize, activation = tf.keras.activations.gelu, pre_window_size = [16, 16, 16, 8], weights = "imagenet", indices = None):
+def swin_transformer_v2_small_256_w16_1k(x, window_size = 16, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.3, normalize = normalize, activation = tf.keras.activations.gelu, pre_window_size = [16, 16, 16, 8], weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
 
     out = swin_transformer_v2(x, include_top = False, patch_size = 4, n_feature = 96, n_blocks = [2, 2, 18, 2], n_heads = [3, 6, 12, 24], window_size = window_size, ratio = 4., use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation, pre_window_size = pre_window_size)
@@ -1271,9 +1426,14 @@ def swin_transformer_v2_small_256_w16_1k(x, window_size = 16, dropout_rate = 0.,
     elif weights is not None:
         model.load_weights(weights)
     
-    layers = ["layers_0", "layers_1", "layers_3"]
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
     feature = []
-    for i, l in enumerate(layers):
+    for i, l in enumerate(layers[1:]):
         out = model.get_layer(l).output
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
@@ -1286,7 +1446,10 @@ def swin_transformer_v2_small_256_w16_1k(x, window_size = 16, dropout_rate = 0.,
     feature = [feature[index] for index in indices]
     return feature
 
-def swin_transformer_v2_base_256_w8_1k(x, window_size = 8, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.5, normalize = normalize, activation = tf.keras.activations.gelu, pre_window_size = [8, 8, 8, 8], weights = "imagenet", indices = None):
+def swin_transformer_v2_base_256_w8_1k(x, window_size = 8, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.5, normalize = normalize, activation = tf.keras.activations.gelu, pre_window_size = [8, 8, 8, 8], weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
 
     out = swin_transformer_v2(x, include_top = False, patch_size = 4, n_feature = 128, n_blocks = [2, 2, 18, 2], n_heads = [4, 8, 16, 32], window_size = window_size, ratio = 4., use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation, pre_window_size = pre_window_size)
@@ -1297,9 +1460,14 @@ def swin_transformer_v2_base_256_w8_1k(x, window_size = 8, dropout_rate = 0., at
     elif weights is not None:
         model.load_weights(weights)
     
-    layers = ["layers_0", "layers_1", "layers_3"]
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
     feature = []
-    for i, l in enumerate(layers):
+    for i, l in enumerate(layers[1:]):
         out = model.get_layer(l).output
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
@@ -1312,7 +1480,10 @@ def swin_transformer_v2_base_256_w8_1k(x, window_size = 8, dropout_rate = 0., at
     feature = [feature[index] for index in indices]
     return feature
 
-def swin_transformer_v2_base_256_w16_1k(x, window_size = 16, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.5, normalize = normalize, activation = tf.keras.activations.gelu, pre_window_size = [16, 16, 16, 8], weights = "imagenet", indices = None):
+def swin_transformer_v2_base_256_w16_1k(x, window_size = 16, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.5, normalize = normalize, activation = tf.keras.activations.gelu, pre_window_size = [16, 16, 16, 8], weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
 
     out = swin_transformer_v2(x, include_top = False, patch_size = 4, n_feature = 128, n_blocks = [2, 2, 18, 2], n_heads = [4, 8, 16, 32], window_size = window_size, ratio = 4., use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation, pre_window_size = pre_window_size)
@@ -1323,9 +1494,14 @@ def swin_transformer_v2_base_256_w16_1k(x, window_size = 16, dropout_rate = 0., 
     elif weights is not None:
         model.load_weights(weights)
     
-    layers = ["layers_0", "layers_1", "layers_3"]
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
     feature = []
-    for i, l in enumerate(layers):
+    for i, l in enumerate(layers[1:]):
         out = model.get_layer(l).output
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
@@ -1338,7 +1514,10 @@ def swin_transformer_v2_base_256_w16_1k(x, window_size = 16, dropout_rate = 0., 
     feature = [feature[index] for index in indices]
     return feature
 
-def swin_transformer_v2_base_192_w12_22k(x, window_size = 12, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, pre_window_size = [12, 12, 12, 6], weights = "imagenet", indices = None):
+def swin_transformer_v2_base_192_w12_22k(x, window_size = 12, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, pre_window_size = [12, 12, 12, 6], weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
 
     out = swin_transformer_v2(x, include_top = False, patch_size = 4, n_feature = 128, n_blocks = [2, 2, 18, 2], n_heads = [4, 8, 16, 32], window_size = window_size, ratio = 4., use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation, pre_window_size = pre_window_size)
@@ -1349,9 +1528,14 @@ def swin_transformer_v2_base_192_w12_22k(x, window_size = 12, dropout_rate = 0.,
     elif weights is not None:
         model.load_weights(weights)
     
-    layers = ["layers_0", "layers_1", "layers_3"]
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
     feature = []
-    for i, l in enumerate(layers):
+    for i, l in enumerate(layers[1:]):
         out = model.get_layer(l).output
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
@@ -1364,7 +1548,10 @@ def swin_transformer_v2_base_192_w12_22k(x, window_size = 12, dropout_rate = 0.,
     feature = [feature[index] for index in indices]
     return feature
 
-def swin_transformer_v2_base_256_w16_22kto1k(x, window_size = 16, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, pre_window_size = [12, 12, 12, 6], weights = "imagenet", indices = None):
+def swin_transformer_v2_base_256_w16_22kto1k(x, window_size = 16, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, pre_window_size = [12, 12, 12, 6], weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
 
     out = swin_transformer_v2(x, include_top = False, patch_size = 4, n_feature = 128, n_blocks = [2, 2, 18, 2], n_heads = [4, 8, 16, 32], window_size = window_size, ratio = 4., use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation, pre_window_size = pre_window_size)
@@ -1375,9 +1562,14 @@ def swin_transformer_v2_base_256_w16_22kto1k(x, window_size = 16, dropout_rate =
     elif weights is not None:
         model.load_weights(weights)
     
-    layers = ["layers_0", "layers_1", "layers_3"]
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
     feature = []
-    for i, l in enumerate(layers):
+    for i, l in enumerate(layers[1:]):
         out = model.get_layer(l).output
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
@@ -1390,7 +1582,10 @@ def swin_transformer_v2_base_256_w16_22kto1k(x, window_size = 16, dropout_rate =
     feature = [feature[index] for index in indices]
     return feature
 
-def swin_transformer_v2_base_384_w24_22kto1k(x, window_size = 24, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, pre_window_size = [12, 12, 12, 6], weights = "imagenet", indices = None):
+def swin_transformer_v2_base_384_w24_22kto1k(x, window_size = 24, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, pre_window_size = [12, 12, 12, 6], weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
 
     out = swin_transformer_v2(x, include_top = False, patch_size = 4, n_feature = 128, n_blocks = [2, 2, 18, 2], n_heads = [4, 8, 16, 32], window_size = window_size, ratio = 4., use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation, pre_window_size = pre_window_size)
@@ -1401,9 +1596,14 @@ def swin_transformer_v2_base_384_w24_22kto1k(x, window_size = 24, dropout_rate =
     elif weights is not None:
         model.load_weights(weights)
     
-    layers = ["layers_0", "layers_1", "layers_3"]
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
     feature = []
-    for i, l in enumerate(layers):
+    for i, l in enumerate(layers[1:]):
         out = model.get_layer(l).output
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
@@ -1416,7 +1616,10 @@ def swin_transformer_v2_base_384_w24_22kto1k(x, window_size = 24, dropout_rate =
     feature = [feature[index] for index in indices]
     return feature
 
-def swin_transformer_v2_large_192_w12_22k(x, window_size = 12, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, pre_window_size = [12, 12, 12, 6], weights = "imagenet", indices = None):
+def swin_transformer_v2_large_192_w12_22k(x, window_size = 12, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, pre_window_size = [12, 12, 12, 6], weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
 
     out = swin_transformer_v2(x, include_top = False, patch_size = 4, n_feature = 192, n_blocks = [2, 2, 18, 2], n_heads = [6, 12, 24, 48], window_size = window_size, ratio = 4., use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation, pre_window_size = pre_window_size)
@@ -1427,9 +1630,14 @@ def swin_transformer_v2_large_192_w12_22k(x, window_size = 12, dropout_rate = 0.
     elif weights is not None:
         model.load_weights(weights)
     
-    layers = ["layers_0", "layers_1", "layers_3"]
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
     feature = []
-    for i, l in enumerate(layers):
+    for i, l in enumerate(layers[1:]):
         out = model.get_layer(l).output
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
@@ -1442,7 +1650,10 @@ def swin_transformer_v2_large_192_w12_22k(x, window_size = 12, dropout_rate = 0.
     feature = [feature[index] for index in indices]
     return feature
 
-def swin_transformer_v2_large_256_w16_22kto1k(x, window_size = 16, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, pre_window_size = [12, 12, 12, 6], weights = "imagenet", indices = None):
+def swin_transformer_v2_large_256_w16_22kto1k(x, window_size = 16, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, pre_window_size = [12, 12, 12, 6], weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
 
     out = swin_transformer_v2(x, include_top = False, patch_size = 4, n_feature = 192, n_blocks = [2, 2, 18, 2], n_heads = [6, 12, 24, 48], window_size = window_size, ratio = 4., use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation, pre_window_size = pre_window_size)
@@ -1453,9 +1664,14 @@ def swin_transformer_v2_large_256_w16_22kto1k(x, window_size = 16, dropout_rate 
     elif weights is not None:
         model.load_weights(weights)
     
-    layers = ["layers_0", "layers_1", "layers_3"]
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
     feature = []
-    for i, l in enumerate(layers):
+    for i, l in enumerate(layers[1:]):
         out = model.get_layer(l).output
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
@@ -1468,7 +1684,10 @@ def swin_transformer_v2_large_256_w16_22kto1k(x, window_size = 16, dropout_rate 
     feature = [feature[index] for index in indices]
     return feature
 
-def swin_transformer_v2_large_384_w24_22kto1k(x, window_size = 24, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, pre_window_size = [12, 12, 12, 6], weights = "imagenet", indices = None):
+def swin_transformer_v2_large_384_w24_22kto1k(x, window_size = 24, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, pre_window_size = [12, 12, 12, 6], weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
     input_shape = tf.keras.backend.int_shape(x)[-3:-1]
 
     out = swin_transformer_v2(x, include_top = False, patch_size = 4, n_feature = 192, n_blocks = [2, 2, 18, 2], n_heads = [6, 12, 24, 48], window_size = window_size, ratio = 4., use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation, pre_window_size = pre_window_size)
@@ -1479,9 +1698,230 @@ def swin_transformer_v2_large_384_w24_22kto1k(x, window_size = 24, dropout_rate 
     elif weights is not None:
         model.load_weights(weights)
     
-    layers = ["layers_0", "layers_1", "layers_3"]
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
     feature = []
-    for i, l in enumerate(layers):
+    for i, l in enumerate(layers[1:]):
+        out = model.get_layer(l).output
+        out = normalize(name = "{0}_norm".format(l))(out)
+        out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
+        feature.append(out)
+        
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
+
+def swin_tiny(x, window_size = 7, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    The recommended image shape is 224.(224, 448, 672, ...)
+    
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
+    input_shape = tf.keras.backend.int_shape(x)[-3:-1]
+
+    out = swin_transformer(x, include_top = False, patch_size = 4, n_feature = 96, n_blocks = [2, 2, 6, 2], n_heads = [3, 6, 12, 24], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation)
+    model = tf.keras.Model(x, out)
+    
+    if weights == "imagenet":
+        load_weight(model, swin_transformer_url["swin_tiny_224_w7_1k"])
+    elif weights is not None:
+        model.load_weights(weights)
+    
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
+    feature = []
+    for i, l in enumerate(layers[1:]):
+        out = model.get_layer(l).output
+        out = normalize(name = "{0}_norm".format(l))(out)
+        out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
+        feature.append(out)
+        
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
+
+def swin_small(x, window_size = 7, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.3, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    The recommended image shape is 224.(224, 448, 672, ...)
+    
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
+    input_shape = tf.keras.backend.int_shape(x)[-3:-1]
+
+    out = swin_transformer(x, include_top = False, patch_size = 4, n_feature = 96, n_blocks = [2, 2, 18, 2], n_heads = [3, 6, 12, 24], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation)
+    model = tf.keras.Model(x, out)
+    
+    if weights == "imagenet":
+        load_weight(model, swin_transformer_url["swin_small_224_w7_1k"])
+    elif weights is not None:
+        model.load_weights(weights)
+    
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
+    feature = []
+    for i, l in enumerate(layers[1:]):
+        out = model.get_layer(l).output
+        out = normalize(name = "{0}_norm".format(l))(out)
+        out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
+        feature.append(out)
+        
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
+
+def swin_base(x, window_size = 7, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.5, normalize = normalize, activation = tf.keras.activations.gelu, weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    The recommended image shape is 224.(224, 448, 672, ...)
+    
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
+    input_shape = tf.keras.backend.int_shape(x)[-3:-1]
+    
+    out = swin_transformer(x, include_top = False, patch_size = 4, n_feature = 128, n_blocks = [2, 2, 18, 2], n_heads = [4, 8, 16, 32], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation)
+    model = tf.keras.Model(x, out)
+    
+    if weights == "imagenet":
+        load_weight(model, swin_transformer_url["swin_base_224_w7_1k"])
+    elif weights is not None:
+        model.load_weights(weights)
+    
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
+    feature = []
+    for i, l in enumerate(layers[1:]):
+        out = model.get_layer(l).output
+        out = normalize(name = "{0}_norm".format(l))(out)
+        out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
+        feature.append(out)
+        
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
+
+def swin_v2_tiny(x, window_size = 8, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.2, normalize = normalize, activation = tf.keras.activations.gelu, pre_window_size = [8, 8, 8, 8], weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    The recommended image shape is 256.(256, 512, 768, ...)
+    
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
+    input_shape = tf.keras.backend.int_shape(x)[-3:-1]
+    
+    out = swin_transformer_v2(x, include_top = False, patch_size = 4, n_feature = 96, n_blocks = [2, 2, 6, 2], n_heads = [3, 6, 12, 24], window_size = window_size, ratio = 4., use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation, pre_window_size = pre_window_size)
+    model = tf.keras.Model(x, out)
+    
+    if weights == "imagenet":
+        load_weight(model, swin_transformer_url["swin_v2_tiny_256_w8_1k"])
+    elif weights is not None:
+        model.load_weights(weights)
+    
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
+    feature = []
+    for i, l in enumerate(layers[1:]):
+        out = model.get_layer(l).output
+        out = normalize(name = "{0}_norm".format(l))(out)
+        out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
+        feature.append(out)
+        
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
+
+def swin_v2_small(x, window_size = 8, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.3, normalize = normalize, activation = tf.keras.activations.gelu, pre_window_size = [8, 8, 8, 8], weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    The recommended image shape is 256.(256, 512, 768, ...)
+    
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
+    input_shape = tf.keras.backend.int_shape(x)[-3:-1]
+
+    out = swin_transformer_v2(x, include_top = False, patch_size = 4, n_feature = 96, n_blocks = [2, 2, 18, 2], n_heads = [3, 6, 12, 24], window_size = window_size, ratio = 4., use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation, pre_window_size = pre_window_size)
+    model = tf.keras.Model(x, out)
+    
+    if weights == "imagenet":
+        load_weight(model, swin_transformer_url["swin_v2_small_256_w8_1k"])
+    elif weights is not None:
+        model.load_weights(weights)
+    
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
+    feature = []
+    for i, l in enumerate(layers[1:]):
+        out = model.get_layer(l).output
+        out = normalize(name = "{0}_norm".format(l))(out)
+        out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
+        feature.append(out)
+        
+    if indices is None:
+        indices = list(range(len(feature)))
+    elif not isinstance(indices, list):
+        indices = [indices]
+    feature = [feature[index] for index in indices]
+    return feature
+
+def swin_v2_base(x, window_size = 8, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.5, normalize = normalize, activation = tf.keras.activations.gelu, pre_window_size = [8, 8, 8, 8], weights = "imagenet", indices = [0, 1, 3], frozen_stages = -1):
+    """
+    The recommended image shape is 256.(256, 512, 768, ...)
+    
+    imagenet > normalize(x, rmean = [123.675, 116.28, 103.53], std = [58.395, 57.12, 57.375])
+    """
+    input_shape = tf.keras.backend.int_shape(x)[-3:-1]
+
+    out = swin_transformer_v2(x, include_top = False, patch_size = 4, n_feature = 128, n_blocks = [2, 2, 18, 2], n_heads = [4, 8, 16, 32], window_size = window_size, ratio = 4., use_bias = True, patch_normalize = True, dropout_rate = dropout_rate, attention_dropout_rate = attention_dropout_rate, droppath_rate = droppath_rate, normalize = normalize, activation = activation, pre_window_size = pre_window_size)
+    model = tf.keras.Model(x, out)
+    
+    if weights == "imagenet":
+        load_weight(model, swin_transformer_url["swin_v2_base_256_w8_1k"])
+    elif weights is not None:
+        model.load_weights(weights)
+    
+    layers = ["patch_embed", "layers_0", "layers_1", "layers_2", "layers_3"]
+    if -1 < frozen_stages:
+        for l in model.layers:
+            l.trainable = False
+            if l.name == layers[frozen_stages]:
+                break
+    feature = []
+    for i, l in enumerate(layers[1:]):
         out = model.get_layer(l).output
         out = normalize(name = "{0}_norm".format(l))(out)
         out = tf.keras.layers.Reshape([*get_shape(tf.keras.backend.int_shape(out)[-2], input_shape), tf.keras.backend.int_shape(out)[-1]], name = "{0}_feature".format(l))(out)
