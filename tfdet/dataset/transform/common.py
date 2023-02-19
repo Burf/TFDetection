@@ -236,19 +236,6 @@ def label_decode(x_true, y_true = None, bbox_true = None, mask_true = None, labe
     result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
     result = result[0] if len(result) == 1 else tuple(result)
     return result
-    
-def compose(x_true, y_true = None, bbox_true = None, mask_true = None,
-            transform = [],
-            keys = ["x_true", "y_true", "bbox_true", "mask_true"],
-            **kwargs):
-    transform = [transform] if callable(transform) else transform
-    if 0 < len(transform):
-        func = dict_function(transform, keys = keys)
-        result = func(x_true, y_true, bbox_true, mask_true, **kwargs)
-    else:
-        result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
-        result = result[0] if len(result) == 1 else tuple(result)
-    return result
 
 def resize(x_true, y_true = None, bbox_true = None, mask_true = None, image_shape = None, keep_ratio = True, method = cv2.INTER_LINEAR, mode = "value"):
     """
@@ -296,7 +283,7 @@ def resize(x_true, y_true = None, bbox_true = None, mask_true = None, image_shap
                 bbox_true = np.round(bbox_true).astype(np.int32)
             if mask_true is not None:
                 if 3 < np.ndim(mask_true):
-                    mask_true = np.expand_dims([cv2.resize(m, target_size[::-1], interpolation = method) for m in mask_true], axis = -1) if 0 < len(mask_true) else np.zeros([0, *target_size, 1], dtype = mask_true.dtype)
+                    mask_true = np.stack([np.expand_dims(cv2.resize(m, target_size[::-1], interpolation = method), axis = -1) for m in mask_true], axis = 0) if 0 < len(mask_true) else np.zeros([0, *target_size, 1], dtype = mask_true.dtype)
                 else:
                     mask_true = cv2.resize(mask_true, target_size[::-1], interpolation = method)
                     mask_true = np.expand_dims(mask_true, axis = -1) if np.ndim(mask_true) == 2 else mask_true
@@ -496,6 +483,41 @@ def flip(x_true, y_true = None, bbox_true = None, mask_true = None, mode = "hori
     
     result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
     result = result[0] if len(result) == 1 else tuple(result)
+    return result
+
+def mask_downscale(x_true, y_true = None, bbox_true = None, mask_true = None, scale = 4, method = cv2.INTER_LINEAR):
+    """
+    x_true = (H, W, C)
+    y_true(without bbox_true) = (1 or n_class)
+    y_true(with bbox_true) = (P, 1 or n_class)
+    bbox_true = (P, 4)
+    mask_true(with bbox_true & instance mask_true) = (P, H / scale, W / scale, 1)
+    mask_true(semantic mask_true) = (H / scale, W / scale, 1 or n_class)
+    """
+    if mask_true is not None and scale is not None:
+        size = np.shape(mask_true)[-3:-1]
+        target_size = tuple(np.round(np.divide(size, scale)).astype(np.int32))
+        if target_size != size:
+            if 3 < np.ndim(mask_true):
+                mask_true = np.stack([np.expand_dims(cv2.resize(m, target_size[::-1], interpolation = method), axis = -1) for m in mask_true], axis = 0) if 0 < len(mask_true) else np.zeros([0, *target_size, 1], dtype = mask_true.dtype)
+            else:
+                mask_true = cv2.resize(mask_true, target_size[::-1], interpolation = method)
+                mask_true = np.expand_dims(mask_true, axis = -1) if np.ndim(mask_true) == 2 else mask_true
+    result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
+    result = result[0] if len(result) == 1 else tuple(result)
+    return result
+    
+def compose(x_true, y_true = None, bbox_true = None, mask_true = None,
+            transform = [],
+            keys = ["x_true", "y_true", "bbox_true", "mask_true"],
+            **kwargs):
+    transform = [transform] if callable(transform) else transform
+    if 0 < len(transform):
+        func = dict_function(transform, keys = keys)
+        result = func(x_true, y_true, bbox_true, mask_true, **kwargs)
+    else:
+        result = [v for v in [x_true, y_true, bbox_true, mask_true] if v is not None]
+        result = result[0] if len(result) == 1 else tuple(result)
     return result
 
 def random_apply(x_true, y_true = None, bbox_true = None, mask_true = None, function = None, p = 0.5, reduce = False, **kwargs):

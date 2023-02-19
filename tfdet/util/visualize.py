@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-def draw_bbox(x_true, bbox_true, y_true = None, mask_true = None, label = None, threshold = 0.5, mix_ratio = 0.5, method = cv2.INTER_LINEAR, probability = True, prefix = "", postfix = "", color = None, size_ratio = 1.):
+def draw_bbox(x_true, bbox_true, y_true = None, mask_true = None, label = None, crop_mask = True, threshold = 0.5, mix_ratio = 0.5, method = cv2.INTER_LINEAR, probability = True, prefix = "", postfix = "", color = None, size_ratio = 1.):
     batch = True
     if not isinstance(x_true, (tuple, list)) and np.ndim(x_true) not in [1, 4]:
         batch = False
@@ -17,12 +17,14 @@ def draw_bbox(x_true, bbox_true, y_true = None, mask_true = None, label = None, 
         image = np.array(x_true[batch_index])
         bbox = bbox_true[batch_index]
         bbox = np.array(bbox) if not isinstance(bbox, np.ndarray) else bbox
-        h, w = np.shape(image)[:2]
+        h, w, ch = np.shape(image)[:3]
         size = int(max(h, w) / 500 * size_ratio)
         font_size = max(h, w) / 1250 * size_ratio
         #normalize_flag = np.max(image) <= 1
         normalize_flag = image.dtype != np.uint8
         y_color = (1, 1, 1) if normalize_flag else (255, 255, 255)
+        if ch == 1:
+            y_color = y_color[0]
         
         #valid_indices = np.where(0 < np.max(bbox, axis = -1))[0]
         valid_indices = np.where(np.any(0 < bbox, axis = -1))[0]
@@ -42,7 +44,7 @@ def draw_bbox(x_true, bbox_true, y_true = None, mask_true = None, label = None, 
         for index, rect in enumerate(bbox):
             bbox_color = color
             if color is None or (y_true is not None and not np.issubdtype(y_index.dtype, np.number) and not (label and np.ndim(bbox_color) == 2)):
-                bbox_color = np.random.random(size = 3) if normalize_flag else np.random.randint(0, 256, size = 3).astype(float)
+                bbox_color = np.random.random(size = ch) if normalize_flag else np.random.randint(0, 256, size = ch).astype(float)
             if np.max(rect) < 2:
                 rect = np.round(np.multiply(rect, [w, h, w, h]))
             rect = tuple(rect.astype(int))
@@ -70,12 +72,13 @@ def draw_bbox(x_true, bbox_true, y_true = None, mask_true = None, label = None, 
             if mask_true is not None:
                 m = mask[index]
                 mh, mw = np.shape(m)[:2]
-                if mh == h and mw == w:
-                    m = m[rect[1]:rect[3], rect[0]:rect[2]]
-                m = cv2.resize(m, (min(rect[2], w) - rect[0], min(rect[3], h) - rect[1]), interpolation = method)
-                m = np.where(np.greater(m, threshold), 1., 0.)
-                m = np.tile(np.expand_dims(m, axis = -1), 3) * bbox_color
+                if crop_mask:
+                    mask_rect = np.multiply(np.divide(rect, [w, h, w, h]), [mw, mh, mw, mh]).astype(np.int32)
+                    m = m[mask_rect[1]:mask_rect[3], mask_rect[0]:mask_rect[2]]
                 crop = image[rect[1]:rect[3], rect[0]:rect[2]]
+                m = cv2.resize(m, np.shape(crop)[:2][::-1], interpolation = method)
+                m = np.where(np.greater(m, threshold), 1., 0.)
+                m = np.tile(np.expand_dims(m, axis = -1), [1, 1, ch]) * bbox_color
                 image[rect[1]:rect[3], rect[0]:rect[2]] = np.where(np.greater(m, 0), crop * (1 - mix_ratio) + m * mix_ratio, crop)
         result.append(image)
     if not batch:# and len(x_true) == 1:
