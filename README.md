@@ -92,7 +92,6 @@ TFDetection(tfdet) is a detection toolbox based on Tensorflow2 and Keras.
           <li>Wide ResNet(2016)</li>
           <li>DenseNet(2016)</li>
           <li>ResNeXt(2016)</li>
-          <li>MobileNet(2017)</li>
           <li>MobileNetV2(2018)</li>
           <li>DarkNet(2018)</li>
           <li>MobileNetV3(2019)</li>
@@ -102,7 +101,8 @@ TFDetection(tfdet) is a detection toolbox based on Tensorflow2 and Keras.
           <li>CSP DarkNet(2020)</li>
           <li>SwinTransformer(2021)</li>
           <li>EfficientNetV2(2021)</li>
-          <li>SwinTransformerV2(2022)</li>
+          <li>SwinTransformerV2(2021)</li>
+          <li>ConvNeXt(2022)</li>
         </ul>
       </td>
       <td>
@@ -116,10 +116,12 @@ TFDetection(tfdet) is a detection toolbox based on Tensorflow2 and Keras.
         <ul>
           <li><a href = "https://github.com/Burf/TFDetection/blob/main/tfdet/core/assign/__init__.py"><b>Assign</b></a></li>
           <ul>
-            <li>Max Iou(2015)</li>
-            <li>Center Region(2019)</li>
-            <li>Point(2019)</li>
-            <li>Adaptive Training Sample Selection(2020)</li>
+            <li>Max Iou</li>
+            <li>Center Region</li>
+            <li>Point</li>
+            <li>ATSS</li>
+            <li>Sim OTA</li>
+            <li>Align OTA</li>
           </ul>
         </ul>
         <ul>
@@ -130,12 +132,24 @@ TFDetection(tfdet) is a detection toolbox based on Tensorflow2 and Keras.
             <li>CutMix</li>
             <li>CutOut</li>
             <li>MixUp</li>
+            <li>CopyPaste</li>
+            <li>MMDetction</li>
+            <li>Yolo</li>
           </ul>
         </ul>
         <ul>
           <li><a href = "https://github.com/Burf/TFDetection/blob/main/tfdet/core/metric/__init__.py"><b>Metric</b></a></li>
           <ul>
             <li>Mean Average Precision</li>
+            <li>Mean IoU</li>
+          </ul>
+        </ul>
+        <ul>
+          <li><a href = "https://github.com/Burf/TFDetection/blob/main/tfdet/export/__init__.py"><b>Export</b></a></li>
+          <ul>
+            <li>TFLite</li>
+            <li>ONNX</li>
+            <li>TensorRT</li>
           </ul>
         </ul>
       </td>
@@ -146,10 +160,9 @@ TFDetection(tfdet) is a detection toolbox based on Tensorflow2 and Keras.
 
 ## Requirements
 
-- Python 3.8▲
+- python 3.8▲
 - tensorflow 2.4▲ (If you installed tensorflow latest, more backbone is available.)
 - opencv-python
-- albumentations
 
 
 ## Contributor
