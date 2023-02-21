@@ -1,3 +1,5 @@
+import functools
+
 import tensorflow as tf
 
 def regularize(model, weight_decay = 1e-4, loss = tf.keras.regularizers.l2):
@@ -16,7 +18,14 @@ def weight_reduce_loss(loss, weight = None, avg_factor = None):
     if weight is not None:
         loss = loss * weight
     if avg_factor is not None:
-        loss = tf.reduce_sum(loss) /( avg_factor + tf.keras.backend.epsilon())
+        loss = tf.reduce_sum(loss) / (avg_factor + tf.keras.backend.epsilon())
     else:
         loss = tf.reduce_mean(loss)
     return loss
+
+def resize_loss(mask_true = None, mask_pred = None, loss = None, method = "bilinear", **kwargs):
+    if callable(mask_true):
+        return functools.partial(resize_loss, loss = mask_true, method = method, **kwargs)
+    
+    mask_pred = tf.image.resize(mask_pred, tf.shape(mask_true)[-3:-1], method = method)
+    return loss(mask_true, mask_pred, **kwargs)

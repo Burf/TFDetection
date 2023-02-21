@@ -9,3 +9,5 @@ effdet = retina
 from . import spade
 from . import padim
 from . import patch_core
+
+from . import segmentation

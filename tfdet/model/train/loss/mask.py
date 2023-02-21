@@ -2,7 +2,7 @@ import functools
 
 import tensorflow as tf
 
-from tfdet.core.loss import categorical_cross_entropy
+from tfdet.core.loss import categorical_cross_entropy, resize_loss
 
 class FusedSemanticLoss(tf.keras.layers.Layer):
     def __init__(self, loss = categorical_cross_entropy,
@@ -43,6 +43,7 @@ class FusedSemanticLoss(tf.keras.layers.Layer):
         semantic_true = tf.one_hot(semantic_true, semantic_shape[-1])
         
         _loss = loss(semantic_true, semantic_pred, weight = weight)
+        _loss = tf.where(tf.logical_or(tf.math.is_nan(_loss), tf.math.is_inf(_loss)), tf.cast(missing_value, _loss.dtype), _loss)
         return _loss
         
     def call(self, inputs, outputs, bbox = True, mask = True):
@@ -53,3 +54,38 @@ class FusedSemanticLoss(tf.keras.layers.Layer):
      
         semantic_loss = self.loss_func([y_true, mask_true, semantic_pred])
         return semantic_loss
+    
+class ResizeMaskLoss(tf.keras.layers.Layer):
+    def __init__(self, loss = categorical_cross_entropy,
+                 weight = None, method = "bilinear", missing_value = 0., dtype = tf.float32, **kwargs):
+        kwargs["dtype"] = dtype
+        super(ResizeMaskLoss, self).__init__(**kwargs)
+        self._loss = loss
+        self.weight = weight
+        self.method = method
+        self.missing_value = missing_value
+        
+        _loss = functools.partial(self.loss, loss = self._loss, weight = self.weight, method = self.method, missing_value = self.missing_value)
+        self.loss_func = tf.keras.layers.Lambda(lambda args: _loss(*args), dtype = self.dtype, name = "loss")
+    
+    @staticmethod
+    @tf.function
+    def loss(mask_true, mask_pred, loss = categorical_cross_entropy, weight = None, method = "bilinear", missing_value = 0.):
+        """
+        Args:
+            mask_true = #(N, h, w, 1 or n_class)
+            mask_pred = #(N, h, w, n_class)
+
+        Returns:
+            semantic_loss = #(1,)
+        """
+        _loss = resize_loss(mask_true, mask_pred, loss = loss, method = method, weight = weight, reduce = None)
+        _loss = tf.reduce_mean(_loss)
+        _loss = tf.where(tf.logical_or(tf.math.is_nan(_loss), tf.math.is_inf(_loss)), tf.cast(missing_value, _loss.dtype), _loss)
+        return _loss
+        
+    def call(self, inputs, outputs):
+        mask_true = inputs[-1] if isinstance(inputs, (tuple, list)) else inputs
+        mask_pred = outputs[-1] if isinstance(outputs, (tuple, list)) else outputs
+        loss = self.loss_func([mask_true, mask_pred])
+        return loss

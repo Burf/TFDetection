@@ -85,18 +85,16 @@ class FeatureUpsample(tf.keras.layers.Layer):
         super(FeatureUpsample, self).__init__(**kwargs)
         self.concat = concat
         self.method = method
-
-    def build(self, input_shape):
-        if not isinstance(input_shape, (tuple, list)):
-            input_shape = [input_shape]
-        self.resize = tf.keras.layers.Lambda(lambda args, target_size, method: tf.image.resize(args, target_size, method = method), arguments = {"target_size":input_shape[0][1:3], "method":self.method})
-        self.post = tf.keras.layers.Concatenate(axis = -1)
+        self.upsample = tf.keras.layers.Lambda(lambda args: tf.image.resize(args[0], args[1], method = method), name = "upsample")
+        if self.concat:
+            self.post = tf.keras.layers.Concatenate(axis = -1)
         
     def call(self, inputs):
         if not isinstance(inputs, (tuple, list)):
             inputs = [inputs]
         
-        out = [inputs[0]] + [self.resize(x) for x in inputs[1:]]
+        target_size = tf.shape(inputs[0])[1:3]
+        out = [inputs[0]] + [self.upsample([x, target_size]) for x in inputs[1:]]
         
         if self.concat and 1 < len(out):
             out = self.post(out)

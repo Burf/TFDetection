@@ -11,7 +11,7 @@ from .padim import padim
 from .patch_core import patch_core
 
 from .deeplab import deeplab_v3, deeplab_v3_plus
-from .fcn import fcn
+from .fcn import fcn, aux_fcn
 from .pspnet import pspnet
 from .unet import unet, unet_2plus
 from .upernet import upernet
