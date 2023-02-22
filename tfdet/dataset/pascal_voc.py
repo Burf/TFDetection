@@ -72,7 +72,7 @@ def load_dataset(path, mask = False, truncated = True, difficult = False, instan
         
     3. dataset to pipe
     > pipe = tfdet.dataset.PipeLoader(dataset)
-    > pipe = tfdet.dataset.pipeline.args2dict(pipe) #optional for object detection
+    > pipe = tfdet.dataset.pipeline.args2dict(pipe) #for train_model
     > pipe = tfdet.dataset.pipeline.collect(pipe) #filtered item by key
     > pipe = tfdet.dataset.pipeline.cast(pipe)
     > pipe = tfdet.dataset.pipeline.key_map(pipe, batch_size = 16, shuffle = False, prefetch = True)
