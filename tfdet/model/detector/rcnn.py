@@ -31,7 +31,7 @@ def rcnn(feature, neck = neck, rpn_head = rpn_head, bbox_head = bbox_head, mask_
          rpn_mean = [0., 0., 0., 0.], rpn_std = [1., 1., 1., 1.], rpn_clip_ratio = 16 / 1000, 
          cls_mean = [0., 0., 0., 0.], cls_std = [0.1, 0.1, 0.2, 0.2], cls_clip_ratio = 16 / 1000,
          batch_size = 1,
-         train = False, assign = roi_assign, sampler = [roi_sampler, roi_sampler, roi_sampler], mask_size = 28, method = "bilinear", add_gt_in_sampler = True):
+         train = False, assign = roi_assign, sampler = [roi_sampler, roi_sampler, roi_sampler], mask_size = 28, train_proposal_count = 2000, method = "bilinear", add_gt_in_sampler = True):
     """
     train = True (for training to apply prior to roi sampling)> return rpn_y_pred, rpn_bbox_pred, semantic_pred(optional), train_tag(train_tag is a argument for train_model)
     """
@@ -50,7 +50,7 @@ def rcnn(feature, neck = neck, rpn_head = rpn_head, bbox_head = bbox_head, mask_
         feature = neck(name = "neck")(feature)
     
     rpn_y_pred, rpn_bbox_pred, anchors = rpn_head(feature)
-    proposals = Rpn2Proposal(proposal_count, iou_threshold = iou_threshold, soft_nms = soft_nms, valid_inside_anchor = valid_inside_anchor, performance_count = performance_count,
+    proposals = Rpn2Proposal(max(proposal_count, train_proposal_count) if train else proposal_count, iou_threshold = iou_threshold, soft_nms = soft_nms, valid_inside_anchor = valid_inside_anchor, performance_count = performance_count,
                              mean = rpn_mean, std = rpn_std, clip_ratio = rpn_clip_ratio,
                              batch_size = batch_size, dtype = tf.float32, name = "proposals")([rpn_y_pred, rpn_bbox_pred, anchors])
     
@@ -77,7 +77,7 @@ def rcnn(feature, neck = neck, rpn_head = rpn_head, bbox_head = bbox_head, mask_
             _proposals = proposals[-1]
             if train:
                 target_func = RoiTarget(assign = assign[stage], sampler = sampler[stage], mask_size = mask_size, method = method, add_gt_in_sampler = add_gt_in_sampler, name = "roi_target_{0}".format(stage + 1))
-                out = target_func([arg for arg in [y_true, bbox_true, mask_true] if arg is not None], _proposals)
+                out = target_func([arg for arg in [y_true, bbox_true, mask_true] if arg is not None], [_proposals[:, :train_proposal_count], _proposals[:, :proposal_count]])
                 target_inputs = out[:3] #state, y_true, bbox_true, mask_true(optional) for target
                 proposals[-1] = _proposals = out[-1]
                 if mask_head is not None:
@@ -107,7 +107,7 @@ def rcnn(feature, neck = neck, rpn_head = rpn_head, bbox_head = bbox_head, mask_
             _proposals = proposals[-1]
             if train:
                 target_func = RoiTarget(assign = assign[stage], sampler = sampler[stage], add_gt_in_sampler = add_gt_in_sampler, name = "roi_bbox_target_{0}".format(stage + 1))
-                out = target_func([y_true, bbox_true], _proposals)
+                out = target_func([y_true, bbox_true], [_proposals[:, :train_proposal_count], _proposals[:, :proposal_count]])
                 target_inputs = out[:3] #state, y_true, bbox_true for target
                 proposals[-1] = _proposals = out[-1]
 
@@ -125,7 +125,7 @@ def rcnn(feature, neck = neck, rpn_head = rpn_head, bbox_head = bbox_head, mask_
             
             if train:
                 target_func = RoiTarget(assign = assign[stage], sampler = sampler[stage], mask_size = mask_size, method = method, add_gt_in_sampler = add_gt_in_sampler, name = "roi_mask_target_{0}".format(stage + 1))
-                out = target_func([y_true, bbox_true, mask_true], _proposals)
+                out = target_func([y_true, bbox_true, mask_true], [_proposals[:, :train_proposal_count], _proposals[:, :proposal_count]])
                 target_inputs = out[:4] #state, y_true, bbox_true, mask_true for target
                 _proposals = out[-1]
 
@@ -149,8 +149,8 @@ def faster_rcnn(feature, n_class = 21, image_shape = [1024, 1024],
                 proposal_count = 1000, iou_threshold = 0.7, score_threshold = float('-inf'), soft_nms = False, valid_inside_anchor = False, performance_count = 5000,
                 pool_size = 7, method = "bilinear",
                 mean = [0., 0., 0., 0.], std = [1., 1., 1., 1.], clip_ratio = 16 / 1000, 
-                batch_size = 1, add_gt_in_sampler = True,
-                train = False, assign = roi_assign[0], sampler = roi_sampler,
+                batch_size = 1,
+                train = False, assign = roi_assign[0], sampler = roi_sampler, train_proposal_count = 2000, add_gt_in_sampler = True,
                 neck = neck,
                 rpn_convolution = rpn_conv, rpn_normalize = None, rpn_activation = tf.keras.activations.relu,
                 cls_convolution = roi_conv, cls_normalize = None, cls_activation = tf.keras.activations.relu):
@@ -168,7 +168,7 @@ def faster_rcnn(feature, n_class = 21, image_shape = [1024, 1024],
                 cascade = False, interleaved = False, mask_info_flow = False,
                 proposal_count = proposal_count, iou_threshold = iou_threshold, score_threshold = score_threshold, soft_nms = soft_nms, valid_inside_anchor = valid_inside_anchor, performance_count = performance_count,
                 rpn_mean = mean, rpn_std = std, rpn_clip_ratio = clip_ratio, batch_size = batch_size,
-                train = train, assign = assign, sampler = sampler, add_gt_in_sampler = add_gt_in_sampler)
+                train = train, assign = assign, sampler = sampler, train_proposal_count = train_proposal_count, add_gt_in_sampler = add_gt_in_sampler)
 
 def mask_rcnn(feature, n_class = 21, image_shape = [1024, 1024], interleaved = False,
               scale = [32, 64, 128, 256, 512], ratio = [0.5, 1, 2], octave = 1,
@@ -177,9 +177,9 @@ def mask_rcnn(feature, n_class = 21, image_shape = [1024, 1024], interleaved = F
               proposal_count = 1000, iou_threshold = 0.7, score_threshold = float('-inf'), soft_nms = False, valid_inside_anchor = False, performance_count = 5000,
               pool_size = 7, mask_pool_size = 14, method = "bilinear",
               rpn_mean = [0., 0., 0., 0.], rpn_std = [1., 1., 1., 1.], rpn_clip_ratio = 16 / 1000, 
-              cls_mean = [0., 0., 0., 0.], cls_std = [0.1, 0.1, 0.2, 0.2], cls_clip_ratio = 16 / 1000, add_gt_in_sampler = True,
+              cls_mean = [0., 0., 0., 0.], cls_std = [0.1, 0.1, 0.2, 0.2], cls_clip_ratio = 16 / 1000,
               batch_size = 1,
-              train = False, assign = roi_assign[0], sampler = roi_sampler,
+              train = False, assign = roi_assign[0], sampler = roi_sampler, train_proposal_count = 2000, add_gt_in_sampler = True,
               neck = neck,
               rpn_convolution = rpn_conv, rpn_normalize = None, rpn_activation = tf.keras.activations.relu,
               cls_convolution = roi_conv, cls_normalize = None, cls_activation = tf.keras.activations.relu,
@@ -203,7 +203,7 @@ def mask_rcnn(feature, n_class = 21, image_shape = [1024, 1024], interleaved = F
                 rpn_mean = rpn_mean, rpn_std = rpn_std, rpn_clip_ratio = rpn_clip_ratio, 
                 cls_mean = cls_mean, cls_std = cls_std, cls_clip_ratio = cls_clip_ratio, 
                 batch_size = batch_size,
-                train = train, assign = assign, sampler = sampler, mask_size = mask_pool_size * 2, method = method, add_gt_in_sampler = add_gt_in_sampler)
+                train = train, assign = assign, sampler = sampler, mask_size = mask_pool_size * 2, train_proposal_count = train_proposal_count, method = method, add_gt_in_sampler = add_gt_in_sampler)
 
 def cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], mask = False, interleaved = False, mask_info_flow = False,
                  scale = [32, 64, 128, 256, 512], ratio = [0.5, 1, 2], octave = 1,
@@ -214,7 +214,7 @@ def cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], mask = False
                  rpn_mean = [0., 0., 0., 0.], rpn_std = [1., 1., 1., 1.], rpn_clip_ratio = 16 / 1000, 
                  cls_mean = [0., 0., 0., 0.], cls_std = [0.1, 0.1, 0.2, 0.2], cls_clip_ratio = 16 / 1000,
                  batch_size = 1,
-                 train = False, assign = roi_assign, sampler = [roi_sampler, roi_sampler, roi_sampler], add_gt_in_sampler = True,
+                 train = False, assign = roi_assign, sampler = [roi_sampler, roi_sampler, roi_sampler], train_proposal_count = 2000, add_gt_in_sampler = True,
                  neck = neck,
                  rpn_convolution = rpn_conv, rpn_normalize = None, rpn_activation = tf.keras.activations.relu,
                  cls_convolution = roi_conv, cls_normalize = None, cls_activation = tf.keras.activations.relu,
@@ -240,7 +240,7 @@ def cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], mask = False
                 rpn_mean = rpn_mean, rpn_std = rpn_std, rpn_clip_ratio = rpn_clip_ratio, 
                 cls_mean = cls_mean, cls_std = cls_std, cls_clip_ratio = cls_clip_ratio, 
                 batch_size = batch_size,
-                train = train, assign = assign, sampler = sampler, mask_size = mask_pool_size * 2, method = method, add_gt_in_sampler = add_gt_in_sampler)
+                train = train, assign = assign, sampler = sampler, mask_size = mask_pool_size * 2, train_proposal_count = train_proposal_count, method = method, add_gt_in_sampler = add_gt_in_sampler)
     
 def hybrid_task_cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], mask = True, interleaved = True, mask_info_flow = True, semantic_feature = True,
                              scale = [32, 64, 128, 256, 512], ratio = [0.5, 1, 2], octave = 1,
@@ -251,7 +251,7 @@ def hybrid_task_cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], 
                              rpn_mean = [0., 0., 0., 0.], rpn_std = [1., 1., 1., 1.], rpn_clip_ratio = 16 / 1000, 
                              cls_mean = [0., 0., 0., 0.], cls_std = [0.1, 0.1, 0.2, 0.2], cls_clip_ratio = 16 / 1000,
                              batch_size = 1,
-                             train = False, assign = roi_assign, sampler = [roi_sampler, roi_sampler, roi_sampler], add_gt_in_sampler = True,
+                             train = False, assign = roi_assign, sampler = [roi_sampler, roi_sampler, roi_sampler], train_proposal_count = 2000, add_gt_in_sampler = True,
                              neck = neck,
                              rpn_convolution = rpn_conv, rpn_normalize = None, rpn_activation = tf.keras.activations.relu,
                              cls_convolution = roi_conv, cls_normalize = None, cls_activation = tf.keras.activations.relu,
@@ -280,4 +280,4 @@ def hybrid_task_cascade_rcnn(feature, n_class = 21, image_shape = [1024, 1024], 
                 rpn_mean = rpn_mean, rpn_std = rpn_std, rpn_clip_ratio = rpn_clip_ratio, 
                 cls_mean = cls_mean, cls_std = cls_std, cls_clip_ratio = cls_clip_ratio, 
                 batch_size = batch_size,
-                train = train, assign = assign, sampler = sampler, mask_size = mask_pool_size * 2, method = method, add_gt_in_sampler = add_gt_in_sampler)
+                train = train, assign = assign, sampler = sampler, mask_size = mask_pool_size * 2, train_proposal_count = train_proposal_count, method = method, add_gt_in_sampler = add_gt_in_sampler)

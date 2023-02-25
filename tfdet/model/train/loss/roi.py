@@ -31,9 +31,11 @@ class RoiTarget(tf.keras.layers.Layer):
         self.batch_size = batch_size
         
         target = functools.partial(self.target, assign = self.assign, sampler = self.sampler, mask_size = self.mask_size, method = self.method, add_gt_in_sampler = self.add_gt_in_sampler)
+        target_eval = functools.partial(self.target, assign = self.assign, sampler = None, mask_size = self.mask_size, method = self.method)
         dtype = (tf.int8, self.dtype, self.dtype, self.dtype)
         mask_dtype = (tf.int8, self.dtype, self.dtype, tf.uint8, self.dtype)
         self.target_func = tf.keras.layers.Lambda(lambda args: map_fn(target, *args, dtype = (mask_dtype if 3 < len(args) else dtype), batch_size = batch_size), dtype = self.dtype, name = "target")
+        self.target_eval_func = tf.keras.layers.Lambda(lambda args: map_fn(target_eval, *args, dtype = (mask_dtype if 3 < len(args) else dtype), batch_size = batch_size), dtype = self.dtype, name = "target_eval")
         
     @staticmethod
     @tf.function
@@ -98,7 +100,7 @@ class RoiTarget(tf.keras.layers.Layer):
         else:
             return state, y_true, bbox_true, _proposals
     
-    def call(self, inputs, outputs):
+    def call(self, inputs, outputs, training = None):
         if not isinstance(outputs, (tuple, list)):
             outputs = [outputs]
         
@@ -108,15 +110,20 @@ class RoiTarget(tf.keras.layers.Layer):
             mask_true = inputs[2]
         
         proposals = outputs[0]
+        if not training and 1 < len(outputs):
+            proposals = outputs[1]
         
         args = [arg for arg in [y_true, bbox_true, proposals, mask_true] if arg is not None]
-        out = self.target_func(args)
+        if training:
+            out = self.target_func(args)
+        else:
+            out = self.target_eval_func(args)
         state, y_true, bbox_true = out[:3]
         if mask_true is not None:
             mask_true, proposals = out[3:]
         else:
             proposals = out[3]
-        
+
         if mask_true is not None:
             return state, y_true, bbox_true, mask_true, proposals
         else:
@@ -141,7 +148,9 @@ class RoiBboxLoss(tf.keras.layers.Layer):
         self.missing_value = missing_value
         
         loss = functools.partial(self.loss, class_loss = self.class_loss, bbox_loss = self.bbox_loss, sampling = self.sampling, weight = self.weight, background = self.background, decode_bbox = self.decode_bbox, mean = self.mean, std = self.std, clip_ratio = self.clip_ratio, missing_value = self.missing_value)
+        loss_eval = functools.partial(self.loss, class_loss = self.class_loss, bbox_loss = self.bbox_loss, sampling = False, weight = self.weight, background = self.background, decode_bbox = self.decode_bbox, mean = self.mean, std = self.std, clip_ratio = self.clip_ratio, missing_value = self.missing_value)
         self.loss_func = tf.keras.layers.Lambda(lambda args: loss(*args), dtype = self.dtype, name = "loss")
+        self.loss_eval_func = tf.keras.layers.Lambda(lambda args: loss_eval(*args), dtype = self.dtype, name = "loss_eval")
     
     @staticmethod
     @tf.function
@@ -191,11 +200,14 @@ class RoiBboxLoss(tf.keras.layers.Layer):
         _bbox_loss = tf.where(tf.logical_or(tf.math.is_nan(_bbox_loss), tf.math.is_inf(_bbox_loss)), tf.cast(missing_value, dtype), _bbox_loss)
         return _class_loss, _bbox_loss
     
-    def call(self, inputs, outputs):
+    def call(self, inputs, outputs, training = None):
         state, y_true, bbox_true = inputs[:3]
         y_pred, bbox_pred, proposals = outputs[:3]
         
-        class_loss, bbox_loss = self.loss_func([state, y_true, bbox_true, y_pred, bbox_pred, proposals])
+        if training:
+            class_loss, bbox_loss = self.loss_func([state, y_true, bbox_true, y_pred, bbox_pred, proposals])
+        else:
+            class_loss, bbox_loss = self.loss_eval_func([state, y_true, bbox_true, y_pred, bbox_pred, proposals])
         return class_loss, bbox_loss
 
 class RoiMaskLoss(tf.keras.layers.Layer):

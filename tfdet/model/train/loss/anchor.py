@@ -33,8 +33,12 @@ class AnchorLoss(tf.keras.layers.Layer):
         
         target = functools.partial(self.target, assign = self.assign, sampler = self.sampler, decode_bbox = self.decode_bbox, mean = self.mean, std = self.std)
         loss = functools.partial(self.loss, class_loss = self.class_loss, bbox_loss = self.bbox_loss, sampling = self.sampler is not None, weight = self.weight, background = self.background, missing_value = self.missing_value)
+        target_eval = functools.partial(self.target, assign = self.assign, sampler = None, decode_bbox = self.decode_bbox, mean = self.mean, std = self.std)
+        loss_eval = functools.partial(self.loss, class_loss = self.class_loss, bbox_loss = self.bbox_loss, sampling = False, weight = self.weight, background = self.background, missing_value = self.missing_value)
         self.target_func = tf.keras.layers.Lambda(lambda args: map_fn(target, *args, dtype = (tf.int8, self.dtype, self.dtype), batch_size = self.batch_size), dtype = self.dtype, name = "target")
         self.loss_func = tf.keras.layers.Lambda(lambda args: loss(*args), dtype = self.dtype, name = "loss")
+        self.target_eval_func = tf.keras.layers.Lambda(lambda args: map_fn(target_eval, *args, dtype = (tf.int8, self.dtype, self.dtype), batch_size = self.batch_size), dtype = self.dtype, name = "target_eval")
+        self.loss_eval_func = tf.keras.layers.Lambda(lambda args: loss_eval(*args), dtype = self.dtype, name = "loss_eval")
         
     @staticmethod
     @tf.function
@@ -135,7 +139,7 @@ class AnchorLoss(tf.keras.layers.Layer):
             bbox_loss_list = bbox_loss_list[0]
         return class_loss_list, bbox_loss_list
     
-    def call(self, inputs, outputs):
+    def call(self, inputs, outputs, training = None):
         y_true, bbox_true = inputs
         y_pred, bbox_pred, anchors = outputs
         if not isinstance(y_pred, (tuple, list)):
@@ -163,7 +167,10 @@ class AnchorLoss(tf.keras.layers.Layer):
             
         concat_y_pred = tf.concat(y_pred_list, axis = -2)
         concat_anchors = tf.tile(tf.expand_dims(tf.concat(anchors_list, axis = 0), axis = 0), [tf.shape(bbox_true)[0], 1, 1])
-        state, y_true, bbox_true = self.target_func([y_true, bbox_true, concat_y_pred, concat_anchors])
+        if training:
+            state, y_true, bbox_true = self.target_func([y_true, bbox_true, concat_y_pred, concat_anchors])
+        else:
+            state, y_true, bbox_true = self.target_eval_func([y_true, bbox_true, concat_y_pred, concat_anchors])
         if self.decode_bbox:
             bbox_pred_list = [delta2bbox(anchors_list[i], bbox_pred_list[i], mean = self.mean, std = self.std, clip_ratio = self.clip_ratio) for i in range(len(anchors_list))]
     
@@ -172,5 +179,8 @@ class AnchorLoss(tf.keras.layers.Layer):
         y_true = image_to_level(y_true, n_level)
         bbox_true = image_to_level(bbox_true, n_level)
         
-        class_loss, bbox_loss = self.loss_func([state, y_true, bbox_true, y_pred_list, bbox_pred_list])
+        if training:
+            class_loss, bbox_loss = self.loss_func([state, y_true, bbox_true, y_pred_list, bbox_pred_list])
+        else:
+            class_loss, bbox_loss = self.loss_eval_func([state, y_true, bbox_true, y_pred_list, bbox_pred_list])
         return class_loss, bbox_loss

@@ -32,10 +32,14 @@ class AnchorFreeLoss(tf.keras.layers.Layer):
         
         target = functools.partial(self.target, assign = self.assign, sampler = self.sampler, decode_bbox = self.decode_bbox)
         loss = functools.partial(self.loss, class_loss = self.class_loss, bbox_loss = self.bbox_loss, conf_loss = self.conf_loss, sampling = self.sampler is not None, weight = self.weight, background = self.background, missing_value = self.missing_value)
+        target_eval = functools.partial(self.target, assign = self.assign, sampler = None, decode_bbox = self.decode_bbox)
+        loss_eval = functools.partial(self.loss, class_loss = self.class_loss, bbox_loss = self.bbox_loss, conf_loss = self.conf_loss, sampling = False, weight = self.weight, background = self.background, missing_value = self.missing_value)
         dtype = (tf.int8, self.dtype, self.dtype)
         conf_dtype = (tf.int8, self.dtype, self.dtype, self.dtype)
         self.target_func = tf.keras.layers.Lambda(lambda args: map_fn(target, *args, dtype = (conf_dtype if 4 < len(args) and tf.keras.backend.int_shape(args[-1])[-1] == 1 else dtype), batch_size = self.batch_size), dtype = self.dtype, name = "target")
         self.loss_func = tf.keras.layers.Lambda(lambda args: loss(*args), dtype = self.dtype, name = "loss")
+        self.target_eval_func = tf.keras.layers.Lambda(lambda args: map_fn(target_eval, *args, dtype = (conf_dtype if 4 < len(args) and tf.keras.backend.int_shape(args[-1])[-1] == 1 else dtype), batch_size = self.batch_size), dtype = self.dtype, name = "target_eval")
+        self.loss_eval_func = tf.keras.layers.Lambda(lambda args: loss_eval(*args), dtype = self.dtype, name = "loss_eval")
         
     @staticmethod
     @tf.function
@@ -185,7 +189,7 @@ class AnchorFreeLoss(tf.keras.layers.Layer):
         else:
             return class_loss_list, bbox_loss_list
     
-    def call(self, inputs, outputs):
+    def call(self, inputs, outputs, training = None):
         y_true, bbox_true = inputs
         y_pred, bbox_pred, points = outputs[:3]
         regress_range = conf = None
@@ -212,7 +216,10 @@ class AnchorFreeLoss(tf.keras.layers.Layer):
         concat_regress_range = tf.tile(tf.expand_dims(tf.concat(regress_range, axis = 0), axis = 0), [tf.shape(bbox_true)[0], 1, 1]) if regress_range is not None else None
         concat_conf_pred = tf.concat(conf_pred, axis = -2) if conf_pred is not None else None
         args = [arg for arg in [y_true, bbox_true, concat_y_pred, concat_points, concat_regress_range, concat_conf_pred] if arg is not None]
-        out = self.target_func(args)
+        if training:
+            out = self.target_func(args)
+        else:
+            out = self.target_eval_func(args)
         state, y_true, bbox_true = out[:3]
         conf_true = out[3] if 3 < len(out) else None
         _bbox_pred = bbox_pred
@@ -227,5 +234,8 @@ class AnchorFreeLoss(tf.keras.layers.Layer):
             conf_true = image_to_level(conf_true, n_level)
         
         args = [arg for arg in [state, y_true, bbox_true, y_pred, _bbox_pred, conf_true, conf_pred] if arg is not None]
-        out = self.loss_func(args)
+        if training:
+            out = self.loss_func(args)
+        else:
+            out = self.loss_eval_func(args)
         return out #class_loss, bbox_loss or class_loss, bbox_loss, conf_loss
