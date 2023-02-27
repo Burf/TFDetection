@@ -68,7 +68,13 @@ def core_sampling(*args, n_sample = 3, n_feature = "auto", eps = 0.9, index = Fa
     indices = []
     min_dist = None
     target = np.expand_dims(trans_data[0], axis = 0)
-    for j in range(n_sample): #k center greedy
+    iter_range = range(n_sample)
+    try:
+        from tqdm import tqdm
+        iter_range = tqdm(iter_range, total = n_sample, desc = "greedy sampling top-k center")
+    except:
+        pass
+    for j in iter_range: #k center greedy
         dist = np.linalg.norm(trans_data - target, axis = -1, keepdims = True)
         min_dist = np.minimum(dist, min_dist) if min_dist is not None else dist
         min_index = np.argmax(min_dist)
@@ -77,7 +83,7 @@ def core_sampling(*args, n_sample = 3, n_feature = "auto", eps = 0.9, index = Fa
         indices.append(min_index)
     
     if not index:
-        args = [np.array(arg)[indices] for arg in args]
+        args = [(np.array(arg) if not isinstance(arg, np.ndarray) else arg)[indices] for arg in args]
         if len(args) == 1:
             args = args[0]
         return args
