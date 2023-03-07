@@ -5,7 +5,7 @@ import numpy as np
 from tfdet.core.ops import feature_extract, euclidean_matrix
 
 class FeatureExtractor(tf.keras.layers.Layer):
-    def __init__(self, sampling_index = None, pool_size = 3, memory_reduce = True, **kwargs):
+    def __init__(self, sampling_index = None, pool_size = 3, memory_reduce = False, **kwargs):
         super(FeatureExtractor, self).__init__(**kwargs) 
         self.sampling_index = sampling_index
         self.pool_size = pool_size
@@ -64,7 +64,10 @@ class Head(tf.keras.layers.Layer):
         config["method"] = self.method
         return config
         
-def patch_core_head(feature, feature_vector, image_shape = [224, 224], k = 9, sampling_index = None, pool_size = 3, sigma = 4, method = "bilinear", memory_reduce = True):
+def patch_core_head(feature, feature_vector = None, image_shape = [224, 224], k = 9, sampling_index = None, pool_size = 3, sigma = 4, method = "bilinear", memory_reduce = False):
     feature = FeatureExtractor(sampling_index = sampling_index, pool_size = pool_size, memory_reduce = memory_reduce, name = "feature_extractor")(feature)
-    score, mask = Head(feature_vector = feature_vector, image_shape = image_shape, k = k, sigma = sigma, method = method, name = "patch_core")(feature)
-    return score, mask
+    if feature_vector is not None:
+        score, mask = Head(feature_vector = feature_vector, image_shape = image_shape, k = k, sigma = sigma, method = method, name = "patch_core")(feature)
+        return score, mask
+    else:
+        return feature

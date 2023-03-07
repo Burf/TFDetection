@@ -5,7 +5,7 @@ import numpy as np
 from tfdet.core.ops import feature_extract, mahalanobis
 
 class FeatureExtractor(tf.keras.layers.Layer):
-    def __init__(self, sampling_index = None, memory_reduce = True, **kwargs):
+    def __init__(self, sampling_index = None, memory_reduce = False, **kwargs):
         super(FeatureExtractor, self).__init__(**kwargs) 
         self.sampling_index = sampling_index
         self.memory_reduce = memory_reduce
@@ -23,7 +23,7 @@ class FeatureExtractor(tf.keras.layers.Layer):
 class Head(tf.keras.layers.Layer):
     def __init__(self, mean, cvar_inv = None, image_shape = [224, 224], sigma = 4, metric = mahalanobis, method = "bilinear", batch_size = 1, **kwargs):
         super(Head, self).__init__(**kwargs) 
-        if isinstance(mean, tuple):
+        if isinstance(mean, (tuple, list)):
             mean, cvar_inv = mean
         self.mean = mean
         self.cvar_inv = cvar_inv
@@ -63,7 +63,10 @@ class Head(tf.keras.layers.Layer):
         config["batch_size"] = self.batch_size
         return config
 
-def padim_head(feature, mean, cvar_inv = None, image_shape = [224, 224], sampling_index = None, sigma = 4, metric = mahalanobis, method = "bilinear", memory_reduce = True, batch_size = 1):
+def padim_head(feature, mean = None, cvar_inv = None, image_shape = [224, 224], sampling_index = None, sigma = 4, metric = mahalanobis, method = "bilinear", memory_reduce = False, batch_size = 1):
     feature = FeatureExtractor(sampling_index = sampling_index, memory_reduce = memory_reduce, name = "feature_extractor")(feature)
-    score, mask = Head(mean = mean, cvar_inv = cvar_inv, image_shape = image_shape, sigma = sigma, metric = metric, method = method, batch_size = batch_size, name = "padim")(feature)
-    return score, mask
+    if mean is not None:
+        score, mask = Head(mean = mean, cvar_inv = cvar_inv, image_shape = image_shape, sigma = sigma, metric = metric, method = method, batch_size = batch_size, name = "padim")(feature)
+        return score, mask
+    else:
+        return feature

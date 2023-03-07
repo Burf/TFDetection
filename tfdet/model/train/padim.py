@@ -3,8 +3,7 @@ import numpy as np
 
 from ..head.padim import FeatureExtractor
 
-def train(feature, sampling_index = None, memory_reduce = True):
-    feature = FeatureExtractor(sampling_index = sampling_index, memory_reduce = memory_reduce, name = "feature_extractor")(feature)
+def train(feature):
     b, h, w, c = tf.keras.backend.int_shape(feature)
     feature = tf.reshape(feature, [-1, h * w, c])
     mean = tf.reduce_mean(feature, axis = 0)

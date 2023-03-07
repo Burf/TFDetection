@@ -61,7 +61,10 @@ class Head(tf.keras.layers.Layer):
         config["method"] = self.method
         return config
 
-def spade_head(feature, feature_vector, image_shape = [224, 224], k = 50, sampling_index = None, sigma = 4, method = "bilinear"):
+def spade_head(feature, feature_vector = None, image_shape = [224, 224], k = 50, sampling_index = None, sigma = 4, method = "bilinear"):
     feature = FeatureExtractor(sampling_index = sampling_index, name = "feature_extractor")(feature)
-    score, mask = Head(feature_vector = feature_vector, image_shape = image_shape, k = k, sigma = sigma, method = method, name = "spade")(feature)
-    return score, mask
+    if feature_vector is not None:
+        score, mask = Head(feature_vector = feature_vector, image_shape = image_shape, k = k, sigma = sigma, method = method, name = "spade")(feature)
+        return score, mask
+    else:
+        return feature

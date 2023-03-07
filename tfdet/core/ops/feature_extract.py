@@ -17,7 +17,7 @@ def feature_concat(x, y):
     out = tf.reshape(out, [b, h1, w1, c1 + c2])
     return out
     
-def feature_extract(feature, sampling_index = None, pool_size = 1, sub_sampling = False, concat = True, memory_reduce = True):
+def feature_extract(feature, sampling_index = None, pool_size = 1, sub_sampling = False, concat = True, memory_reduce = False):
     if not isinstance(feature, list):
         feature = [feature]
     if isinstance(sampling_index, int):
