@@ -25,8 +25,8 @@ class Head(tf.keras.layers.Layer):
         super(Head, self).__init__(**kwargs) 
         if isinstance(mean, (tuple, list)):
             mean, cvar_inv = mean
-        self.mean = mean
-        self.cvar_inv = cvar_inv
+        self.mean = tf.constant(mean, dtype = tf.float32) if not tf.is_tensor(mean) else mean
+        self.cvar_inv = tf.constant(cvar_inv, dtype = tf.float32) if not tf.is_tensor(cvar_inv) else cvar_inv
         self.image_shape = image_shape
         self.sigma = sigma
         self.metric = metric
