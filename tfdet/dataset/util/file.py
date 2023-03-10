@@ -4,6 +4,8 @@ import json
 import pickle
 import yaml
 
+import numpy as np
+
 def list_dir(path, keyword = None, absolute = False):
     if isinstance(keyword, str):
         keyword = [keyword]
@@ -68,7 +70,10 @@ def load_file(path, map = {"\n":""}, mode = "rt"):
     return result
 
 def save_file(data, path, end = "\n", mode = "wt"):
-    data = [data] if not isinstance(data, (tuple, list)) else data
+    if isinstance(data, np.ndarray):
+        data = [data] if np.ndim(data) < 1 else data
+    else:
+        data = [data] if not isinstance(data, (tuple, list)) else data
     with open(path, mode) as file:
         for d in data:
             d = str(d)
@@ -81,8 +86,14 @@ def load_csv(path, delimiter = ",", mode = "rt"):
     return result
 
 def save_csv(data, path, delimiter = ",", newline = "", mode = "wt"):
-    data = [data] if not isinstance(data, (tuple, list)) else data
-    data = [data] if not isinstance(data[0], (tuple, list)) else data
+    if isinstance(data, np.ndarray):
+        data = [data] if np.ndim(data) < 1 else data
+    else:
+        data = [data] if not isinstance(data, (tuple, list)) else data
+    if isinstance(data[0], np.ndarray):
+        data = [data] if np.ndim(data[0]) < 1 else data
+    else:
+        data = [data] if not isinstance(data[0], (tuple, list)) else data
     with open(path, mode, newline = newline) as file:
         writer = csv.writer(file, delimiter = delimiter)
         for row in data:
