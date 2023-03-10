@@ -82,10 +82,10 @@ def load_csv(path, delimiter = ",", mode = "rt"):
         result = [line for line in csv.reader(file, delimiter = delimiter)]
     return result
 
-def save_csv(data, path, delimiter = ",", mode = "wt"):
+def save_csv(data, path, delimiter = ",", newline = "", mode = "wt"):
     data = [data] if np.ndim(data) < 1 else data
     data = [data] if np.ndim(data) < 2 else data
-    with open(path, mode) as file:
+    with open(path, mode, newline = newline) as file:
         writer = csv.writer(file, delimiter = delimiter)
         for row in data:
             writer.writerow(row)
