@@ -163,14 +163,27 @@ def pipeline(dataset, function = None,
         #dataset = dataset.batch(batch_size)
         spec = dataset.element_spec
         if isinstance(spec, dict):
-            if list(spec.values())[0].shape == None:
-                spec = next(iter(dataset))
-            padded_shape = {k:[None] * np.ndim(v) for k, v in spec.items()}
+            padded_shape, sample = {}, None
+            for k, s in spec.items():
+                if s.shape == None:
+                    if sample is None:
+                        sample = next(iter(dataset))
+                    shape = [None] * np.ndim(sample[k])
+                else:
+                    shape = list(tf.keras.backend.int_shape(s))
+                padded_shape[k] = shape
         else:
-            if (np.ndim(spec) == 0 and spec.shape == None) or (np.ndim(spec) == 1 and spec[0].shape == None):
-                spec = next(iter(dataset))
-            padded_shape = [[None] * np.ndim(v) for v in ([spec] if np.ndim(dataset.element_spec) == 0 else spec)]
-            if np.ndim(dataset.element_spec) == 0:
+            padded_shape, sample = [], None
+            for i, s in enumerate(([spec] if np.ndim(spec) == 0 else spec)):
+                if s.shape == None:
+                    if sample is None:
+                        sample = next(iter(dataset))
+                        sample = [sample] if np.ndim(spec) == 0 else sample
+                    shape = [None] * tf.keras.backend.ndim(sample[i])
+                else:
+                    shape = list(tf.keras.backend.int_shape(s))
+                padded_shape.append(shape)
+            if np.ndim(spec) == 0:
                 padded_shape = padded_shape[0]
             elif isinstance(dataset.element_spec, tuple):
                 padded_shape = tuple(padded_shape)
