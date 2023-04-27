@@ -11,5 +11,5 @@ def euclidean(u, v):
 def euclidean_matrix(u, v):
     u_norm = tf.reduce_sum(tf.square(u), axis = -1, keepdims = True)
     v_norm = tf.reduce_sum(tf.square(v), axis = -1, keepdims = True)
-    dist = tf.sqrt(tf.add(tf.transpose(v_norm) - 2 * tf.matmul(u, v, transpose_b = True), u_norm))
+    dist = tf.sqrt(tf.maximum(tf.add(tf.transpose(v_norm) - 2 * tf.matmul(u, v, transpose_b = True), u_norm), 0))
     return dist
